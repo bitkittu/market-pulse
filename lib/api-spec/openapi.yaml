@@ -1,15 +1,18 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Stock Market Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: stocks
+    description: Stock market data
+  - name: ai
+    description: AI market analysis
 paths:
   /healthz:
     get:
@@ -24,6 +27,196 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /stocks/quotes:
+    get:
+      operationId: getStockQuotes
+      tags: [stocks]
+      summary: Get stock quotes
+      description: Returns real-time stock quotes for multiple symbols
+      parameters:
+        - name: symbols
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated list of stock symbols (defaults to popular stocks)
+      responses:
+        "200":
+          description: Stock quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockQuote"
+
+  /stocks/{symbol}/history:
+    get:
+      operationId: getStockHistory
+      tags: [stocks]
+      summary: Get stock price history
+      description: Returns historical price data for a stock
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [1D, 1W, 1M, 3M, 6M, 1Y]
+            default: 1M
+      responses:
+        "200":
+          description: Price history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockHistory"
+
+  /stocks/indices:
+    get:
+      operationId: getMarketIndices
+      tags: [stocks]
+      summary: Get market indices
+      description: Returns major market indices data
+      responses:
+        "200":
+          description: Market indices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketIndex"
+
+  /stocks/movers:
+    get:
+      operationId: getTopMovers
+      tags: [stocks]
+      summary: Get top movers
+      description: Returns top gaining and losing stocks
+      responses:
+        "200":
+          description: Top movers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopMovers"
+
+  /stocks/sectors:
+    get:
+      operationId: getSectorPerformance
+      tags: [stocks]
+      summary: Get sector performance
+      description: Returns sector performance data
+      responses:
+        "200":
+          description: Sector performance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SectorPerformance"
+
+  /watchlist:
+    get:
+      operationId: getWatchlist
+      tags: [stocks]
+      summary: Get watchlist
+      description: Returns user watchlist stocks
+      responses:
+        "200":
+          description: Watchlist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WatchlistItem"
+    post:
+      operationId: addToWatchlist
+      tags: [stocks]
+      summary: Add to watchlist
+      description: Add a stock to the watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddToWatchlistRequest"
+      responses:
+        "200":
+          description: Added to watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistItem"
+
+  /watchlist/{symbol}:
+    delete:
+      operationId: removeFromWatchlist
+      tags: [stocks]
+      summary: Remove from watchlist
+      description: Remove a stock from the watchlist
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed from watchlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+
+  /ai/analysis/{symbol}:
+    get:
+      operationId: getAiAnalysis
+      tags: [ai]
+      summary: Get AI stock analysis
+      description: Returns AI-powered analysis and recommendation for a stock
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: AI analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAnalysis"
+
+  /ai/market-summary:
+    get:
+      operationId: getAiMarketSummary
+      tags: [ai]
+      summary: Get AI market summary
+      description: Returns AI-powered overall market summary and outlook
+      responses:
+        "200":
+          description: Market summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiMarketSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +227,230 @@ components:
       required:
         - status
 
+    StockQuote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        volume:
+          type: number
+        marketCap:
+          type: number
+        high52w:
+          type: number
+        low52w:
+          type: number
+        pe:
+          type: number
+        open:
+          type: number
+        previousClose:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        avgVolume:
+          type: number
+        sector:
+          type: string
+      required:
+        - symbol
+        - name
+        - price
+        - change
+        - changePercent
+        - volume
+        - marketCap
+        - high52w
+        - low52w
+        - open
+        - previousClose
+        - high
+        - low
+        - sector
+
+    StockHistory:
+      type: object
+      properties:
+        symbol:
+          type: string
+        period:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricePoint"
+      required:
+        - symbol
+        - period
+        - data
+
+    PricePoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        close:
+          type: number
+        volume:
+          type: number
+      required:
+        - timestamp
+        - open
+        - high
+        - low
+        - close
+        - volume
+
+    MarketIndex:
+      type: object
+      properties:
+        name:
+          type: string
+        symbol:
+          type: string
+        value:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+      required:
+        - name
+        - symbol
+        - value
+        - change
+        - changePercent
+
+    TopMovers:
+      type: object
+      properties:
+        gainers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockQuote"
+        losers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockQuote"
+      required:
+        - gainers
+        - losers
+
+    SectorPerformance:
+      type: object
+      properties:
+        sector:
+          type: string
+        change:
+          type: number
+        changePercent:
+          type: number
+        marketCap:
+          type: number
+      required:
+        - sector
+        - change
+        - changePercent
+        - marketCap
+
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        addedAt:
+          type: string
+      required:
+        - id
+        - symbol
+        - addedAt
+
+    AddToWatchlistRequest:
+      type: object
+      properties:
+        symbol:
+          type: string
+      required:
+        - symbol
+
+    AiAnalysis:
+      type: object
+      properties:
+        symbol:
+          type: string
+        recommendation:
+          type: string
+          enum: [STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL]
+        confidence:
+          type: number
+        summary:
+          type: string
+        bullishPoints:
+          type: array
+          items:
+            type: string
+        bearishPoints:
+          type: array
+          items:
+            type: string
+        priceTarget:
+          type: number
+        riskLevel:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+        generatedAt:
+          type: string
+      required:
+        - symbol
+        - recommendation
+        - confidence
+        - summary
+        - bullishPoints
+        - bearishPoints
+        - priceTarget
+        - riskLevel
+        - generatedAt
+
+    AiMarketSummary:
+      type: object
+      properties:
+        sentiment:
+          type: string
+          enum: [BULLISH, BEARISH, NEUTRAL]
+        sentimentScore:
+          type: number
+        summary:
+          type: string
+        keyEvents:
+          type: array
+          items:
+            type: string
+        outlook:
+          type: string
+        generatedAt:
+          type: string
+      required:
+        - sentiment
+        - sentimentScore
+        - summary
+        - keyEvents
+        - outlook
+        - generatedAt

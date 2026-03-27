@@ -1,0 +1,15 @@
+packages:
+  "recharts": "Powerful, responsive charting library for stock price history"
+  "framer-motion": "Smooth entry animations for dashboard components and chart transitions"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to merge tailwind classes safely"
+  "date-fns": "For formatting timestamps on charts and data points"
+  "lucide-react": "Beautiful consistent icons for the terminal UI"
+
+images: []
+
+notes:
+  - "The UI implements a dark, professional trading terminal aesthetic with high density and monospace numerical data."
+  - "React Query hooks are imported directly from the generated @workspace/api-client-react package."
+  - "Using auto-refetch (refetchInterval: 30000) on critical live data queries to simulate real-time feeds."
+  - "Charts determine their fill color (green/red) dynamically based on the start and end values of the dataset."
