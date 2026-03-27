@@ -5,7 +5,10 @@
  * NSE Stock Market Dashboard API
  * OpenAPI spec version: 0.2.0
  */
+import type { NseStock } from "./nseStock";
 
-export interface HealthStatus {
-  status: string;
+export interface NseMovers {
+  gainers: NseStock[];
+  losers: NseStock[];
+  timestamp: string;
 }

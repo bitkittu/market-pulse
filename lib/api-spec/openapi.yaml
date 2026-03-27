@@ -1,25 +1,29 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.1.0
-  description: Stock Market Dashboard API
+  version: 0.2.0
+  description: NSE Stock Market Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
-  - name: stocks
-    description: Stock market data
-  - name: ai
-    description: AI market analysis
+  - name: giftnifty
+    description: Gift Nifty data
+  - name: nse
+    description: NSE Indian stock market
+  - name: portfolio
+    description: User portfolio
+  - name: settings
+    description: API settings
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -28,35 +32,96 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
-  /stocks/quotes:
+  /gift-nifty/quote:
     get:
-      operationId: getStockQuotes
-      tags: [stocks]
-      summary: Get stock quotes
-      description: Returns real-time stock quotes for multiple symbols
+      operationId: getGiftNiftyQuote
+      tags: [giftnifty]
+      summary: Get Gift Nifty current quote
+      description: Returns Gift Nifty current price, yesterday high/low and change percentage
+      responses:
+        "200":
+          description: Gift Nifty quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GiftNiftyQuote"
+
+  /gift-nifty/history:
+    get:
+      operationId: getGiftNiftyHistory
+      tags: [giftnifty]
+      summary: Get Gift Nifty price history
+      description: Returns Gift Nifty historical data for last 3 months
       parameters:
-        - name: symbols
+        - name: period
           in: query
           required: false
           schema:
             type: string
-          description: Comma-separated list of stock symbols (defaults to popular stocks)
+            enum: [1M, 3M, 6M]
+            default: 3M
       responses:
         "200":
-          description: Stock quotes
+          description: Gift Nifty history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistory"
+
+  /nse/movers:
+    get:
+      operationId: getNseMovers
+      tags: [nse]
+      summary: Get NSE top gainers and losers
+      description: Returns top 10 NSE gainers and top 10 NSE losers
+      responses:
+        "200":
+          description: NSE movers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NseMovers"
+
+  /nse/sectors:
+    get:
+      operationId: getNseSectors
+      tags: [nse]
+      summary: Get NSE sector performance
+      description: Returns performance of all NSE sectors
+      responses:
+        "200":
+          description: NSE sector performance
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/StockQuote"
+                  $ref: "#/components/schemas/SectorPerf"
 
-  /stocks/{symbol}/history:
+  /nse/quote/{symbol}:
     get:
-      operationId: getStockHistory
-      tags: [stocks]
-      summary: Get stock price history
-      description: Returns historical price data for a stock
+      operationId: getNseQuote
+      tags: [nse]
+      summary: Get NSE stock quote
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: NSE stock quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NseStock"
+
+  /nse/history/{symbol}:
+    get:
+      operationId: getNseHistory
+      tags: [nse]
+      summary: Get NSE stock history
       parameters:
         - name: symbol
           in: path
@@ -72,98 +137,49 @@ paths:
             default: 1M
       responses:
         "200":
-          description: Price history
+          description: NSE stock history
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StockHistory"
+                $ref: "#/components/schemas/PriceHistory"
 
-  /stocks/indices:
+  /portfolio:
     get:
-      operationId: getMarketIndices
-      tags: [stocks]
-      summary: Get market indices
-      description: Returns major market indices data
+      operationId: getPortfolio
+      tags: [portfolio]
+      summary: Get portfolio stocks
       responses:
         "200":
-          description: Market indices
+          description: Portfolio stocks
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/MarketIndex"
-
-  /stocks/movers:
-    get:
-      operationId: getTopMovers
-      tags: [stocks]
-      summary: Get top movers
-      description: Returns top gaining and losing stocks
-      responses:
-        "200":
-          description: Top movers
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TopMovers"
-
-  /stocks/sectors:
-    get:
-      operationId: getSectorPerformance
-      tags: [stocks]
-      summary: Get sector performance
-      description: Returns sector performance data
-      responses:
-        "200":
-          description: Sector performance
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/SectorPerformance"
-
-  /watchlist:
-    get:
-      operationId: getWatchlist
-      tags: [stocks]
-      summary: Get watchlist
-      description: Returns user watchlist stocks
-      responses:
-        "200":
-          description: Watchlist
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/WatchlistItem"
+                  $ref: "#/components/schemas/PortfolioStock"
     post:
-      operationId: addToWatchlist
-      tags: [stocks]
-      summary: Add to watchlist
-      description: Add a stock to the watchlist
+      operationId: addPortfolioStock
+      tags: [portfolio]
+      summary: Add stock to portfolio
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AddToWatchlistRequest"
+              $ref: "#/components/schemas/AddPortfolioStockRequest"
       responses:
         "200":
-          description: Added to watchlist
+          description: Added stock
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WatchlistItem"
+                $ref: "#/components/schemas/PortfolioStock"
 
-  /watchlist/{symbol}:
+  /portfolio/{symbol}:
     delete:
-      operationId: removeFromWatchlist
-      tags: [stocks]
-      summary: Remove from watchlist
-      description: Remove a stock from the watchlist
+      operationId: removePortfolioStock
+      tags: [portfolio]
+      summary: Remove stock from portfolio
       parameters:
         - name: symbol
           in: path
@@ -172,7 +188,7 @@ paths:
             type: string
       responses:
         "200":
-          description: Removed from watchlist
+          description: Removed
           content:
             application/json:
               schema:
@@ -183,12 +199,11 @@ paths:
                 required:
                   - success
 
-  /ai/analysis/{symbol}:
+  /portfolio/{symbol}/indicators:
     get:
-      operationId: getAiAnalysis
-      tags: [ai]
-      summary: Get AI stock analysis
-      description: Returns AI-powered analysis and recommendation for a stock
+      operationId: getStockIndicators
+      tags: [portfolio]
+      summary: Get VWAP and RSI indicators for a stock
       parameters:
         - name: symbol
           in: path
@@ -197,25 +212,59 @@ paths:
             type: string
       responses:
         "200":
-          description: AI analysis
+          description: Stock indicators
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AiAnalysis"
+                $ref: "#/components/schemas/StockIndicators"
 
-  /ai/market-summary:
+  /settings/upstox:
     get:
-      operationId: getAiMarketSummary
-      tags: [ai]
-      summary: Get AI market summary
-      description: Returns AI-powered overall market summary and outlook
+      operationId: getUpstoxSettings
+      tags: [settings]
+      summary: Get Upstox API connection status
       responses:
         "200":
-          description: Market summary
+          description: Upstox settings
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AiMarketSummary"
+                $ref: "#/components/schemas/UpstoxSettings"
+    post:
+      operationId: saveUpstoxSettings
+      tags: [settings]
+      summary: Save Upstox API credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveUpstoxSettingsRequest"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpstoxSettings"
+
+  /settings/upstox/disconnect:
+    post:
+      operationId: disconnectUpstox
+      tags: [settings]
+      summary: Disconnect Upstox API
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
 
 components:
   schemas:
@@ -227,7 +276,7 @@ components:
       required:
         - status
 
-    StockQuote:
+    GiftNiftyQuote:
       type: object
       properties:
         symbol:
@@ -240,27 +289,21 @@ components:
           type: number
         changePercent:
           type: number
-        volume:
+        yesterdayHigh:
           type: number
-        marketCap:
+        yesterdayLow:
           type: number
-        high52w:
-          type: number
-        low52w:
-          type: number
-        pe:
+        yesterdayClose:
           type: number
         open:
-          type: number
-        previousClose:
           type: number
         high:
           type: number
         low:
           type: number
-        avgVolume:
+        volume:
           type: number
-        sector:
+        updatedAt:
           type: string
       required:
         - symbol
@@ -268,17 +311,16 @@ components:
         - price
         - change
         - changePercent
-        - volume
-        - marketCap
-        - high52w
-        - low52w
+        - yesterdayHigh
+        - yesterdayLow
+        - yesterdayClose
         - open
-        - previousClose
         - high
         - low
-        - sector
+        - volume
+        - updatedAt
 
-    StockHistory:
+    PriceHistory:
       type: object
       properties:
         symbol:
@@ -288,13 +330,13 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/PricePoint"
+            $ref: "#/components/schemas/OHLCV"
       required:
         - symbol
         - period
         - data
 
-    PricePoint:
+    OHLCV:
       type: object
       properties:
         timestamp:
@@ -317,140 +359,226 @@ components:
         - close
         - volume
 
-    MarketIndex:
+    NseStock:
       type: object
       properties:
-        name:
-          type: string
         symbol:
           type: string
-        value:
+        name:
+          type: string
+        price:
           type: number
         change:
           type: number
         changePercent:
           type: number
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        previousClose:
+          type: number
+        volume:
+          type: number
+        marketCap:
+          type: number
+        sector:
+          type: string
+        pe:
+          type: number
+        week52High:
+          type: number
+        week52Low:
+          type: number
       required:
-        - name
         - symbol
-        - value
+        - name
+        - price
         - change
         - changePercent
+        - open
+        - high
+        - low
+        - previousClose
+        - volume
+        - marketCap
+        - sector
+        - pe
+        - week52High
+        - week52Low
 
-    TopMovers:
+    NseMovers:
       type: object
       properties:
         gainers:
           type: array
           items:
-            $ref: "#/components/schemas/StockQuote"
+            $ref: "#/components/schemas/NseStock"
         losers:
           type: array
           items:
-            $ref: "#/components/schemas/StockQuote"
+            $ref: "#/components/schemas/NseStock"
+        timestamp:
+          type: string
       required:
         - gainers
         - losers
+        - timestamp
 
-    SectorPerformance:
+    SectorPerf:
       type: object
       properties:
         sector:
           type: string
-        change:
-          type: number
+        index:
+          type: string
         changePercent:
           type: number
-        marketCap:
+        change:
           type: number
+        value:
+          type: number
+        advancers:
+          type: integer
+        decliners:
+          type: integer
       required:
         - sector
-        - change
+        - index
         - changePercent
-        - marketCap
+        - change
+        - value
+        - advancers
+        - decliners
 
-    WatchlistItem:
+    PortfolioStock:
       type: object
       properties:
         id:
           type: integer
         symbol:
           type: string
+        exchange:
+          type: string
         addedAt:
           type: string
+        buyPrice:
+          type: number
+        quantity:
+          type: integer
       required:
         - id
         - symbol
+        - exchange
         - addedAt
 
-    AddToWatchlistRequest:
+    AddPortfolioStockRequest:
       type: object
       properties:
         symbol:
           type: string
+        exchange:
+          type: string
+        buyPrice:
+          type: number
+        quantity:
+          type: integer
       required:
         - symbol
 
-    AiAnalysis:
+    StockIndicators:
       type: object
       properties:
         symbol:
           type: string
-        recommendation:
-          type: string
-          enum: [STRONG_BUY, BUY, HOLD, SELL, STRONG_SELL]
-        confidence:
+        price:
           type: number
-        summary:
+        vwap:
+          type: number
+        vwapSignal:
           type: string
-        bullishPoints:
+          enum: [ABOVE, BELOW, AT]
+        vwapDeviation:
+          type: number
+        rsi:
+          type: number
+        rsiSignal:
+          type: string
+          enum: [OVERSOLD, NEUTRAL, OVERBOUGHT]
+        smartMoneyFlow:
+          type: string
+          enum: [ACCUMULATION, DISTRIBUTION, NEUTRAL]
+        momentum:
+          type: string
+          enum: [STRONG_UP, UP, NEUTRAL, DOWN, STRONG_DOWN]
+        history:
           type: array
           items:
-            type: string
-        bearishPoints:
-          type: array
-          items:
-            type: string
-        priceTarget:
-          type: number
-        riskLevel:
-          type: string
-          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
-        generatedAt:
+            $ref: "#/components/schemas/IndicatorPoint"
+        updatedAt:
           type: string
       required:
         - symbol
-        - recommendation
-        - confidence
-        - summary
-        - bullishPoints
-        - bearishPoints
-        - priceTarget
-        - riskLevel
-        - generatedAt
+        - price
+        - vwap
+        - vwapSignal
+        - vwapDeviation
+        - rsi
+        - rsiSignal
+        - smartMoneyFlow
+        - momentum
+        - history
+        - updatedAt
 
-    AiMarketSummary:
+    IndicatorPoint:
       type: object
       properties:
-        sentiment:
+        timestamp:
           type: string
-          enum: [BULLISH, BEARISH, NEUTRAL]
-        sentimentScore:
+        close:
           type: number
-        summary:
+        vwap:
+          type: number
+        rsi:
+          type: number
+        volume:
+          type: number
+      required:
+        - timestamp
+        - close
+        - vwap
+        - rsi
+        - volume
+
+    UpstoxSettings:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        apiKeyMasked:
           type: string
-        keyEvents:
-          type: array
-          items:
-            type: string
-        outlook:
+        clientId:
           type: string
-        generatedAt:
+        connectedAt:
+          type: string
+        liveDataEnabled:
+          type: boolean
+      required:
+        - connected
+        - liveDataEnabled
+
+    SaveUpstoxSettingsRequest:
+      type: object
+      properties:
+        apiKey:
+          type: string
+        apiSecret:
+          type: string
+        clientId:
+          type: string
+        accessToken:
           type: string
       required:
-        - sentiment
-        - sentimentScore
-        - summary
-        - keyEvents
-        - outlook
-        - generatedAt
+        - apiKey

@@ -5,7 +5,8 @@
  * NSE Stock Market Dashboard API
  * OpenAPI spec version: 0.2.0
  */
+import type { GetNseHistoryPeriod } from "./getNseHistoryPeriod";
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetNseHistoryParams = {
+  period?: GetNseHistoryPeriod;
+};

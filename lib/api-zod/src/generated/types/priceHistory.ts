@@ -5,7 +5,10 @@
  * NSE Stock Market Dashboard API
  * OpenAPI spec version: 0.2.0
  */
+import type { Ohlcv } from "./ohlcv";
 
-export interface HealthStatus {
-  status: string;
+export interface PriceHistory {
+  symbol: string;
+  period: string;
+  data: Ohlcv[];
 }

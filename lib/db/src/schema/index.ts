@@ -18,3 +18,5 @@
 //   export type Post = typeof postsTable.$inferSelect;
 
 export * from "./watchlist";
+export * from "./portfolio";
+export * from "./upstox";

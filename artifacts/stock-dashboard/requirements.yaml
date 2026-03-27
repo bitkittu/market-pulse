@@ -1,15 +1,16 @@
 packages:
-  "recharts": "Powerful, responsive charting library for stock price history"
-  "framer-motion": "Smooth entry animations for dashboard components and chart transitions"
+  "recharts": "Powerful, responsive charting library for financial data"
+  "lucide-react": "Clean, consistent icons for trading terminal UI"
+  "framer-motion": "Smooth animations for tab transitions and modals"
+  "date-fns": "Easy date manipulation for the IST clock and chart tooltips"
   "clsx": "Utility for constructing className strings conditionally"
-  "tailwind-merge": "Utility to merge tailwind classes safely"
-  "date-fns": "For formatting timestamps on charts and data points"
-  "lucide-react": "Beautiful consistent icons for the terminal UI"
+  "tailwind-merge": "Utility to efficiently merge Tailwind CSS classes"
+  "react-hook-form": "Performant, flexible and extensible forms with easy-to-use validation"
+  "@hookform/resolvers": "Zod integration for react-hook-form"
 
 images: []
 
 notes:
-  - "The UI implements a dark, professional trading terminal aesthetic with high density and monospace numerical data."
-  - "React Query hooks are imported directly from the generated @workspace/api-client-react package."
-  - "Using auto-refetch (refetchInterval: 30000) on critical live data queries to simulate real-time feeds."
-  - "Charts determine their fill color (green/red) dynamically based on the start and end values of the dataset."
+  - "Using generated hooks from @workspace/api-client-react"
+  - "Implementing dark professional Indian trading terminal aesthetic with Saffron/Orange accents"
+  - "Clock operates in IST (Indian Standard Time)"

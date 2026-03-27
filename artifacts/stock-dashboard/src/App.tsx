@@ -1,44 +1,125 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
-import Dashboard from "@/pages/Dashboard";
-import SymbolView from "@/pages/SymbolView";
+import { Home } from "@/pages/Home";
+import { Portfolio } from "@/pages/Portfolio";
+import { Settings } from "@/pages/Settings";
+import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-      staleTime: 5000,
-    }
-  }
+    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 15000 },
+  },
 });
 
-function Router() {
+type Tab = "home" | "portfolio" | "settings";
+
+function ISTClock() {
+  const [time, setTime] = useState("");
+  const [marketOpen, setMarketOpen] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      const ist = new Date().toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+      setTime(ist);
+      // Market hours: 9:15 – 15:30 IST, Mon-Fri
+      const istDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const h = istDate.getHours();
+      const m = istDate.getMinutes();
+      const day = istDate.getDay();
+      const open = day >= 1 && day <= 5 && (h > 9 || (h === 9 && m >= 15)) && h < 15 || (h === 15 && m <= 30);
+      setMarketOpen(open);
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/symbol/:symbol" component={SymbolView} />
-      {/* Catch-all for other sub-pages like /market that map back to Dashboard for now to prevent 404s on demo clicks */}
-      <Route path="/market" component={Dashboard} />
-      <Route component={NotFound} />
-    </Switch>
+    <div className="flex items-center gap-3">
+      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+        marketOpen ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+      }`}>
+        <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${marketOpen ? "bg-emerald-400" : "bg-red-400"}`} />
+        {marketOpen ? "NSE LIVE" : "MARKET CLOSED"}
+      </div>
+      <div className="flex items-center gap-1.5 text-muted-foreground text-xs font-mono">
+        <Clock className="w-3 h-3" />
+        <span>{time} IST</span>
+      </div>
+    </div>
   );
 }
 
-function App() {
+const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: "home", label: "Dashboard", icon: LayoutDashboard },
+  { id: "portfolio", label: "My Portfolio", icon: Briefcase },
+  { id: "settings", label: "Upstox API", icon: Settings2 },
+];
+
+function AppShell() {
+  const [tab, setTab] = useState<Tab>("home");
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Top Nav */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <span className="text-white font-bold text-sm tracking-wide">NSE</span>
+              <span className="text-primary font-bold text-sm tracking-wide ml-0.5">Pulse</span>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <nav className="flex items-center gap-1">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    tab === t.id
+                      ? "bg-primary text-white shadow-md"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{t.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          <ISTClock />
+        </div>
+      </header>
+
+      {/* Page Content */}
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 py-6">
+        {tab === "home" && <Home />}
+        {tab === "portfolio" && <Portfolio />}
+        {tab === "settings" && <Settings />}
+      </main>
+    </div>
+  );
+}
+
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
+      <AppShell />
     </QueryClientProvider>
   );
 }
-
-export default App;

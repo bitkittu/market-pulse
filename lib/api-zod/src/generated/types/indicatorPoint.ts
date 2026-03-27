@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface IndicatorPoint {
+  timestamp: string;
+  close: number;
+  vwap: number;
+  rsi: number;
+  volume: number;
 }
