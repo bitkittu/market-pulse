@@ -76,7 +76,7 @@ export function getHourlySeed(): number {
   return getDailySeed() * 100 + now.getHours();
 }
 
-function symbolSeed(symbol: string): number {
+export function symbolSeed(symbol: string): number {
   return symbol.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
 }
 

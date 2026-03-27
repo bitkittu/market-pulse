@@ -25,12 +25,14 @@ import type {
   HealthStatus,
   NseMovers,
   NseStock,
+  OptionsSuggestion,
   PortfolioStock,
   PriceHistory,
   RemovePortfolioStock200,
   SaveUpstoxSettingsRequest,
   SectorPerf,
   StockIndicators,
+  StockSuggestion,
   UpstoxSettings,
 } from "./api.schemas";
 
@@ -1140,6 +1142,159 @@ export const useSaveUpstoxSettings = <
 > => {
   return useMutation(getSaveUpstoxSettingsMutationOptions(options));
 };
+
+/**
+ * Returns top 10 NSE stocks suggested for intraday trading based on last 24h signals
+ * @summary Get top 10 intraday stock suggestions
+ */
+export const getGetIntradaySuggestionsUrl = () => {
+  return `/api/suggestions/intraday`;
+};
+
+export const getIntradaySuggestions = async (
+  options?: RequestInit,
+): Promise<StockSuggestion[]> => {
+  return customFetch<StockSuggestion[]>(getGetIntradaySuggestionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetIntradaySuggestionsQueryKey = () => {
+  return [`/api/suggestions/intraday`] as const;
+};
+
+export const getGetIntradaySuggestionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getIntradaySuggestions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getIntradaySuggestions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetIntradaySuggestionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getIntradaySuggestions>>
+  > = ({ signal }) => getIntradaySuggestions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getIntradaySuggestions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetIntradaySuggestionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getIntradaySuggestions>>
+>;
+export type GetIntradaySuggestionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get top 10 intraday stock suggestions
+ */
+
+export function useGetIntradaySuggestions<
+  TData = Awaited<ReturnType<typeof getIntradaySuggestions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getIntradaySuggestions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetIntradaySuggestionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns top 10 NSE stocks/indices suggested for options trading
+ * @summary Get top 10 options stock suggestions
+ */
+export const getGetOptionsSuggestionsUrl = () => {
+  return `/api/suggestions/options`;
+};
+
+export const getOptionsSuggestions = async (
+  options?: RequestInit,
+): Promise<OptionsSuggestion[]> => {
+  return customFetch<OptionsSuggestion[]>(getGetOptionsSuggestionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOptionsSuggestionsQueryKey = () => {
+  return [`/api/suggestions/options`] as const;
+};
+
+export const getGetOptionsSuggestionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOptionsSuggestions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOptionsSuggestions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOptionsSuggestionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOptionsSuggestions>>
+  > = ({ signal }) => getOptionsSuggestions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOptionsSuggestions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOptionsSuggestionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOptionsSuggestions>>
+>;
+export type GetOptionsSuggestionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get top 10 options stock suggestions
+ */
+
+export function useGetOptionsSuggestions<
+  TData = Awaited<ReturnType<typeof getOptionsSuggestions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOptionsSuggestions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOptionsSuggestionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Disconnect Upstox API

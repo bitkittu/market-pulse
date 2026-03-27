@@ -248,6 +248,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/UpstoxSettings"
 
+  /suggestions/intraday:
+    get:
+      operationId: getIntradaySuggestions
+      tags: [suggestions]
+      summary: Get top 10 intraday stock suggestions
+      description: Returns top 10 NSE stocks suggested for intraday trading based on last 24h signals
+      responses:
+        "200":
+          description: Intraday suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockSuggestion"
+
+  /suggestions/options:
+    get:
+      operationId: getOptionsSuggestions
+      tags: [suggestions]
+      summary: Get top 10 options stock suggestions
+      description: Returns top 10 NSE stocks/indices suggested for options trading
+      responses:
+        "200":
+          description: Options suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OptionsSuggestion"
+
   /settings/upstox/disconnect:
     post:
       operationId: disconnectUpstox
@@ -582,3 +614,122 @@ components:
           type: string
       required:
         - apiKey
+
+    StockSuggestion:
+      type: object
+      properties:
+        rank:
+          type: integer
+        symbol:
+          type: string
+        name:
+          type: string
+        currentPrice:
+          type: number
+        buyBelow:
+          type: number
+        sellAbove:
+          type: number
+        stopLoss:
+          type: number
+        signal:
+          type: string
+          enum: [STRONG_BUY, BUY, WATCH, SELL, STRONG_SELL]
+        changePercent:
+          type: number
+        change:
+          type: number
+        volume:
+          type: number
+        sector:
+          type: string
+        rationale:
+          type: string
+        rsi:
+          type: number
+        vwapStatus:
+          type: string
+          enum: [ABOVE, BELOW, AT]
+        updatedAt:
+          type: string
+      required:
+        - rank
+        - symbol
+        - name
+        - currentPrice
+        - buyBelow
+        - sellAbove
+        - stopLoss
+        - signal
+        - changePercent
+        - change
+        - volume
+        - sector
+        - rationale
+        - rsi
+        - vwapStatus
+        - updatedAt
+
+    OptionsSuggestion:
+      type: object
+      properties:
+        rank:
+          type: integer
+        symbol:
+          type: string
+        name:
+          type: string
+        optionType:
+          type: string
+          enum: [CE, PE]
+        strikePrice:
+          type: number
+        expiry:
+          type: string
+        currentPrice:
+          type: number
+        buyBelow:
+          type: number
+        sellAbove:
+          type: number
+        stopLoss:
+          type: number
+        underlyingPrice:
+          type: number
+        signal:
+          type: string
+          enum: [STRONG_BUY, BUY, WATCH, SELL, STRONG_SELL]
+        changePercent:
+          type: number
+        change:
+          type: number
+        volume:
+          type: number
+        openInterest:
+          type: number
+        impliedVolatility:
+          type: number
+        rationale:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - rank
+        - symbol
+        - name
+        - optionType
+        - strikePrice
+        - expiry
+        - currentPrice
+        - buyBelow
+        - sellAbove
+        - stopLoss
+        - underlyingPrice
+        - signal
+        - changePercent
+        - change
+        - volume
+        - openInterest
+        - impliedVolatility
+        - rationale
+        - updatedAt

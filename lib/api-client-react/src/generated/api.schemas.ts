@@ -165,6 +165,86 @@ export interface SaveUpstoxSettingsRequest {
   accessToken?: string;
 }
 
+export type StockSuggestionSignal =
+  (typeof StockSuggestionSignal)[keyof typeof StockSuggestionSignal];
+
+export const StockSuggestionSignal = {
+  STRONG_BUY: "STRONG_BUY",
+  BUY: "BUY",
+  WATCH: "WATCH",
+  SELL: "SELL",
+  STRONG_SELL: "STRONG_SELL",
+} as const;
+
+export type StockSuggestionVwapStatus =
+  (typeof StockSuggestionVwapStatus)[keyof typeof StockSuggestionVwapStatus];
+
+export const StockSuggestionVwapStatus = {
+  ABOVE: "ABOVE",
+  BELOW: "BELOW",
+  AT: "AT",
+} as const;
+
+export interface StockSuggestion {
+  rank: number;
+  symbol: string;
+  name: string;
+  currentPrice: number;
+  buyBelow: number;
+  sellAbove: number;
+  stopLoss: number;
+  signal: StockSuggestionSignal;
+  changePercent: number;
+  change: number;
+  volume: number;
+  sector: string;
+  rationale: string;
+  rsi: number;
+  vwapStatus: StockSuggestionVwapStatus;
+  updatedAt: string;
+}
+
+export type OptionsSuggestionOptionType =
+  (typeof OptionsSuggestionOptionType)[keyof typeof OptionsSuggestionOptionType];
+
+export const OptionsSuggestionOptionType = {
+  CE: "CE",
+  PE: "PE",
+} as const;
+
+export type OptionsSuggestionSignal =
+  (typeof OptionsSuggestionSignal)[keyof typeof OptionsSuggestionSignal];
+
+export const OptionsSuggestionSignal = {
+  STRONG_BUY: "STRONG_BUY",
+  BUY: "BUY",
+  WATCH: "WATCH",
+  SELL: "SELL",
+  STRONG_SELL: "STRONG_SELL",
+} as const;
+
+export interface OptionsSuggestion {
+  rank: number;
+  symbol: string;
+  name: string;
+  optionType: OptionsSuggestionOptionType;
+  strikePrice: number;
+  expiry: string;
+  currentPrice: number;
+  buyBelow: number;
+  sellAbove: number;
+  stopLoss: number;
+  underlyingPrice: number;
+  signal: OptionsSuggestionSignal;
+  changePercent: number;
+  change: number;
+  volume: number;
+  openInterest: number;
+  impliedVolatility: number;
+  rationale: string;
+  updatedAt: string;
+}
+
 export type GetGiftNiftyHistoryParams = {
   period?: GetGiftNiftyHistoryPeriod;
 };

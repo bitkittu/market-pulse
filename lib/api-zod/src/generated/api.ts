@@ -279,6 +279,61 @@ export const SaveUpstoxSettingsResponse = zod.object({
 });
 
 /**
+ * Returns top 10 NSE stocks suggested for intraday trading based on last 24h signals
+ * @summary Get top 10 intraday stock suggestions
+ */
+export const GetIntradaySuggestionsResponseItem = zod.object({
+  rank: zod.number(),
+  symbol: zod.string(),
+  name: zod.string(),
+  currentPrice: zod.number(),
+  buyBelow: zod.number(),
+  sellAbove: zod.number(),
+  stopLoss: zod.number(),
+  signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+  changePercent: zod.number(),
+  change: zod.number(),
+  volume: zod.number(),
+  sector: zod.string(),
+  rationale: zod.string(),
+  rsi: zod.number(),
+  vwapStatus: zod.enum(["ABOVE", "BELOW", "AT"]),
+  updatedAt: zod.string(),
+});
+export const GetIntradaySuggestionsResponse = zod.array(
+  GetIntradaySuggestionsResponseItem,
+);
+
+/**
+ * Returns top 10 NSE stocks/indices suggested for options trading
+ * @summary Get top 10 options stock suggestions
+ */
+export const GetOptionsSuggestionsResponseItem = zod.object({
+  rank: zod.number(),
+  symbol: zod.string(),
+  name: zod.string(),
+  optionType: zod.enum(["CE", "PE"]),
+  strikePrice: zod.number(),
+  expiry: zod.string(),
+  currentPrice: zod.number(),
+  buyBelow: zod.number(),
+  sellAbove: zod.number(),
+  stopLoss: zod.number(),
+  underlyingPrice: zod.number(),
+  signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+  changePercent: zod.number(),
+  change: zod.number(),
+  volume: zod.number(),
+  openInterest: zod.number(),
+  impliedVolatility: zod.number(),
+  rationale: zod.string(),
+  updatedAt: zod.string(),
+});
+export const GetOptionsSuggestionsResponse = zod.array(
+  GetOptionsSuggestionsResponseItem,
+);
+
+/**
  * @summary Disconnect Upstox API
  */
 export const DisconnectUpstoxResponse = zod.object({

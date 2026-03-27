@@ -9,6 +9,7 @@ import {
   calculateIndicators,
   NSE_STOCKS,
 } from "../lib/nseData.js";
+import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
 import { db, portfolioTable, upstoxSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -170,6 +171,15 @@ router.post("/settings/upstox", async (req, res) => {
 router.post("/settings/upstox/disconnect", async (_req, res) => {
   await db.delete(upstoxSettingsTable);
   res.json({ success: true });
+});
+
+// ── Suggestions ──────────────────────────────────────────────────────────
+router.get("/suggestions/intraday", (_req, res) => {
+  res.json(getIntradaySuggestions());
+});
+
+router.get("/suggestions/options", (_req, res) => {
+  res.json(getOptionsSuggestions());
 });
 
 export default router;

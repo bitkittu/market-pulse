@@ -3,7 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Home } from "@/pages/Home";
 import { Portfolio } from "@/pages/Portfolio";
 import { Settings } from "@/pages/Settings";
-import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock } from "lucide-react";
+import { IntradayDashboard } from "@/pages/IntradayDashboard";
+import { OptionsDashboard } from "@/pages/OptionsDashboard";
+import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock, Zap, Activity } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -11,7 +13,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Tab = "home" | "portfolio" | "settings";
+type Tab = "home" | "portfolio" | "intraday" | "options" | "settings";
 
 function ISTClock() {
   const [time, setTime] = useState("");
@@ -27,7 +29,6 @@ function ISTClock() {
         hour12: false,
       });
       setTime(ist);
-      // Market hours: 9:15 – 15:30 IST, Mon-Fri
       const istDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
       const h = istDate.getHours();
       const m = istDate.getMinutes();
@@ -56,10 +57,12 @@ function ISTClock() {
   );
 }
 
-const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "home", label: "Dashboard", icon: LayoutDashboard },
-  { id: "portfolio", label: "My Portfolio", icon: Briefcase },
-  { id: "settings", label: "Upstox API", icon: Settings2 },
+const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard; accent?: string }[] = [
+  { id: "home",      label: "Dashboard",  icon: LayoutDashboard },
+  { id: "intraday",  label: "Intraday",   icon: Zap,      accent: "emerald" },
+  { id: "options",   label: "Options",    icon: Activity, accent: "violet" },
+  { id: "portfolio", label: "Portfolio",  icon: Briefcase },
+  { id: "settings",  label: "Upstox API", icon: Settings2 },
 ];
 
 function AppShell() {
@@ -85,15 +88,21 @@ function AppShell() {
           <nav className="flex items-center gap-1">
             {TABS.map((t) => {
               const Icon = t.icon;
+              const isActive = tab === t.id;
+              const accentMap: Record<string, string> = {
+                emerald: isActive ? "bg-emerald-500 text-white shadow-md" : "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10",
+                violet:  isActive ? "bg-violet-500 text-white shadow-md"  : "text-violet-400  hover:text-violet-300  hover:bg-violet-500/10",
+              };
+              const cls = t.accent
+                ? accentMap[t.accent]
+                : isActive
+                  ? "bg-primary text-white shadow-md"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent";
               return (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    tab === t.id
-                      ? "bg-primary text-white shadow-md"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${cls}`}
                 >
                   <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{t.label}</span>
@@ -108,9 +117,11 @@ function AppShell() {
 
       {/* Page Content */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 py-6">
-        {tab === "home" && <Home />}
+        {tab === "home"      && <Home />}
+        {tab === "intraday"  && <IntradayDashboard />}
+        {tab === "options"   && <OptionsDashboard />}
         {tab === "portfolio" && <Portfolio />}
-        {tab === "settings" && <Settings />}
+        {tab === "settings"  && <Settings />}
       </main>
     </div>
   );
