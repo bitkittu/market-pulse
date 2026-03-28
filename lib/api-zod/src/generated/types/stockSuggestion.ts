@@ -5,6 +5,7 @@
  * NSE Stock Market Dashboard API
  * OpenAPI spec version: 0.2.0
  */
+import type { StockSuggestionRiskLevel } from "./stockSuggestionRiskLevel";
 import type { StockSuggestionSignal } from "./stockSuggestionSignal";
 import type { StockSuggestionVwapStatus } from "./stockSuggestionVwapStatus";
 
@@ -24,5 +25,7 @@ export interface StockSuggestion {
   rationale: string;
   rsi: number;
   vwapStatus: StockSuggestionVwapStatus;
+  confidence: number;
+  riskLevel: StockSuggestionRiskLevel;
   updatedAt: string;
 }

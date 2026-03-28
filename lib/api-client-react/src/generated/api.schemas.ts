@@ -185,6 +185,15 @@ export const StockSuggestionVwapStatus = {
   AT: "AT",
 } as const;
 
+export type StockSuggestionRiskLevel =
+  (typeof StockSuggestionRiskLevel)[keyof typeof StockSuggestionRiskLevel];
+
+export const StockSuggestionRiskLevel = {
+  Low: "Low",
+  Medium: "Medium",
+  High: "High",
+} as const;
+
 export interface StockSuggestion {
   rank: number;
   symbol: string;
@@ -201,6 +210,8 @@ export interface StockSuggestion {
   rationale: string;
   rsi: number;
   vwapStatus: StockSuggestionVwapStatus;
+  confidence: number;
+  riskLevel: StockSuggestionRiskLevel;
   updatedAt: string;
 }
 
@@ -223,6 +234,15 @@ export const OptionsSuggestionSignal = {
   STRONG_SELL: "STRONG_SELL",
 } as const;
 
+export type OptionsSuggestionOiTrend =
+  (typeof OptionsSuggestionOiTrend)[keyof typeof OptionsSuggestionOiTrend];
+
+export const OptionsSuggestionOiTrend = {
+  Increasing: "Increasing",
+  Decreasing: "Decreasing",
+  Stable: "Stable",
+} as const;
+
 export interface OptionsSuggestion {
   rank: number;
   symbol: string;
@@ -241,6 +261,8 @@ export interface OptionsSuggestion {
   volume: number;
   openInterest: number;
   impliedVolatility: number;
+  oiTrend: OptionsSuggestionOiTrend;
+  confidence: number;
   rationale: string;
   updatedAt: string;
 }

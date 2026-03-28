@@ -5,6 +5,7 @@
  * NSE Stock Market Dashboard API
  * OpenAPI spec version: 0.2.0
  */
+import type { OptionsSuggestionOiTrend } from "./optionsSuggestionOiTrend";
 import type { OptionsSuggestionOptionType } from "./optionsSuggestionOptionType";
 import type { OptionsSuggestionSignal } from "./optionsSuggestionSignal";
 
@@ -26,6 +27,8 @@ export interface OptionsSuggestion {
   volume: number;
   openInterest: number;
   impliedVolatility: number;
+  oiTrend: OptionsSuggestionOiTrend;
+  confidence: number;
   rationale: string;
   updatedAt: string;
 }

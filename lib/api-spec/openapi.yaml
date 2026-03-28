@@ -650,6 +650,11 @@ components:
         vwapStatus:
           type: string
           enum: [ABOVE, BELOW, AT]
+        confidence:
+          type: number
+        riskLevel:
+          type: string
+          enum: [Low, Medium, High]
         updatedAt:
           type: string
       required:
@@ -668,6 +673,8 @@ components:
         - rationale
         - rsi
         - vwapStatus
+        - confidence
+        - riskLevel
         - updatedAt
 
     OptionsSuggestion:
@@ -709,6 +716,11 @@ components:
           type: number
         impliedVolatility:
           type: number
+        oiTrend:
+          type: string
+          enum: [Increasing, Decreasing, Stable]
+        confidence:
+          type: number
         rationale:
           type: string
         updatedAt:
@@ -731,5 +743,7 @@ components:
         - volume
         - openInterest
         - impliedVolatility
+        - oiTrend
+        - confidence
         - rationale
         - updatedAt

@@ -118,6 +118,15 @@ export function getIntradaySuggestions() {
     const vwapVariant = seededRandom(seed * 13);
     const vwapStatus = vwapVariant > 0.6 ? "ABOVE" : vwapVariant > 0.25 ? "BELOW" : "AT";
 
+    // Confidence (signal-weighted + RSI alignment)
+    const confBase = sigIdx === 0 ? 82 : sigIdx === 1 ? 68 : sigIdx === 2 ? 52 : sigIdx === 3 ? 38 : 25;
+    const confRange = sigIdx === 0 ? 13 : sigIdx === 1 ? 14 : sigIdx === 2 ? 16 : 14;
+    const confidence = parseFloat((confBase + seededRandom(seed * 41) * confRange).toFixed(1));
+
+    // Risk level based on stop-loss distance from price
+    const slDist = ((price - stopLoss) / price) * 100;
+    const riskLevel: "Low" | "Medium" | "High" = slDist < 1.8 ? "Low" : slDist < 3.5 ? "Medium" : "High";
+
     return {
       rank: rank + 1,
       symbol: sym,
@@ -134,6 +143,8 @@ export function getIntradaySuggestions() {
       rationale: getRationale(signal as keyof typeof INTRADAY_RATIONALES, seed * 17),
       rsi: rsiVal,
       vwapStatus: vwapStatus as "ABOVE" | "BELOW" | "AT",
+      confidence,
+      riskLevel,
       updatedAt: now,
     };
   });
@@ -249,6 +260,14 @@ export function getOptionsSuggestions() {
     const rationaleKey = signal as "STRONG_BUY" | "BUY" | "WATCH";
     const rationale = getOptionsRationale(optionType, rationaleKey, seed * 41);
 
+    // OI Trend
+    const oiTrendSeed = seededRandom(seed * 47);
+    const oiTrend: "Increasing" | "Decreasing" | "Stable" = oiTrendSeed > 0.6 ? "Increasing" : oiTrendSeed > 0.25 ? "Decreasing" : "Stable";
+
+    // Confidence
+    const confBase = sigIdx === 0 ? 82 : sigIdx === 1 ? 68 : 52;
+    const confidence = parseFloat((confBase + seededRandom(seed * 53) * 13).toFixed(1));
+
     return {
       rank: rank + 1,
       symbol: item.sym,
@@ -266,6 +285,8 @@ export function getOptionsSuggestions() {
       change,
       volume: Math.floor(seededRandom(seed * 43) * 2000000 + 50000),
       openInterest: oi,
+      oiTrend,
+      confidence,
       impliedVolatility: iv,
       rationale,
       updatedAt: now,

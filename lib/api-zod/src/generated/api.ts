@@ -298,6 +298,8 @@ export const GetIntradaySuggestionsResponseItem = zod.object({
   rationale: zod.string(),
   rsi: zod.number(),
   vwapStatus: zod.enum(["ABOVE", "BELOW", "AT"]),
+  confidence: zod.number(),
+  riskLevel: zod.enum(["Low", "Medium", "High"]),
   updatedAt: zod.string(),
 });
 export const GetIntradaySuggestionsResponse = zod.array(
@@ -326,6 +328,8 @@ export const GetOptionsSuggestionsResponseItem = zod.object({
   volume: zod.number(),
   openInterest: zod.number(),
   impliedVolatility: zod.number(),
+  oiTrend: zod.enum(["Increasing", "Decreasing", "Stable"]),
+  confidence: zod.number(),
   rationale: zod.string(),
   updatedAt: zod.string(),
 });
