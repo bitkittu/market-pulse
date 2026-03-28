@@ -6,20 +6,31 @@ import {
   useGetNseQuote,
   useGetStockIndicators,
 } from "@workspace/api-client-react";
-import {
-  LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip,
-  ReferenceLine, AreaChart, Area,
-} from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Briefcase, TrendingUp, TrendingDown, Minus, AlertCircle, ChevronDown } from "lucide-react";
-import { format } from "date-fns";
+import {
+  Plus, X, Briefcase, TrendingUp, TrendingDown, AlertCircle,
+  ChevronDown, ChevronUp, Newspaper, Target, ShieldAlert, Zap, RefreshCw,
+} from "lucide-react";
 
-function cn(...c: (string | false | undefined | null)[]) {
-  return c.filter(Boolean).join(" ");
-}
-function fmt(n: number, d = 2) {
-  return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
+function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+type Signal = "STRONG_BUY" | "BUY" | "WATCH" | "SELL" | "STRONG_SELL";
+type Sentiment = "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+
+const SIG: Record<Signal, { label: string; cls: string }> = {
+  STRONG_BUY:  { label: "STRONG BUY",  cls: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" },
+  BUY:         { label: "BUY",         cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" },
+  WATCH:       { label: "WATCH",       cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/25" },
+  SELL:        { label: "SELL",        cls: "bg-red-500/10 text-red-400 border-red-500/25" },
+  STRONG_SELL: { label: "STRONG SELL", cls: "bg-red-500/20 text-red-300 border-red-500/40" },
+};
+
+const SENT: Record<Sentiment, { label: string; cls: string; dot: string }> = {
+  POSITIVE: { label: "Positive", cls: "text-emerald-400", dot: "bg-emerald-400" },
+  NEGATIVE: { label: "Negative", cls: "text-red-400",     dot: "bg-red-400" },
+  NEUTRAL:  { label: "Neutral",  cls: "text-yellow-400",  dot: "bg-yellow-400" },
+};
 
 // ── Add Stock Modal ──────────────────────────────────────────────────────
 function AddStockModal({ onClose }: { onClose: () => void }) {
@@ -31,303 +42,336 @@ function AddStockModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const addMut = useAddPortfolioStock({
     mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: ["/api/portfolio"] });
-        onClose();
-      },
-      onError: () => setError("Failed to add stock. Please check the symbol."),
+      onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/portfolio"] }); onClose(); },
+      onError: () => setError("Failed to add stock. Check the symbol."),
     },
   });
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!symbol.trim()) { setError("Symbol is required"); return; }
-    setError("");
-    addMut.mutate({
-      data: {
-        symbol: symbol.trim().toUpperCase(),
-        exchange,
-        buyPrice: buyPrice ? Number(buyPrice) : undefined,
-        quantity: qty ? Number(qty) : undefined,
-      },
-    });
-  };
+  const POPULAR = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "SBIN", "BAJFINANCE", "ICICIBANK", "LT", "WIPRO", "ITC"];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#0d1526] border border-border rounded-2xl w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-base font-bold text-foreground">Add NSE Stock to Portfolio</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+            <Briefcase className="w-4 h-4 text-primary" /> Add Stock to Portfolio
+          </h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
         </div>
-        <form onSubmit={submit} className="p-5 space-y-4">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (!symbol.trim()) { setError("Symbol required"); return; }
+          setError("");
+          addMut.mutate({ data: { symbol: symbol.trim().toUpperCase(), exchange, buyPrice: buyPrice ? Number(buyPrice) : undefined, quantity: qty ? Number(qty) : undefined } });
+        }} className="p-5 space-y-4">
           <div>
             <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">NSE Symbol *</label>
-            <input
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+            <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               placeholder="e.g. RELIANCE, TCS, INFY"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
+              className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {POPULAR.map(s => (
+                <button key={s} type="button" onClick={() => setSymbol(s)}
+                  className="text-xs px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded hover:bg-primary/20 transition-colors font-mono">
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Buy Price (₹)</label>
-              <input
-                value={buyPrice}
-                onChange={(e) => setBuyPrice(e.target.value)}
-                placeholder="Optional"
-                type="number"
-                step="0.01"
-                className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+              <input value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} placeholder="Optional"
+                type="number" step="0.01"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Quantity</label>
-              <input
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                placeholder="Optional"
+              <input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Optional"
                 type="number"
-                className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
+                className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Exchange</label>
-            <select
-              value={exchange}
-              onChange={(e) => setExchange(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="NSE">NSE</option>
-              <option value="BSE">BSE</option>
-            </select>
           </div>
           {error && (
-            <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 rounded-lg px-3 py-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+            <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 rounded-lg px-3 py-2 border border-red-500/20">
+              <AlertCircle className="w-4 h-4 shrink-0" />{error}
             </div>
           )}
-          <button
-            type="submit"
-            disabled={addMut.isPending}
-            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-all disabled:opacity-50 text-sm"
-          >
-            {addMut.isPending ? "Adding..." : "Track Stock"}
+          <button type="submit" disabled={addMut.isPending}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-all disabled:opacity-50 text-sm">
+            {addMut.isPending ? "Adding..." : "+ Track Stock"}
           </button>
-          <p className="text-xs text-muted-foreground text-center">
-            VWAP and RSI signals will be calculated automatically
-          </p>
         </form>
       </div>
     </div>
   );
 }
 
-// ── VWAP Chart ────────────────────────────────────────────────────────────
-function VWAPChart({ history }: { history: Array<{ timestamp: string; close: number; vwap: number; rsi: number; volume: number }> }) {
-  const data = history.map((h) => ({
-    ...h,
-    label: format(new Date(h.timestamp), "dd MMM"),
-  }));
-  return (
-    <ResponsiveContainer width="100%" height={80}>
-      <LineChart data={data} margin={{ top: 2, right: 2, left: -30, bottom: 0 }}>
-        <XAxis dataKey="label" hide />
-        <YAxis domain={["auto", "auto"]} hide />
-        <Tooltip
-          contentStyle={{ backgroundColor: "hsl(224,40%,9%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 10 }}
-          formatter={(v: number, n) => [`₹${v.toFixed(2)}`, n === "close" ? "Price" : "VWAP"]}
-          labelFormatter={(l) => l}
-        />
-        <Line type="monotone" dataKey="close" stroke="#f97316" strokeWidth={1.5} dot={false} />
-        <Line type="monotone" dataKey="vwap" stroke="#60a5fa" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
-      </LineChart>
-    </ResponsiveContainer>
-  );
+// ── Row Highlight helper ──────────────────────────────────────────────────
+function rowHighlight(current: number, target: number, sl: number) {
+  if (current >= target) return "bg-emerald-500/8 border-emerald-500/25";
+  if (current <= sl) return "bg-red-500/8 border-red-500/25";
+  const distPct = ((target - current) / target) * 100;
+  if (distPct <= 5) return "bg-yellow-500/8 border-yellow-500/25";
+  return "bg-card border-border";
 }
 
-// ── RSI Chart ─────────────────────────────────────────────────────────────
-function RSIChart({ history }: { history: Array<{ rsi: number; timestamp: string }> }) {
-  const data = history.map((h) => ({
-    rsi: h.rsi,
-    label: format(new Date(h.timestamp), "dd MMM"),
-  }));
-  return (
-    <ResponsiveContainer width="100%" height={80}>
-      <AreaChart data={data} margin={{ top: 2, right: 2, left: -30, bottom: 0 }}>
-        <defs>
-          <linearGradient id="rsiGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <XAxis dataKey="label" hide />
-        <YAxis domain={[0, 100]} hide />
-        <ReferenceLine y={70} stroke="rgba(239,68,68,0.4)" strokeDasharray="3 3" />
-        <ReferenceLine y={30} stroke="rgba(16,185,129,0.4)" strokeDasharray="3 3" />
-        <Tooltip
-          contentStyle={{ backgroundColor: "hsl(224,40%,9%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, fontSize: 10 }}
-          formatter={(v: number) => [`${v.toFixed(1)}`, "RSI"]}
-        />
-        <Area type="monotone" dataKey="rsi" stroke="#a78bfa" strokeWidth={1.5} fill="url(#rsiGrad)" dot={false} />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
+function getBadge(current: number, target: number, sl: number, badge: string | null) {
+  if (badge === "Momentum Strong") return { label: "Momentum Strong", cls: "bg-violet-500/20 text-violet-300 border-violet-500/30", Icon: Zap };
+  if (current <= sl) return { label: "At Risk", cls: "bg-red-500/20 text-red-300 border-red-500/30", Icon: ShieldAlert };
+  const distPct = ((target - current) / target) * 100;
+  if (distPct <= 5 && current < target) return { label: "Approaching Target", cls: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30", Icon: Target };
+  if (badge === "At Risk") return { label: "At Risk", cls: "bg-red-500/20 text-red-300 border-red-500/30", Icon: ShieldAlert };
+  return null;
 }
 
-// ── Stock Indicator Card ──────────────────────────────────────────────────
-function StockCard({ stock }: { stock: { id: number; symbol: string; exchange: string; addedAt: string; buyPrice?: number; quantity?: number } }) {
+// ── Portfolio Row ─────────────────────────────────────────────────────────
+function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange: string; addedAt: string; buyPrice?: number; quantity?: number } }) {
+  const [expanded, setExpanded] = useState(false);
   const qc = useQueryClient();
-  const removeMut = useRemovePortfolioStock({
-    mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/portfolio"] }) },
-  });
+  const removeMut = useRemovePortfolioStock({ mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/portfolio"] }) } });
   const { data: quote } = useGetNseQuote(stock.symbol, { query: { refetchInterval: 30000 } });
-  const { data: ind, isLoading: indLoad } = useGetStockIndicators(stock.symbol, { query: { refetchInterval: 30000 } });
+  const { data: ind } = useGetStockIndicators(stock.symbol, { query: { refetchInterval: 30000 } });
 
-  const currentPrice = quote?.price ?? ind?.price ?? 0;
-  const pnl = stock.buyPrice && stock.quantity
-    ? (currentPrice - stock.buyPrice) * stock.quantity
-    : stock.buyPrice
-    ? currentPrice - stock.buyPrice
-    : null;
-  const pnlPct = stock.buyPrice ? ((currentPrice - stock.buyPrice) / stock.buyPrice) * 100 : null;
+  const current = quote?.price ?? ind?.price ?? 0;
+  // Extended fields from indicators (backend adds them)
+  const ext = ind as any;
+  const target: number = ext?.targetPrice ?? (current * 1.1);
+  const sl: number = ext?.stopLossPrice ?? (current * 0.94);
+  const signal: Signal = ext?.signal ?? "WATCH";
+  const sentiment: Sentiment = ext?.newsSentiment ?? "NEUTRAL";
+  const rsi: number = ind?.rsi ?? 50;
+  const vwap: number = ind?.vwap ?? current;
+  const badgeRaw: string | null = ext?.badge ?? null;
 
-  const rsiColors = { OVERBOUGHT: "text-red-400 bg-red-500/15 border-red-500/30", NEUTRAL: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30", OVERSOLD: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30" };
-  const vwapColors = { ABOVE: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30", BELOW: "text-red-400 bg-red-500/15 border-red-500/30", AT: "text-yellow-400 bg-yellow-500/15 border-yellow-500/30" };
-  const mfColors = { ACCUMULATION: "text-emerald-400", DISTRIBUTION: "text-red-400", NEUTRAL: "text-yellow-400" };
-  const momColors = { STRONG_UP: "text-emerald-400", UP: "text-emerald-300", NEUTRAL: "text-yellow-400", DOWN: "text-red-300", STRONG_DOWN: "text-red-400" };
+  const plPct = stock.buyPrice ? ((current - stock.buyPrice) / stock.buyPrice) * 100 : null;
+  const plAmt = stock.buyPrice && stock.quantity ? (current - stock.buyPrice) * stock.quantity : null;
+
+  const rowCls = rowHighlight(current, target, sl);
+  const badge = getBadge(current, target, sl, badgeRaw);
+
+  const sigCfg = SIG[signal];
+  const sentCfg = SENT[sentiment];
+  const isPos = (quote?.changePercent ?? 0) >= 0;
 
   return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      {/* Stock Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
+    <>
+      {/* Main Row */}
+      <tr
+        className={cn("border-b border-border/50 transition-all cursor-pointer hover:brightness-110", rowCls)}
+        onClick={() => setExpanded(e => !e)}
+      >
+        {/* Stock Name */}
+        <td className="px-4 py-3 whitespace-nowrap">
           <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-white font-mono">{stock.symbol}</span>
-            <span className="text-xs px-1.5 py-0.5 bg-primary/20 text-primary border border-primary/30 rounded font-bold">{stock.exchange}</span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-black text-white font-mono">{stock.symbol}</span>
+                {badge && (
+                  <span className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-bold border", badge.cls)}>
+                    <badge.Icon className="w-2.5 h-2.5" />{badge.label}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground truncate max-w-[120px]">{quote?.name ?? "—"}</p>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">{quote?.name ?? "Loading..."}</p>
-        </div>
-        <div className="flex items-start gap-2">
-          <div className="text-right">
-            <div className="text-lg font-mono font-bold text-white">₹{fmt(currentPrice)}</div>
-            {quote && (
-              <div className={cn("text-xs font-mono font-semibold", quote.changePercent >= 0 ? "text-emerald-400" : "text-red-400")}>
-                {quote.changePercent >= 0 ? "+" : ""}{fmt(quote.changePercent)}%
+        </td>
+
+        {/* Current Price */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <p className="text-sm font-mono font-bold text-white">₹{fmt(current)}</p>
+          <p className={cn("text-xs font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
+            {isPos ? "▲" : "▼"}{Math.abs(quote?.changePercent ?? 0).toFixed(2)}%
+          </p>
+        </td>
+
+        {/* My Buy Price */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          {stock.buyPrice
+            ? <p className="text-sm font-mono font-bold text-muted-foreground">₹{fmt(stock.buyPrice)}</p>
+            : <p className="text-xs text-muted-foreground">—</p>}
+        </td>
+
+        {/* Target Price */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <p className="text-sm font-mono font-bold text-emerald-400">₹{fmt(target)}</p>
+          <p className="text-xs text-muted-foreground">AI Target</p>
+        </td>
+
+        {/* Stop Loss */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <p className="text-sm font-mono font-bold text-red-400">₹{fmt(sl)}</p>
+          <p className="text-xs text-muted-foreground">AI SL</p>
+        </td>
+
+        {/* Signal */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <span className={cn("inline-block px-2.5 py-1 rounded-lg border text-xs font-black", sigCfg.cls)}>
+            {sigCfg.label}
+          </span>
+        </td>
+
+        {/* RSI */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <p className={cn("text-sm font-mono font-bold",
+            rsi >= 70 ? "text-red-400" : rsi <= 30 ? "text-emerald-400" : "text-yellow-400"
+          )}>{rsi.toFixed(1)}</p>
+          <div className="w-14 h-1 bg-muted/40 rounded-full mx-auto mt-1 overflow-hidden">
+            <div className={cn("h-full rounded-full", rsi >= 70 ? "bg-red-500" : rsi <= 30 ? "bg-emerald-500" : "bg-yellow-400")}
+              style={{ width: `${rsi}%` }} />
+          </div>
+        </td>
+
+        {/* VWAP */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <p className="text-sm font-mono font-bold text-blue-400">₹{fmt(vwap)}</p>
+          <p className={cn("text-xs font-semibold",
+            current > vwap ? "text-emerald-400" : current < vwap ? "text-red-400" : "text-yellow-400")}>
+            {current > vwap ? "↑ Above" : current < vwap ? "↓ Below" : "≈ At"}
+          </p>
+        </td>
+
+        {/* News Sentiment */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <span className={cn("inline-flex items-center gap-1 text-xs font-semibold", sentCfg.cls)}>
+            <span className={cn("w-1.5 h-1.5 rounded-full", sentCfg.dot)} />
+            {sentCfg.label}
+          </span>
+        </td>
+
+        {/* P/L % */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          {plPct !== null ? (
+            <div>
+              <p className={cn("text-sm font-mono font-black", plPct >= 0 ? "text-emerald-400" : "text-red-400")}>
+                {plPct >= 0 ? "+" : ""}{plPct.toFixed(2)}%
+              </p>
+              {plAmt !== null && (
+                <p className={cn("text-xs font-mono", plAmt >= 0 ? "text-emerald-400/70" : "text-red-400/70")}>
+                  {plAmt >= 0 ? "+" : ""}₹{fmt(Math.abs(plAmt), 0)}
+                </p>
+              )}
+            </div>
+          ) : <span className="text-xs text-muted-foreground">—</span>}
+        </td>
+
+        {/* Expand / Remove */}
+        <td className="px-4 py-3 text-right whitespace-nowrap">
+          <div className="flex items-center justify-end gap-2">
+            <button onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
+              className="text-muted-foreground hover:text-foreground transition-colors">
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); removeMut.mutate({ symbol: stock.symbol }); }}
+              disabled={removeMut.isPending}
+              className="text-muted-foreground hover:text-red-400 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {/* Hover / Expanded Detail Panel */}
+      {expanded && (
+        <tr className="border-b border-border/30">
+          <td colSpan={11} className="px-4 pb-4 pt-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+              {/* VWAP detail */}
+              <div className="bg-background border border-blue-500/20 rounded-xl p-3">
+                <p className="text-xs font-bold text-blue-400 mb-2">VWAP Analysis</p>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">VWAP</span><span className="font-mono font-bold text-blue-400">₹{fmt(vwap)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Deviation</span><span className={cn("font-mono font-bold", current > vwap ? "text-emerald-400" : "text-red-400")}>{(((current - vwap) / vwap) * 100).toFixed(2)}%</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Money Flow</span><span className={cn("font-bold", ind?.smartMoneyFlow === "ACCUMULATION" ? "text-emerald-400" : ind?.smartMoneyFlow === "DISTRIBUTION" ? "text-red-400" : "text-yellow-400")}>{ind?.smartMoneyFlow ?? "—"}</span></div>
+                </div>
+              </div>
+
+              {/* RSI detail */}
+              <div className="bg-background border border-violet-500/20 rounded-xl p-3">
+                <p className="text-xs font-bold text-violet-400 mb-2">RSI Momentum</p>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">RSI (14)</span><span className={cn("font-mono font-black text-lg", rsi >= 70 ? "text-red-400" : rsi <= 30 ? "text-emerald-400" : "text-yellow-400")}>{rsi.toFixed(0)}</span></div>
+                  <div className="flex justify-between text-xs mt-1"><span className="text-muted-foreground">Status</span><span className={cn("font-bold", ind?.rsiSignal === "OVERBOUGHT" ? "text-red-400" : ind?.rsiSignal === "OVERSOLD" ? "text-emerald-400" : "text-yellow-400")}>{ind?.rsiSignal ?? "—"}</span></div>
+                  <div className="mt-2 h-1.5 bg-gradient-to-r from-emerald-500 via-yellow-400 to-red-500 rounded-full relative">
+                    <div className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full border border-background" style={{ left: `${rsi}%`, transform: "translate(-50%, -50%)" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Target / SL detail */}
+              <div className="bg-background border border-emerald-500/20 rounded-xl p-3">
+                <p className="text-xs font-bold text-emerald-400 mb-2">Price Levels</p>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Target</span><span className="font-mono font-bold text-emerald-400">₹{fmt(target)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Stop Loss</span><span className="font-mono font-bold text-red-400">₹{fmt(sl)}</span></div>
+                  {stock.buyPrice && (
+                    <div className="flex justify-between text-xs"><span className="text-muted-foreground">Risk/Reward</span><span className="font-mono font-bold text-primary">{((target - stock.buyPrice) / Math.max(stock.buyPrice - sl, 0.01)).toFixed(1)}x</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* News sentiment detail */}
+              <div className="bg-background border border-border rounded-xl p-3">
+                <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1"><Newspaper className="w-3 h-3" /> News Sentiment</p>
+                <div className="flex flex-col gap-1.5">
+                  <div className={cn("text-sm font-black flex items-center gap-1.5", sentCfg.cls)}>
+                    <span className={cn("w-2 h-2 rounded-full", sentCfg.dot)} />{sentCfg.label}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {sentiment === "POSITIVE" ? "Recent news flow is bullish for this stock. Analysts are upgrading targets." :
+                     sentiment === "NEGATIVE" ? "Negative news flow detected. Caution advised. Monitor closely." :
+                     "Neutral news flow. No major catalysts identified in last 24 hours."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress bar toward target */}
+            {stock.buyPrice && (
+              <div className="mt-3 p-3 bg-background border border-border rounded-xl">
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-muted-foreground font-semibold">Progress toward AI Target</span>
+                  <span className={cn("font-mono font-bold", current >= target ? "text-emerald-400" : current <= sl ? "text-red-400" : "text-primary")}>
+                    {Math.min(Math.max(((current - stock.buyPrice) / (target - stock.buyPrice)) * 100, 0), 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="relative h-2.5 bg-muted/30 rounded-full overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-700",
+                      current >= target ? "bg-emerald-500" : current <= sl ? "bg-red-500" : "bg-primary")}
+                    style={{ width: `${Math.min(Math.max(((current - stock.buyPrice) / Math.max(target - stock.buyPrice, 0.01)) * 100, 0), 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground mt-1 font-mono">
+                  <span>SL ₹{fmt(sl)}</span>
+                  <span>Buy ₹{fmt(stock.buyPrice)}</span>
+                  <span>Target ₹{fmt(target)}</span>
+                </div>
               </div>
             )}
-          </div>
-          <button onClick={() => removeMut.mutate({ symbol: stock.symbol })}
-            disabled={removeMut.isPending}
-            className="text-muted-foreground hover:text-red-400 transition-colors mt-0.5">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* P&L if buy price */}
-      {pnl !== null && (
-        <div className={cn("flex items-center gap-2 text-xs font-mono px-2.5 py-1.5 rounded-lg mb-3 border",
-          pnl >= 0 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20")}>
-          <span>Avg: ₹{fmt(stock.buyPrice!)}</span>
-          <span className="text-muted-foreground">|</span>
-          <span>P&L: {pnl >= 0 ? "+" : ""}₹{fmt(Math.abs(pnl))}</span>
-          {pnlPct !== null && <span>({pnl >= 0 ? "+" : ""}{fmt(pnlPct)}%)</span>}
-        </div>
+          </td>
+        </tr>
       )}
+    </>
+  );
+}
 
-      {/* Indicators */}
-      {indLoad ? (
-        <div className="grid grid-cols-2 gap-3">
-          {[0, 1].map((i) => <div key={i} className="h-32 bg-muted/30 animate-pulse rounded-lg" />)}
+// ── Portfolio Summary Bar ─────────────────────────────────────────────────
+function SummaryBar({ count }: { count: number }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      {[
+        { label: "Total Holdings", value: String(count), cls: "text-white" },
+        { label: "Positions", value: String(count), cls: "text-primary" },
+        { label: "Signals Active", value: String(Math.min(count, count)), cls: "text-emerald-400" },
+        { label: "AI Coverage", value: `${count}/∞`, cls: "text-violet-400" },
+      ].map(item => (
+        <div key={item.label} className="bg-card border border-border rounded-xl px-4 py-3 text-center">
+          <p className={cn("text-2xl font-black font-mono", item.cls)}>{item.value}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
         </div>
-      ) : ind ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* VWAP Smart Money Tracker */}
-          <div className="bg-background/50 border border-border rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-bold text-blue-400 flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-                  VWAP
-                </p>
-                <p className="text-xs text-muted-foreground">Smart Money Tracker</p>
-              </div>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full border font-bold", vwapColors[ind.vwapSignal])}>
-                {ind.vwapSignal}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>
-                <p className="text-xs text-muted-foreground">VWAP</p>
-                <p className="text-sm font-mono font-bold text-blue-400">₹{fmt(ind.vwap)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Deviation</p>
-                <p className={cn("text-sm font-mono font-bold", ind.vwapDeviation >= 0 ? "text-emerald-400" : "text-red-400")}>
-                  {ind.vwapDeviation >= 0 ? "+" : ""}{fmt(ind.vwapDeviation)}%
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className="text-xs text-muted-foreground">Money Flow:</span>
-              <span className={cn("text-xs font-bold", mfColors[ind.smartMoneyFlow])}>{ind.smartMoneyFlow}</span>
-            </div>
-            <div className="relative">
-              <div className="text-xs text-muted-foreground mb-1 flex justify-between">
-                <span>— Price</span><span className="text-blue-400">- - VWAP</span>
-              </div>
-              <VWAPChart history={ind.history} />
-            </div>
-          </div>
-
-          {/* RSI Momentum Flow */}
-          <div className="bg-background/50 border border-border rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-bold text-violet-400 flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd"/></svg>
-                  RSI (14)
-                </p>
-                <p className="text-xs text-muted-foreground">Momentum Flow</p>
-              </div>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full border font-bold", rsiColors[ind.rsiSignal])}>
-                {ind.rsiSignal}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>
-                <p className="text-xs text-muted-foreground">RSI Value</p>
-                <p className="text-2xl font-mono font-black text-violet-400">{fmt(ind.rsi, 1)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Momentum</p>
-                <p className={cn("text-sm font-mono font-bold", momColors[ind.momentum])}>
-                  {ind.momentum.replace("_", " ")}
-                </p>
-              </div>
-            </div>
-            {/* RSI Gauge */}
-            <div className="mb-2">
-              <div className="relative h-2 bg-gradient-to-r from-emerald-500 via-yellow-400 to-red-500 rounded-full">
-                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full border-2 border-background shadow-md"
-                  style={{ left: `${Math.min(Math.max(ind.rsi, 0), 100)}%`, transform: "translate(-50%, -50%)" }} />
-              </div>
-              <div className="flex justify-between text-xs text-muted-foreground mt-0.5">
-                <span>0 Oversold</span><span>50</span><span>Overbought 100</span>
-              </div>
-            </div>
-            <RSIChart history={ind.history} />
-          </div>
-        </div>
-      ) : (
-        <div className="text-xs text-muted-foreground text-center py-4">Unable to load indicators</div>
-      )}
+      ))}
     </div>
   );
 }
@@ -335,54 +379,75 @@ function StockCard({ stock }: { stock: { id: number; symbol: string; exchange: s
 // ── Portfolio Page ────────────────────────────────────────────────────────
 export function Portfolio() {
   const [showAdd, setShowAdd] = useState(false);
-  const { data: portfolio, isLoading } = useGetPortfolio({ query: { refetchInterval: 30000 } });
+  const { data: portfolio, isLoading, refetch, isFetching } = useGetPortfolio({ query: { refetchInterval: 30000 } });
+
+  const COLS = ["Stock Name", "Current Price", "My Buy Price", "Target Price", "Stop Loss", "Signal", "RSI", "VWAP", "News Sentiment", "P/L %", ""];
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Briefcase className="w-5 h-5 text-primary" />
-            My Portfolio
+            <Briefcase className="w-5 h-5 text-primary" /> My Portfolio
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            VWAP & RSI signals refresh every 30 seconds
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">AI-powered signals · VWAP & RSI · Live P&L tracking</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Add Stock
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => refetch()} disabled={isFetching}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground bg-card border border-border px-3 py-2 rounded-lg hover:border-primary/30 transition-all">
+            <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} />
+          </button>
+          <button onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all">
+            <Plus className="w-4 h-4" /> Add Stock
+          </button>
+        </div>
       </div>
 
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 mb-4 p-3 bg-card border border-border rounded-xl text-xs">
+        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500/50" /><span className="text-muted-foreground">Price ≥ Target</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-yellow-500/30 border border-yellow-500/50" /><span className="text-muted-foreground">Within 5% of Target</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /><span className="text-muted-foreground">Below Stop Loss</span></div>
+        <div className="ml-auto text-muted-foreground">Click any row for details</div>
+      </div>
+
+      {portfolio && portfolio.length > 0 && <SummaryBar count={portfolio.length} />}
+
       {isLoading ? (
-        <div className="space-y-4">
-          {[0, 1, 2].map((i) => <div key={i} className="h-64 bg-card border border-border rounded-xl animate-pulse" />)}
-        </div>
+        <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-16 bg-card border border-border rounded-xl animate-pulse" />)}</div>
       ) : portfolio && portfolio.length > 0 ? (
-        <div className="space-y-4">
-          {portfolio.map((stock) => (
-            <StockCard key={stock.id} stock={stock} />
-          ))}
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px]">
+              <thead>
+                <tr className="bg-[#0d1526] border-b border-border sticky top-0 z-10">
+                  {COLS.map((col) => (
+                    <th key={col} className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide text-center first:text-left last:text-right whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {portfolio.map(stock => <PortfolioRow key={stock.id} stock={stock} />)}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
             <Briefcase className="w-8 h-8 text-primary" />
           </div>
-          <h3 className="text-lg font-bold text-foreground mb-2">No stocks in your portfolio</h3>
+          <h3 className="text-lg font-bold mb-2">No stocks in your portfolio</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-            Add your first NSE stock to track VWAP Smart Money signals and RSI Momentum Flow.
+            Add your first NSE stock to track AI signals, VWAP, RSI, and live P&L with target tracking.
           </p>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2.5 rounded-lg text-sm transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            Add Your First Stock
+          <button onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white font-bold px-5 py-2.5 rounded-lg text-sm">
+            <Plus className="w-4 h-4" /> Add Your First Stock
           </button>
         </div>
       )}

@@ -381,6 +381,31 @@ export function calculateIndicators(symbol: string) {
     : currentRsi >= 25 ? "DOWN"
     : "STRONG_DOWN";
 
+  // Signal based on RSI + VWAP
+  const signal: "STRONG_BUY" | "BUY" | "WATCH" | "SELL" | "STRONG_SELL" =
+    currentRsi > 68 && vwapSignal === "ABOVE" ? "STRONG_BUY"
+    : currentRsi > 55 && vwapSignal !== "BELOW" ? "BUY"
+    : currentRsi < 32 && vwapSignal === "BELOW" ? "STRONG_SELL"
+    : currentRsi < 45 && vwapSignal === "BELOW" ? "SELL"
+    : "WATCH";
+
+  // AI Target Price & Stop Loss (deterministic per symbol+day)
+  const tpMultiplier = 0.05 + seededRandom(ss * 17 + seed) * 0.12; // 5–17% above
+  const slMultiplier = 0.03 + seededRandom(ss * 23 + seed) * 0.06; // 3–9% below
+  const targetPrice = parseFloat((currentClose * (1 + tpMultiplier)).toFixed(2));
+  const stopLossPrice = parseFloat((currentClose * (1 - slMultiplier)).toFixed(2));
+
+  // News Sentiment (deterministic per symbol + day)
+  const sentimentSeed = seededRandom(ss * 31 + seed * 7);
+  const newsSentiment: "POSITIVE" | "NEGATIVE" | "NEUTRAL" =
+    sentimentSeed > 0.6 ? "POSITIVE" : sentimentSeed > 0.3 ? "NEUTRAL" : "NEGATIVE";
+
+  // Momentum badge logic
+  const badge: "Momentum Strong" | "Approaching Target" | "At Risk" | null =
+    (currentRsi > 65 && vwapSignal === "ABOVE") ? "Momentum Strong"
+    : (vwapSignal === "BELOW" && currentRsi < 40) ? "At Risk"
+    : null;
+
   return {
     symbol,
     price: currentClose,
@@ -391,6 +416,11 @@ export function calculateIndicators(symbol: string) {
     rsiSignal,
     smartMoneyFlow,
     momentum,
+    signal,
+    targetPrice,
+    stopLossPrice,
+    newsSentiment,
+    badge,
     history: history.slice(-20),
     updatedAt: now.toISOString(),
   };
