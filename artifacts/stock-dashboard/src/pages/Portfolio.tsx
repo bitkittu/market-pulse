@@ -1,22 +1,33 @@
 import { useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import {
   useGetPortfolio,
   useAddPortfolioStock,
   useRemovePortfolioStock,
   useGetNseQuote,
   useGetStockIndicators,
+  getGetStockIndicatorsQueryOptions,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, X, Briefcase, TrendingUp, TrendingDown, AlertCircle,
   ChevronDown, ChevronUp, Newspaper, Target, ShieldAlert, Zap, RefreshCw,
+  Wallet, BarChart2, ArrowUpRight, ArrowDownRight,
 } from "lucide-react";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function fmtInr(n: number) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "+";
+  if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2)}Cr`;
+  if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2)}L`;
+  return `${sign}₹${fmt(abs)}`;
+}
 
 type Signal = "STRONG_BUY" | "BUY" | "WATCH" | "SELL" | "STRONG_SELL";
 type Sentiment = "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+type PortfolioStock = { id: number; symbol: string; exchange: string; addedAt: string; buyPrice?: number; quantity?: number };
 
 const SIG: Record<Signal, { label: string; cls: string }> = {
   STRONG_BUY:  { label: "STRONG BUY",  cls: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" },
@@ -32,12 +43,93 @@ const SENT: Record<Sentiment, { label: string; cls: string; dot: string }> = {
   NEUTRAL:  { label: "Neutral",  cls: "text-yellow-400",  dot: "bg-yellow-400" },
 };
 
-// ── Add Stock Modal ──────────────────────────────────────────────────────
+// ── Portfolio Total P&L Card ──────────────────────────────────────────────
+function PortfolioTotalCard({ portfolio }: { portfolio: PortfolioStock[] }) {
+  const queries = useQueries({
+    queries: portfolio.map(s => getGetStockIndicatorsQueryOptions(s.symbol)),
+  });
+
+  let totalInvested = 0;
+  let totalCurrent = 0;
+  let winners = 0;
+  let losers = 0;
+
+  portfolio.forEach((s, i) => {
+    const ind = queries[i]?.data as any;
+    const price: number = ind?.price ?? s.buyPrice ?? 0;
+    const qty = s.quantity ?? 1;
+    if (s.buyPrice) {
+      totalInvested += s.buyPrice * qty;
+      totalCurrent += price * qty;
+      if (price >= s.buyPrice) winners++; else losers++;
+    }
+  });
+
+  const totalPL = totalCurrent - totalInvested;
+  const totalPLPct = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+  const isPos = totalPL >= 0;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      {/* Total Invested */}
+      <div className="bg-card border border-border rounded-xl px-4 py-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <Wallet className="w-3.5 h-3.5" /> Total Invested
+        </div>
+        <p className="text-xl font-black font-mono text-white">
+          {totalInvested > 0 ? `₹${fmt(totalInvested, 0)}` : "—"}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">{portfolio.filter(s => s.buyPrice).length} positions tracked</p>
+      </div>
+
+      {/* Current Value */}
+      <div className="bg-card border border-border rounded-xl px-4 py-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <BarChart2 className="w-3.5 h-3.5" /> Current Value
+        </div>
+        <p className={cn("text-xl font-black font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
+          {totalCurrent > 0 ? `₹${fmt(totalCurrent, 0)}` : "—"}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">Live market price</p>
+      </div>
+
+      {/* Total P&L */}
+      <div className={cn("border rounded-xl px-4 py-4", isPos ? "bg-emerald-500/8 border-emerald-500/25" : "bg-red-500/8 border-red-500/25")}>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          {isPos ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
+          Total P&L
+        </div>
+        <p className={cn("text-xl font-black font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
+          {totalInvested > 0 ? fmtInr(totalPL) : "—"}
+        </p>
+        <p className={cn("text-xs font-mono font-bold mt-0.5", isPos ? "text-emerald-400/70" : "text-red-400/70")}>
+          {totalInvested > 0 ? `${isPos ? "+" : ""}${totalPLPct.toFixed(2)}%` : "—"}
+        </p>
+      </div>
+
+      {/* Winners / Losers */}
+      <div className="bg-card border border-border rounded-xl px-4 py-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <Target className="w-3.5 h-3.5" /> Win / Loss
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xl font-black font-mono text-emerald-400">{winners}W</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-xl font-black font-mono text-red-400">{losers}L</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {winners + losers > 0 ? `${((winners / (winners + losers)) * 100).toFixed(0)}% win rate` : "No data"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Stock Modal ───────────────────────────────────────────────────────
 function AddStockModal({ onClose }: { onClose: () => void }) {
   const [symbol, setSymbol] = useState("");
   const [buyPrice, setBuyPrice] = useState("");
   const [qty, setQty] = useState("");
-  const [exchange, setExchange] = useState("NSE");
   const [error, setError] = useState("");
   const qc = useQueryClient();
   const addMut = useAddPortfolioStock({
@@ -62,7 +154,7 @@ function AddStockModal({ onClose }: { onClose: () => void }) {
           e.preventDefault();
           if (!symbol.trim()) { setError("Symbol required"); return; }
           setError("");
-          addMut.mutate({ data: { symbol: symbol.trim().toUpperCase(), exchange, buyPrice: buyPrice ? Number(buyPrice) : undefined, quantity: qty ? Number(qty) : undefined } });
+          addMut.mutate({ data: { symbol: symbol.trim().toUpperCase(), exchange: "NSE", buyPrice: buyPrice ? Number(buyPrice) : undefined, quantity: qty ? Number(qty) : undefined } });
         }} className="p-5 space-y-4">
           <div>
             <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">NSE Symbol *</label>
@@ -107,7 +199,7 @@ function AddStockModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Row Highlight helper ──────────────────────────────────────────────────
+// ── Row Highlight ─────────────────────────────────────────────────────────
 function rowHighlight(current: number, target: number, sl: number) {
   if (current >= target) return "bg-emerald-500/8 border-emerald-500/25";
   if (current <= sl) return "bg-red-500/8 border-red-500/25";
@@ -126,7 +218,7 @@ function getBadge(current: number, target: number, sl: number, badge: string | n
 }
 
 // ── Portfolio Row ─────────────────────────────────────────────────────────
-function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange: string; addedAt: string; buyPrice?: number; quantity?: number } }) {
+function PortfolioRow({ stock }: { stock: PortfolioStock }) {
   const [expanded, setExpanded] = useState(false);
   const qc = useQueryClient();
   const removeMut = useRemovePortfolioStock({ mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/portfolio"] }) } });
@@ -134,7 +226,6 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
   const { data: ind } = useGetStockIndicators(stock.symbol, { query: { refetchInterval: 30000 } });
 
   const current = quote?.price ?? ind?.price ?? 0;
-  // Extended fields from indicators (backend adds them)
   const ext = ind as any;
   const target: number = ext?.targetPrice ?? (current * 1.1);
   const sl: number = ext?.stopLossPrice ?? (current * 0.94);
@@ -143,6 +234,10 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
   const rsi: number = ind?.rsi ?? 50;
   const vwap: number = ind?.vwap ?? current;
   const badgeRaw: string | null = ext?.badge ?? null;
+
+  // Stop loss distance %
+  const slDist = current > 0 ? ((current - sl) / current) * 100 : 0;
+  const slDistCls = slDist < 1.5 ? "text-red-400" : slDist < 3 ? "text-yellow-400" : "text-emerald-400/80";
 
   const plPct = stock.buyPrice ? ((current - stock.buyPrice) / stock.buyPrice) * 100 : null;
   const plAmt = stock.buyPrice && stock.quantity ? (current - stock.buyPrice) * stock.quantity : null;
@@ -156,13 +251,12 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
 
   return (
     <>
-      {/* Main Row */}
       <tr
         className={cn("border-b border-border/50 transition-all cursor-pointer hover:brightness-110", rowCls)}
         onClick={() => setExpanded(e => !e)}
       >
         {/* Stock Name */}
-        <td className="px-4 py-3 whitespace-nowrap">
+        <td className="px-4 py-3 whitespace-nowrap sticky left-0 bg-inherit z-10">
           <div className="flex items-center gap-2">
             <div>
               <div className="flex items-center gap-1.5">
@@ -202,7 +296,7 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
         {/* Stop Loss */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
           <p className="text-sm font-mono font-bold text-red-400">₹{fmt(sl)}</p>
-          <p className="text-xs text-muted-foreground">AI SL</p>
+          <p className={cn("text-xs font-mono font-bold", slDistCls)}>{slDist.toFixed(1)}% away</p>
         </td>
 
         {/* Signal */}
@@ -272,46 +366,47 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
         </td>
       </tr>
 
-      {/* Hover / Expanded Detail Panel */}
+      {/* Expanded Detail Panel */}
       {expanded && (
         <tr className="border-b border-border/30">
           <td colSpan={11} className="px-4 pb-4 pt-0">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-              {/* VWAP detail */}
+              {/* VWAP */}
               <div className="bg-background border border-blue-500/20 rounded-xl p-3">
                 <p className="text-xs font-bold text-blue-400 mb-2">VWAP Analysis</p>
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs"><span className="text-muted-foreground">VWAP</span><span className="font-mono font-bold text-blue-400">₹{fmt(vwap)}</span></div>
-                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Deviation</span><span className={cn("font-mono font-bold", current > vwap ? "text-emerald-400" : "text-red-400")}>{(((current - vwap) / vwap) * 100).toFixed(2)}%</span></div>
-                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Money Flow</span><span className={cn("font-bold", ind?.smartMoneyFlow === "ACCUMULATION" ? "text-emerald-400" : ind?.smartMoneyFlow === "DISTRIBUTION" ? "text-red-400" : "text-yellow-400")}>{ind?.smartMoneyFlow ?? "—"}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Deviation</span><span className={cn("font-mono font-bold", current > vwap ? "text-emerald-400" : "text-red-400")}>{(((current - vwap) / Math.max(vwap, 1)) * 100).toFixed(2)}%</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Position</span><span className={cn("font-bold", current > vwap ? "text-emerald-400" : "text-red-400")}>{current > vwap ? "↑ Above VWAP" : "↓ Below VWAP"}</span></div>
                 </div>
               </div>
 
-              {/* RSI detail */}
+              {/* RSI */}
               <div className="bg-background border border-violet-500/20 rounded-xl p-3">
                 <p className="text-xs font-bold text-violet-400 mb-2">RSI Momentum</p>
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs"><span className="text-muted-foreground">RSI (14)</span><span className={cn("font-mono font-black text-lg", rsi >= 70 ? "text-red-400" : rsi <= 30 ? "text-emerald-400" : "text-yellow-400")}>{rsi.toFixed(0)}</span></div>
-                  <div className="flex justify-between text-xs mt-1"><span className="text-muted-foreground">Status</span><span className={cn("font-bold", ind?.rsiSignal === "OVERBOUGHT" ? "text-red-400" : ind?.rsiSignal === "OVERSOLD" ? "text-emerald-400" : "text-yellow-400")}>{ind?.rsiSignal ?? "—"}</span></div>
+                  <div className="flex justify-between text-xs mt-1"><span className="text-muted-foreground">Status</span><span className={cn("font-bold", rsi >= 70 ? "text-red-400" : rsi <= 30 ? "text-emerald-400" : "text-yellow-400")}>{rsi >= 70 ? "OVERBOUGHT" : rsi <= 30 ? "OVERSOLD" : "NEUTRAL"}</span></div>
                   <div className="mt-2 h-1.5 bg-gradient-to-r from-emerald-500 via-yellow-400 to-red-500 rounded-full relative">
-                    <div className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full border border-background" style={{ left: `${rsi}%`, transform: "translate(-50%, -50%)" }} />
+                    <div className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full border border-background" style={{ left: `${Math.min(rsi, 99)}%`, transform: "translate(-50%, -50%)" }} />
                   </div>
                 </div>
               </div>
 
-              {/* Target / SL detail */}
+              {/* Price Levels */}
               <div className="bg-background border border-emerald-500/20 rounded-xl p-3">
                 <p className="text-xs font-bold text-emerald-400 mb-2">Price Levels</p>
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs"><span className="text-muted-foreground">Target</span><span className="font-mono font-bold text-emerald-400">₹{fmt(target)}</span></div>
                   <div className="flex justify-between text-xs"><span className="text-muted-foreground">Stop Loss</span><span className="font-mono font-bold text-red-400">₹{fmt(sl)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">SL Distance</span><span className={cn("font-mono font-bold", slDistCls)}>{slDist.toFixed(2)}%</span></div>
                   {stock.buyPrice && (
                     <div className="flex justify-between text-xs"><span className="text-muted-foreground">Risk/Reward</span><span className="font-mono font-bold text-primary">{((target - stock.buyPrice) / Math.max(stock.buyPrice - sl, 0.01)).toFixed(1)}x</span></div>
                   )}
                 </div>
               </div>
 
-              {/* News sentiment detail */}
+              {/* News */}
               <div className="bg-background border border-border rounded-xl p-3">
                 <p className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1"><Newspaper className="w-3 h-3" /> News Sentiment</p>
                 <div className="flex flex-col gap-1.5">
@@ -327,13 +422,13 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
               </div>
             </div>
 
-            {/* Progress bar toward target */}
+            {/* Progress bar */}
             {stock.buyPrice && (
               <div className="mt-3 p-3 bg-background border border-border rounded-xl">
                 <div className="flex items-center justify-between text-xs mb-2">
                   <span className="text-muted-foreground font-semibold">Progress toward AI Target</span>
                   <span className={cn("font-mono font-bold", current >= target ? "text-emerald-400" : current <= sl ? "text-red-400" : "text-primary")}>
-                    {Math.min(Math.max(((current - stock.buyPrice) / (target - stock.buyPrice)) * 100, 0), 100).toFixed(1)}%
+                    {Math.min(Math.max(((current - stock.buyPrice) / Math.max(target - stock.buyPrice, 0.01)) * 100, 0), 100).toFixed(1)}%
                   </span>
                 </div>
                 <div className="relative h-2.5 bg-muted/30 rounded-full overflow-hidden">
@@ -344,9 +439,9 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
                   />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground mt-1 font-mono">
-                  <span>SL ₹{fmt(sl)}</span>
-                  <span>Buy ₹{fmt(stock.buyPrice)}</span>
-                  <span>Target ₹{fmt(target)}</span>
+                  <span className="text-red-400">SL ₹{fmt(sl)}</span>
+                  <span className="text-muted-foreground">Buy ₹{fmt(stock.buyPrice)}</span>
+                  <span className="text-emerald-400">Target ₹{fmt(target)}</span>
                 </div>
               </div>
             )}
@@ -357,31 +452,13 @@ function PortfolioRow({ stock }: { stock: { id: number; symbol: string; exchange
   );
 }
 
-// ── Portfolio Summary Bar ─────────────────────────────────────────────────
-function SummaryBar({ count }: { count: number }) {
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-      {[
-        { label: "Total Holdings", value: String(count), cls: "text-white" },
-        { label: "Positions", value: String(count), cls: "text-primary" },
-        { label: "Signals Active", value: String(Math.min(count, count)), cls: "text-emerald-400" },
-        { label: "AI Coverage", value: `${count}/∞`, cls: "text-violet-400" },
-      ].map(item => (
-        <div key={item.label} className="bg-card border border-border rounded-xl px-4 py-3 text-center">
-          <p className={cn("text-2xl font-black font-mono", item.cls)}>{item.value}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{item.label}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Portfolio Page ────────────────────────────────────────────────────────
 export function Portfolio() {
   const [showAdd, setShowAdd] = useState(false);
   const { data: portfolio, isLoading, refetch, isFetching } = useGetPortfolio({ query: { refetchInterval: 30000 } });
+  const stocks = (portfolio ?? []) as PortfolioStock[];
 
-  const COLS = ["Stock Name", "Current Price", "My Buy Price", "Target Price", "Stop Loss", "Signal", "RSI", "VWAP", "News Sentiment", "P/L %", ""];
+  const COLS = ["Stock Name", "Current Price", "My Buy Price", "AI Target", "Stop Loss", "Signal", "RSI", "VWAP", "Sentiment", "P/L %", ""];
 
   return (
     <div>
@@ -391,7 +468,7 @@ export function Portfolio() {
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-primary" /> My Portfolio
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">AI-powered signals · VWAP & RSI · Live P&L tracking</p>
+          <p className="text-xs text-muted-foreground mt-0.5">AI signals · VWAP & RSI · Live P&L · Stop loss distance</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => refetch()} disabled={isFetching}
@@ -410,28 +487,32 @@ export function Portfolio() {
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500/30 border border-emerald-500/50" /><span className="text-muted-foreground">Price ≥ Target</span></div>
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-yellow-500/30 border border-yellow-500/50" /><span className="text-muted-foreground">Within 5% of Target</span></div>
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500/30 border border-red-500/50" /><span className="text-muted-foreground">Below Stop Loss</span></div>
-        <div className="ml-auto text-muted-foreground">Click any row for details</div>
+        <span className="text-muted-foreground ml-auto">Click any row for details</span>
       </div>
 
-      {portfolio && portfolio.length > 0 && <SummaryBar count={portfolio.length} />}
+      {/* Total P&L Summary */}
+      {stocks.length > 0 && !isLoading && <PortfolioTotalCard portfolio={stocks} />}
 
       {isLoading ? (
         <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-16 bg-card border border-border rounded-xl animate-pulse" />)}</div>
-      ) : portfolio && portfolio.length > 0 ? (
+      ) : stocks.length > 0 ? (
         <div className="rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-[#0d1526] border-b border-border sticky top-0 z-10">
                   {COLS.map((col) => (
-                    <th key={col} className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide text-center first:text-left last:text-right whitespace-nowrap">
-                      {col}
+                    <th key={col} className={cn("px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap",
+                      col === "Stock Name" ? "text-left sticky left-0 bg-[#0d1526] z-20" : "text-center")}>
+                      {col === "Stop Loss" ? <span className="text-red-400">{col}</span> :
+                       col === "AI Target" ? <span className="text-emerald-400">{col}</span> :
+                       col === "P/L %" ? <span className="text-orange-400">{col}</span> : col}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {portfolio.map(stock => <PortfolioRow key={stock.id} stock={stock} />)}
+                {stocks.map(stock => <PortfolioRow key={stock.id} stock={stock} />)}
               </tbody>
             </table>
           </div>

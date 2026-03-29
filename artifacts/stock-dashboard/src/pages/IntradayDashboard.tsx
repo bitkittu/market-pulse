@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useGetIntradaySuggestions } from "@workspace/api-client-react";
+import { useGetIntradaySuggestions, StockSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Zap, TrendingUp, TrendingDown, Minus, ShieldAlert } from "lucide-react";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
@@ -58,7 +58,7 @@ const RISK_CFG: Record<Risk, { cls: string; dot: string }> = {
 
 const ALL_SIGNALS: Signal[] = ["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"];
 
-type Suggestion = NonNullable<ReturnType<typeof useGetIntradaySuggestions>["data"]>[number] & {
+type Suggestion = StockSuggestion & {
   confidence?: number;
   riskLevel?: Risk;
 };

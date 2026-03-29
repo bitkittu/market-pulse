@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useGetOptionsSuggestions } from "@workspace/api-client-react";
+import { useGetOptionsSuggestions, OptionsSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
@@ -22,7 +22,7 @@ const SIG_CFG: Record<Signal, { label: string; cls: string; border: string }> = 
   STRONG_SELL: { label: "STRONG SELL", cls: "bg-red-500/20 text-red-300",         border: "border-red-500/40" },
 };
 
-type Suggestion = NonNullable<ReturnType<typeof useGetOptionsSuggestions>["data"]>[number] & {
+type Suggestion = OptionsSuggestion & {
   oiTrend?: OITrend;
   confidence?: number;
 };
