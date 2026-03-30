@@ -37,7 +37,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-const POPULAR = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "WIPRO.NS", "AAPL", "TSLA", "MSFT"];
+const POPULAR = ["RELIANCE", "TCS", "SBIN", "INFY", "HDFCBANK", "COALINDIA", "WIPRO", "AAPL", "TSLA"];
 
 // ── RSI Gauge ─────────────────────────────────────────────────────────────
 function RSIGauge({ rsi }: { rsi: number }) {
@@ -270,7 +270,7 @@ export function Insights() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Enter symbol: TCS, RELIANCE, AAPL, TSLA…"
+              placeholder="Search NSE stock: SBIN, RELIANCE, COALINDIA, or AAPL…"
               className="w-full pl-9 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/60"
             />
           </div>
@@ -307,7 +307,7 @@ export function Insights() {
           <div>
             <p className="font-bold text-red-400">Could not fetch data</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {(error as Error)?.message || `Symbol "${searchTerm}" not found. Try adding .NS for NSE stocks (e.g. RELIANCE.NS).`}
+              {(error as Error)?.message || `"${searchTerm}" not found. Try a valid NSE symbol like SBIN, RELIANCE, or COALINDIA.`}
             </p>
           </div>
         </div>

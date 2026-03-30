@@ -88,19 +88,56 @@ function deriveForecast(rsi: number, price: number, vwap: number): "Bullish" | "
   return "Neutral";
 }
 
+// ── Resolve input to a valid Yahoo Finance symbol ─────────────────────────
+// Handles: "SBIN" → "SBIN.NS", "NSE:SBIN" → "SBIN.NS", "SBIN.NS" → "SBIN.NS",
+//          "AAPL" → "AAPL" (US stocks pass through), "coalindia" → "COALINDIA.NS"
+async function resolveSymbol(
+  raw: string
+): Promise<{ symbol: string; quote: Awaited<ReturnType<typeof yahooFinance.quote>> } | null> {
+  // 1. Normalise input
+  let input = raw.trim().toUpperCase();
+
+  // Strip exchange prefixes: "NSE:SBIN" → "SBIN", "BSE:SBIN" → "SBIN"
+  input = input.replace(/^(NSE|BSE|MCX)\s*[:|\s]\s*/, "");
+
+  // 2. Build candidate list in priority order
+  const candidates: string[] = [];
+
+  if (input.endsWith(".NS") || input.endsWith(".BO")) {
+    // Already has suffix — try as-is first, then the other exchange
+    candidates.push(input);
+    if (input.endsWith(".NS")) candidates.push(input.replace(/\.NS$/, ".BO"));
+    else candidates.push(input.replace(/\.BO$/, ".NS"));
+  } else {
+    // No suffix — try NSE first (most common), then BSE, then bare (for US/global)
+    candidates.push(`${input}.NS`, `${input}.BO`, input);
+  }
+
+  for (const sym of candidates) {
+    try {
+      const q = await yahooFinance.quote(sym, {}, { validateResult: false });
+      if (q?.regularMarketPrice) return { symbol: sym, quote: q };
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
 router.get("/insights/search", async (req, res) => {
-  const q = (req.query.q as string || "").trim().toUpperCase();
-  if (!q) {
+  const raw = (req.query.q as string || "").trim();
+  if (!raw) {
     res.status(400).json({ error: "Query parameter 'q' is required" });
     return;
   }
 
   try {
-    const quote = await yahooFinance.quote(q, {}, { validateResult: false });
-    if (!quote || !quote.regularMarketPrice) {
-      res.status(404).json({ error: `Symbol '${q}' not found` });
+    const resolved = await resolveSymbol(raw);
+    if (!resolved) {
+      res.status(404).json({ error: `Stock '${raw}' not found. Try a valid NSE symbol like SBIN, RELIANCE, or COALINDIA.` });
       return;
     }
+    const { symbol: q, quote } = resolved;
 
     const end = new Date();
     const start = new Date();
@@ -144,9 +181,12 @@ router.get("/insights/search", async (req, res) => {
     const { score: sentimentScore, label: sentiment } = deriveSentimentWithScore(news);
     const forecast = deriveForecast(rsi, price, vwap);
 
+    // Strip Yahoo Finance exchange suffix for clean display (SBIN.NS → SBIN)
+    const displaySymbol = q.replace(/\.(NS|BO)$/, "");
+
     res.json({
-      symbol: q,
-      name: quote.longName ?? quote.shortName ?? q,
+      symbol: displaySymbol,
+      name: quote.longName ?? quote.shortName ?? displaySymbol,
       price,
       change,
       changePercent,
