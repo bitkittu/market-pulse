@@ -6,6 +6,7 @@ import {
   useGetNseMovers,
   useGetNseSectors,
   useGetIntradaySuggestions,
+  useGetUpstoxSettings,
 } from "@workspace/api-client-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -401,6 +402,9 @@ export function Home() {
   const qc = useQueryClient();
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [spinning, setSpinning] = useState(false);
+  const { data: upstoxSettings } = useGetUpstoxSettings({ query: {} });
+
+  const upstoxLive = upstoxSettings?.connected && upstoxSettings?.hasAccessToken;
 
   const handleRefresh = useCallback(async () => {
     setSpinning(true);
@@ -419,8 +423,11 @@ export function Home() {
       {/* Refresh bar */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Live NSE prices via Yahoo Finance · cached 90 sec</span>
+          <div className={`w-2 h-2 rounded-full animate-pulse ${upstoxLive ? "bg-violet-400" : "bg-emerald-400"}`} />
+          {upstoxLive
+            ? <span>Live NSE prices via <span className="text-violet-400 font-semibold">Upstox</span> · cached 90 sec</span>
+            : <span>Live NSE prices via Yahoo Finance · cached 90 sec</span>
+          }
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">

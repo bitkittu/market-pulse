@@ -12,4 +12,5 @@ export interface UpstoxSettings {
   clientId?: string;
   connectedAt?: string;
   liveDataEnabled: boolean;
+  hasAccessToken?: boolean;
 }

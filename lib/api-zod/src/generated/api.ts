@@ -258,6 +258,7 @@ export const GetUpstoxSettingsResponse = zod.object({
   clientId: zod.string().optional(),
   connectedAt: zod.string().optional(),
   liveDataEnabled: zod.boolean(),
+  hasAccessToken: zod.boolean().optional(),
 });
 
 /**
@@ -276,6 +277,7 @@ export const SaveUpstoxSettingsResponse = zod.object({
   clientId: zod.string().optional(),
   connectedAt: zod.string().optional(),
   liveDataEnabled: zod.boolean(),
+  hasAccessToken: zod.boolean().optional(),
 });
 
 /**
@@ -342,6 +344,17 @@ export const GetOptionsSuggestionsResponse = zod.array(
  */
 export const DisconnectUpstoxResponse = zod.object({
   success: zod.boolean(),
+});
+
+/**
+ * @summary Test Upstox API connection with stored credentials
+ */
+export const TestUpstoxConnectionResponse = zod.object({
+  ok: zod.boolean(),
+  source: zod.enum(["upstox", "none"]),
+  message: zod.string(),
+  samplePrice: zod.number().optional(),
+  sampleSymbol: zod.string().optional(),
 });
 
 /**

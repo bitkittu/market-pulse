@@ -38,6 +38,7 @@ import type {
   StockIndicators,
   StockSuggestion,
   UpstoxSettings,
+  UpstoxTestResult,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1379,6 +1380,87 @@ export const useDisconnectUpstox = <
   TContext
 > => {
   return useMutation(getDisconnectUpstoxMutationOptions(options));
+};
+
+/**
+ * @summary Test Upstox API connection with stored credentials
+ */
+export const getTestUpstoxConnectionUrl = () => {
+  return `/api/settings/upstox/test`;
+};
+
+export const testUpstoxConnection = async (
+  options?: RequestInit,
+): Promise<UpstoxTestResult> => {
+  return customFetch<UpstoxTestResult>(getTestUpstoxConnectionUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTestUpstoxConnectionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testUpstoxConnection>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testUpstoxConnection>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["testUpstoxConnection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testUpstoxConnection>>,
+    void
+  > = () => {
+    return testUpstoxConnection(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestUpstoxConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testUpstoxConnection>>
+>;
+
+export type TestUpstoxConnectionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Test Upstox API connection with stored credentials
+ */
+export const useTestUpstoxConnection = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testUpstoxConnection>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof testUpstoxConnection>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTestUpstoxConnectionMutationOptions(options));
 };
 
 /**

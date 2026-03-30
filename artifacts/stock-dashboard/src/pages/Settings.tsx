@@ -3,46 +3,136 @@ import {
   useGetUpstoxSettings,
   useSaveUpstoxSettings,
   useDisconnectUpstox,
+  useTestUpstoxConnection,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Settings2, Link2, Unlink, CheckCircle2, AlertCircle, ExternalLink, Eye, EyeOff, Zap, Clock } from "lucide-react";
+import {
+  Settings2, Link2, Unlink, CheckCircle2, AlertCircle, ExternalLink,
+  Eye, EyeOff, Zap, Clock, Wifi, WifiOff, RefreshCw, TriangleAlert,
+} from "lucide-react";
 
 function cn(...c: (string | false | undefined | null)[]) {
   return c.filter(Boolean).join(" ");
 }
 
-function ConnectedPanel({ data, onDisconnect }: {
-  data: { connected: boolean; apiKeyMasked?: string; clientId?: string; connectedAt?: string; liveDataEnabled: boolean };
+type TestResult = { ok: boolean; source: string; message: string; samplePrice?: number; sampleSymbol?: string } | null;
+
+function ConnectedPanel({
+  data,
+  onDisconnect,
+}: {
+  data: {
+    connected: boolean;
+    apiKeyMasked?: string;
+    clientId?: string;
+    connectedAt?: string;
+    liveDataEnabled: boolean;
+    hasAccessToken?: boolean;
+  };
   onDisconnect: () => void;
 }) {
+  const [testResult, setTestResult] = useState<TestResult>(null);
+  const testMut = useTestUpstoxConnection({
+    mutation: { onSuccess: (d) => setTestResult(d), onError: () => setTestResult({ ok: false, source: "none", message: "Test request failed." }) },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
         <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
         <div>
           <p className="text-sm font-bold text-emerald-400">Upstox API Connected</p>
-          <p className="text-xs text-muted-foreground">Live market data is active from your Upstox account</p>
+          <p className="text-xs text-muted-foreground">
+            {data.hasAccessToken
+              ? "Access token present — live NSE data will use Upstox"
+              : "No access token — data falls back to Yahoo Finance"}
+          </p>
         </div>
       </div>
+
+      {/* Token missing warning */}
+      {!data.hasAccessToken && (
+        <div className="flex items-start gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-xs text-muted-foreground">
+          <TriangleAlert className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold text-yellow-400">Access Token Missing:</span> Your API Key is saved but no Access Token was provided. Without it, prices continue to use Yahoo Finance.
+            <br />To get a token: go to{" "}
+            <a href="https://developer.upstox.com" target="_blank" rel="noopener noreferrer" className="text-primary underline inline-flex items-center gap-0.5">
+              developer.upstox.com <ExternalLink className="w-3 h-3" />
+            </a>{" "}
+            → your App → Login URL → complete OAuth → copy the Access Token and reconnect below.
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[
           { label: "API Key", value: data.apiKeyMasked ?? "—" },
           { label: "Client ID", value: data.clientId ?? "—" },
           { label: "Connected At", value: data.connectedAt ? new Date(data.connectedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—" },
-          { label: "Live Data", value: data.liveDataEnabled ? "Enabled" : "Disabled" },
+          { label: "Access Token", value: data.hasAccessToken ? "✓ Configured" : "✗ Not set" },
         ].map((row) => (
           <div key={row.label} className="bg-background/50 border border-border rounded-lg px-4 py-3">
             <p className="text-xs text-muted-foreground mb-1">{row.label}</p>
-            <p className="text-sm font-mono font-semibold text-foreground">{row.value}</p>
+            <p className={cn("text-sm font-mono font-semibold", row.label === "Access Token" && (data.hasAccessToken ? "text-emerald-400" : "text-yellow-400"))}>
+              {row.value}
+            </p>
           </div>
         ))}
       </div>
 
+      {/* Test connection */}
+      {data.hasAccessToken && (
+        <div className="space-y-2">
+          <button
+            onClick={() => { setTestResult(null); testMut.mutate({}); }}
+            disabled={testMut.isPending}
+            className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-semibold px-4 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50"
+          >
+            {testMut.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wifi className="w-4 h-4" />}
+            {testMut.isPending ? "Testing…" : "Test Live Connection"}
+          </button>
+
+          {testResult && (
+            <div className={cn(
+              "flex items-start gap-3 p-4 rounded-xl border text-xs",
+              testResult.ok
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                : "bg-red-500/10 border-red-500/20 text-red-300"
+            )}>
+              {testResult.ok
+                ? <Wifi className="w-4 h-4 shrink-0 mt-0.5" />
+                : <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />}
+              <div>
+                <span className="font-bold">
+                  {testResult.ok ? "Upstox Live Data Active" : "Connection Failed"}
+                </span>
+                {" — "}
+                {testResult.message}
+                {testResult.ok && testResult.samplePrice && (
+                  <span className="ml-1 text-muted-foreground">
+                    ({testResult.sampleSymbol} live price: ₹{testResult.samplePrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                  </span>
+                )}
+                {!testResult.ok && (
+                  <p className="mt-1 text-muted-foreground">
+                    Upstox access tokens expire daily. Generate a new one from{" "}
+                    <a href="https://developer.upstox.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                      developer.upstox.com
+                    </a>{" "}
+                    and reconnect.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start gap-3 p-4 bg-primary/5 border border-primary/20 rounded-xl">
         <Zap className="w-4 h-4 text-primary mt-0.5 shrink-0" />
         <div className="text-xs text-muted-foreground">
-          <span className="font-semibold text-primary">Live Data Active:</span> Market data for your portfolio stocks is now sourced from Upstox. VWAP and RSI calculations use real-time tick data.
+          <span className="font-semibold text-primary">Data Priority:</span> When Upstox is active, all NSE prices (movers, sectors, Gift Nifty, intraday picks, options) are sourced directly from your Upstox account. Yahoo Finance is used as fallback.
         </div>
       </div>
 
@@ -81,21 +171,41 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
     e.preventDefault();
     if (!apiKey.trim()) { setError("API Key is required"); return; }
     setError("");
-    saveMut.mutate({ data: { apiKey: apiKey.trim(), apiSecret: apiSecret || undefined, clientId: clientId || undefined, accessToken: accessToken || undefined } });
+    saveMut.mutate({
+      data: {
+        apiKey: apiKey.trim(),
+        apiSecret: apiSecret || undefined,
+        clientId: clientId || undefined,
+        accessToken: accessToken || undefined,
+      },
+    });
   };
 
   return (
     <form onSubmit={submit} className="space-y-4">
       {/* Instructions */}
       <div className="bg-background/50 border border-border rounded-xl p-4 space-y-2">
-        <p className="text-xs font-bold text-foreground">How to get your Upstox API credentials:</p>
+        <p className="text-xs font-bold text-foreground">How to get your Upstox credentials:</p>
         <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-          <li>Visit <a href="https://developer.upstox.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">developer.upstox.com <ExternalLink className="w-3 h-3" /></a></li>
-          <li>Log in with your Upstox trading account</li>
-          <li>Create a new app in the Developer Console</li>
-          <li>Copy the API Key and API Secret from your app</li>
-          <li>Generate an Access Token via OAuth for live data</li>
+          <li>
+            Go to{" "}
+            <a href="https://developer.upstox.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+              developer.upstox.com <ExternalLink className="w-3 h-3" />
+            </a>{" "}
+            and log in with your Upstox trading account
+          </li>
+          <li>Create a new App — set the redirect URL to any URL you control</li>
+          <li>Copy the <span className="text-foreground font-semibold">API Key</span> and <span className="text-foreground font-semibold">API Secret</span></li>
+          <li>Open your App's Login URL in a browser to complete the OAuth flow</li>
+          <li>After redirect, copy the <span className="text-foreground font-semibold">Access Token</span> from the URL / response (it expires daily)</li>
         </ol>
+
+        <div className="flex items-start gap-2 p-2.5 bg-yellow-500/10 rounded-lg border border-yellow-500/20 mt-2">
+          <Clock className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-yellow-300">
+            Access tokens expire every 24 hours. Paste a fresh token here each trading day for live Upstox data.
+          </p>
+        </div>
       </div>
 
       <div>
@@ -136,13 +246,16 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
 
       <div>
-        <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Access Token <span className="text-muted-foreground font-normal">(for live data)</span></label>
+        <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">
+          Access Token{" "}
+          <span className="text-primary font-semibold">(required for Upstox live data)</span>
+        </label>
         <div className="relative">
           <input
             value={accessToken}
             onChange={(e) => setAccessToken(e.target.value)}
             type={showToken ? "text" : "password"}
-            placeholder="OAuth Access Token (optional)"
+            placeholder="Paste your OAuth Access Token here"
             className="w-full bg-background border border-border rounded-lg px-3 py-2.5 pr-10 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <button type="button" onClick={() => setShowToken(!showToken)}
@@ -150,7 +263,9 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
             {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">Access Token enables real-time market data. Without it, simulated data is used.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Without an access token, prices will still be fetched via Yahoo Finance.
+        </p>
       </div>
 
       {error && (
@@ -166,7 +281,7 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
         className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-lg transition-all disabled:opacity-50 text-sm"
       >
         <Link2 className="w-4 h-4" />
-        {saveMut.isPending ? "Connecting..." : "Connect Upstox API"}
+        {saveMut.isPending ? "Connecting…" : "Connect Upstox API"}
       </button>
     </form>
   );
@@ -217,7 +332,8 @@ export function Settings() {
             { label: "Exchange", value: "NSE — National Stock Exchange of India" },
             { label: "Market Hours (IST)", value: "9:15 AM – 3:30 PM, Monday to Friday" },
             { label: "Pre-Open Session", value: "9:00 AM – 9:08 AM" },
-            { label: "Data Refresh", value: "Every 30 seconds (simulated) | Real-time with Upstox API" },
+            { label: "Data Source", value: "Upstox API (primary) · Yahoo Finance (fallback)" },
+            { label: "Cache Duration", value: "90 seconds for stocks · 2 minutes for indices" },
             { label: "Indicators", value: "VWAP (14-day) · RSI (14-period)" },
           ].map((row) => (
             <div key={row.label} className="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0">
@@ -229,12 +345,14 @@ export function Settings() {
       </div>
 
       {/* Data Note */}
-      <div className="flex items-start gap-3 p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl text-xs text-muted-foreground">
-        <AlertCircle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-yellow-400">Simulated Data:</span> Without an Upstox API connection, all market data is algorithmically simulated for demonstration. Connect your Upstox API to get real live NSE market data.
+      {!data?.connected && (
+        <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl text-xs text-muted-foreground">
+          <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold text-blue-400">Using Yahoo Finance:</span> Without an Upstox API connection, NSE prices are fetched via Yahoo Finance (free, 15-minute delayed during market hours). Connect Upstox to get real-time tick data directly from NSE.
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

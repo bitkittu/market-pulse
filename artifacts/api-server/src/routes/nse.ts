@@ -10,8 +10,10 @@ import {
   getLiveMovers,
   getLiveGiftNifty,
   getLiveSectors,
+  invalidateAllCache,
 } from "../lib/liveMarketData.js";
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
+import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
 import { db, portfolioTable, upstoxSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -160,6 +162,7 @@ router.get("/settings/upstox", async (_req, res) => {
     clientId: settings.clientId ?? undefined,
     connectedAt: settings.connectedAt.toISOString(),
     liveDataEnabled: settings.liveDataEnabled,
+    hasAccessToken: !!settings.accessToken,
   });
 });
 
@@ -181,18 +184,33 @@ router.post("/settings/upstox", async (req, res) => {
       liveDataEnabled: true,
     })
     .returning();
+  // Clear caches so next request uses the new token
+  invalidateTokenCache();
+  invalidateAllCache();
   res.json({
     connected: true,
     apiKeyMasked: inserted.apiKey.slice(0, 4) + "●●●●●●●●" + inserted.apiKey.slice(-4),
     clientId: inserted.clientId ?? undefined,
     connectedAt: inserted.connectedAt.toISOString(),
     liveDataEnabled: inserted.liveDataEnabled,
+    hasAccessToken: !!inserted.accessToken,
   });
 });
 
 router.post("/settings/upstox/disconnect", async (_req, res) => {
   await db.delete(upstoxSettingsTable);
+  invalidateTokenCache();
+  invalidateAllCache();
   res.json({ success: true });
+});
+
+router.post("/settings/upstox/test", async (_req, res) => {
+  try {
+    const result = await testUpstoxConnection();
+    res.json(result);
+  } catch {
+    res.status(500).json({ ok: false, source: "none", message: "Connection test failed unexpectedly." });
+  }
 });
 
 // ── Suggestions ──────────────────────────────────────────────────────────

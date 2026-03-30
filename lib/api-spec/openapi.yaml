@@ -300,6 +300,19 @@ paths:
                 required:
                   - success
 
+  /settings/upstox/test:
+    post:
+      operationId: testUpstoxConnection
+      tags: [settings]
+      summary: Test Upstox API connection with stored credentials
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpstoxTestResult"
+
   /insights/search:
     get:
       operationId: searchInsights
@@ -731,9 +744,30 @@ components:
           type: string
         liveDataEnabled:
           type: boolean
+        hasAccessToken:
+          type: boolean
       required:
         - connected
         - liveDataEnabled
+
+    UpstoxTestResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        source:
+          type: string
+          enum: [upstox, none]
+        message:
+          type: string
+        samplePrice:
+          type: number
+        sampleSymbol:
+          type: string
+      required:
+        - ok
+        - source
+        - message
 
     SaveUpstoxSettingsRequest:
       type: object

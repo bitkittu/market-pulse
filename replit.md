@@ -68,9 +68,18 @@ lib/
 - `POST /api/portfolio` — Add stock to portfolio
 - `DELETE /api/portfolio/:symbol` — Remove stock
 - `GET /api/portfolio/:symbol/indicators` — VWAP + RSI indicators
-- `GET /api/settings/upstox` — Upstox connection status
-- `POST /api/settings/upstox` — Save Upstox credentials
-- `POST /api/settings/upstox/disconnect` — Disconnect Upstox
+- `GET /api/settings/upstox` — Upstox connection status (includes `hasAccessToken`)
+- `POST /api/settings/upstox` — Save Upstox credentials + clears market data cache
+- `POST /api/settings/upstox/disconnect` — Disconnect Upstox + clears market data cache
+- `POST /api/settings/upstox/test` — Test Upstox connection with stored access token; returns live RELIANCE price if valid
+
+## Data Sources
+
+Data is fetched with two-tier priority:
+1. **Upstox API v2** (primary): used when a valid access token is stored. Instrument keys: `NSE_EQ|SYMBOL` for stocks, `NSE_INDEX|Nifty 50` for indices. All stocks fetched in one batch request.
+2. **Yahoo Finance** (fallback): used when Upstox is not configured or token is expired. NSE stocks use `SYMBOL.NS` format, indices use `^NSEI`, `^NSEBANK`, etc.
+
+Upstox access tokens expire daily. Users paste a fresh token each morning via the Upstox API tab. The Home tab status bar shows a violet pulse dot + "via Upstox" when live, or green + "via Yahoo Finance" as fallback.
 
 ## NSE Stocks Covered
 

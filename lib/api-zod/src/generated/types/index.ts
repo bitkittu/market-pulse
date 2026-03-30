@@ -45,3 +45,5 @@ export * from "./stockSuggestionRiskLevel";
 export * from "./stockSuggestionSignal";
 export * from "./stockSuggestionVwapStatus";
 export * from "./upstoxSettings";
+export * from "./upstoxTestResult";
+export * from "./upstoxTestResultSource";

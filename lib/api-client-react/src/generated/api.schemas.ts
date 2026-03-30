@@ -210,6 +210,23 @@ export interface UpstoxSettings {
   clientId?: string;
   connectedAt?: string;
   liveDataEnabled: boolean;
+  hasAccessToken?: boolean;
+}
+
+export type UpstoxTestResultSource =
+  (typeof UpstoxTestResultSource)[keyof typeof UpstoxTestResultSource];
+
+export const UpstoxTestResultSource = {
+  upstox: "upstox",
+  none: "none",
+} as const;
+
+export interface UpstoxTestResult {
+  ok: boolean;
+  source: UpstoxTestResultSource;
+  message: string;
+  samplePrice?: number;
+  sampleSymbol?: string;
 }
 
 export interface SaveUpstoxSettingsRequest {
