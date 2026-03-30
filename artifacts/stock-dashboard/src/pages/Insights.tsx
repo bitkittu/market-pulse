@@ -82,21 +82,67 @@ function ForecastBadge({ forecast }: { forecast: InsightsResult["forecast"] }) {
   );
 }
 
-// ── Sentiment Badge ────────────────────────────────────────────────────────
-function SentimentBadge({ sentiment }: { sentiment: InsightsResult["sentiment"] }) {
-  const cfg = {
-    Positive: { cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2 },
-    Negative: { cls: "bg-red-500/15 text-red-400 border-red-500/30",             icon: AlertTriangle },
-    Neutral:  { cls: "bg-slate-500/15 text-slate-400 border-slate-500/30",       icon: Minus },
-  }[sentiment];
-  const Icon = cfg.icon;
+// ── Sentiment Meter ────────────────────────────────────────────────────────
+function SentimentMeter({ sentiment, score }: { sentiment: InsightsResult["sentiment"]; score: number }) {
+  const s = score ?? 50;
+
+  const { color, barColor, icon: Icon, grade, desc } = s >= 75
+    ? { color: "text-emerald-400", barColor: "from-emerald-600 to-emerald-400", icon: CheckCircle2, grade: "Very Positive", desc: "Strong bullish tone across headlines" }
+    : s >= 60
+    ? { color: "text-emerald-400", barColor: "from-emerald-700 to-emerald-500", icon: TrendingUp,   grade: "Positive",      desc: "More positive signals than negative" }
+    : s >= 45
+    ? { color: "text-slate-400",   barColor: "from-slate-600 to-slate-400",     icon: Minus,         grade: "Neutral",       desc: "Mixed or balanced news tone" }
+    : s >= 25
+    ? { color: "text-red-400",     barColor: "from-red-700 to-red-500",         icon: TrendingDown,  grade: "Negative",      desc: "More negative signals in headlines" }
+    : { color: "text-red-400",     barColor: "from-red-800 to-red-600",         icon: AlertTriangle, grade: "Very Negative",  desc: "Strong bearish tone in news" };
+
+  const sentClr = sentiment === "Positive" ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+    : sentiment === "Negative" ? "text-red-400 border-red-500/30 bg-red-500/10"
+    : "text-slate-400 border-slate-500/30 bg-slate-500/10";
+
   return (
-    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border ${cfg.cls}`}>
-      <Icon className="w-5 h-5" />
-      <div>
-        <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Sentiment</div>
-        <div className="font-bold text-sm">{sentiment}</div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Icon className={cn("w-4 h-4", color)} />
+          <span className={cn("font-bold text-sm", color)}>{grade}</span>
+        </div>
+        <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full border", sentClr)}>{sentiment}</span>
       </div>
+
+      {/* Score bar */}
+      <div>
+        <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
+          <span>Bearish</span>
+          <span className={cn("font-black text-sm", color)}>{s}<span className="text-[10px] font-normal">/100</span></span>
+          <span>Bullish</span>
+        </div>
+        <div className="relative h-3 bg-background rounded-full overflow-hidden border border-border">
+          {/* Track segments */}
+          <div className="absolute inset-0 flex">
+            <div className="flex-1 bg-red-900/30" />
+            <div className="w-px bg-border" />
+            <div className="flex-1 bg-slate-800/30" />
+            <div className="w-px bg-border" />
+            <div className="flex-1 bg-emerald-900/30" />
+          </div>
+          {/* Filled bar */}
+          <div
+            className={cn("absolute top-0 left-0 h-full rounded-full bg-gradient-to-r transition-all duration-700", barColor)}
+            style={{ width: `${s}%` }}
+          />
+          {/* Needle marker */}
+          <div
+            className="absolute top-0 h-full w-0.5 bg-white/80 shadow-md transition-all duration-700"
+            style={{ left: `${s}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-[9px] text-muted-foreground/50 mt-0.5">
+          <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}. Analysed using weighted keyword scoring across {" "}up to 15 headlines.</p>
     </div>
   );
 }
@@ -405,10 +451,7 @@ export function Insights() {
                 <Newspaper className="w-4 h-4 text-primary" />
                 <span className="text-xs font-bold uppercase tracking-wide">News Sentiment</span>
               </div>
-              <SentimentBadge sentiment={data.sentiment} />
-              <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
-                Analysed from the top {Math.min(data.news.length, 10)} latest headlines using keyword sentiment scoring.
-              </p>
+              <SentimentMeter sentiment={data.sentiment} score={data.sentimentScore ?? 50} />
             </div>
           </div>
 

@@ -28,18 +28,57 @@ function calcVWAP(candles: { close: number; volume: number }[]): number {
   return vol > 0 ? pv / vol : 0;
 }
 
-function deriveSentiment(articles: Array<{ title?: string; description?: string }>): "Positive" | "Negative" | "Neutral" {
-  const pos = ["surge", "rally", "gain", "record", "beat", "profit", "rise", "bullish", "growth", "up", "strong", "high", "buy", "upgrade", "opportunity", "boost"];
-  const neg = ["fall", "drop", "loss", "miss", "decline", "crash", "bearish", "weak", "sell", "downgrade", "risk", "down", "slump", "cut", "warn", "below"];
-  let score = 0;
-  for (const a of articles.slice(0, 10)) {
+const POSITIVE_WEIGHTS: Record<string, number> = {
+  surge: 9, soar: 9, skyrocket: 10, boom: 8, rally: 8,
+  outperform: 8, upgrade: 8, bullish: 8, record: 7, beat: 7,
+  profit: 7, rebound: 7, recover: 6, boost: 6, gain: 6,
+  growth: 6, rise: 5, climb: 5, expand: 5, dividend: 5,
+  revenue: 4, earn: 4, strong: 5, high: 4, opportunity: 6,
+  buy: 5, positive: 5, exceed: 6, increase: 5,
+};
+
+const NEGATIVE_WEIGHTS: Record<string, number> = {
+  crash: 10, plunge: 9, collapse: 9, fraud: 9, tumble: 8,
+  slump: 8, bearish: 8, downgrade: 8, warn: 7, loss: 7,
+  miss: 7, layoff: 7, lawsuit: 7, decline: 6, penalty: 6,
+  investigation: 6, recall: 6, fall: 5, drop: 5, sell: 5,
+  risk: 5, weak: 5, debt: 5, cut: 5, below: 4, concern: 4,
+  down: 3, delay: 4, negative: 5,
+};
+
+interface SentimentResult {
+  score: number;
+  label: "Positive" | "Negative" | "Neutral";
+}
+
+function deriveSentimentWithScore(articles: Array<{ title?: string; description?: string }>): SentimentResult {
+  let totalPos = 0;
+  let totalNeg = 0;
+
+  const sample = articles.slice(0, 15);
+  for (const a of sample) {
     const text = ((a.title ?? "") + " " + (a.description ?? "")).toLowerCase();
-    for (const w of pos) if (text.includes(w)) score++;
-    for (const w of neg) if (text.includes(w)) score--;
+    for (const [word, weight] of Object.entries(POSITIVE_WEIGHTS)) {
+      if (text.includes(word)) totalPos += weight;
+    }
+    for (const [word, weight] of Object.entries(NEGATIVE_WEIGHTS)) {
+      if (text.includes(word)) totalNeg += weight;
+    }
   }
-  if (score > 1) return "Positive";
-  if (score < -1) return "Negative";
-  return "Neutral";
+
+  const total = totalPos + totalNeg;
+  let score: number;
+  if (total === 0) {
+    score = 50;
+  } else {
+    const raw = (totalPos / total) * 100;
+    score = Math.round(Math.max(0, Math.min(100, raw)));
+  }
+
+  const label: "Positive" | "Negative" | "Neutral" =
+    score >= 60 ? "Positive" : score <= 40 ? "Negative" : "Neutral";
+
+  return { score, label };
 }
 
 function deriveForecast(rsi: number, price: number, vwap: number): "Bullish" | "Bearish" | "Neutral" {
@@ -102,7 +141,7 @@ router.get("/insights/search", async (req, res) => {
       thumbnail: n.thumbnail?.resolutions?.[0]?.url ?? "",
     }));
 
-    const sentiment = deriveSentiment(news);
+    const { score: sentimentScore, label: sentiment } = deriveSentimentWithScore(news);
     const forecast = deriveForecast(rsi, price, vwap);
 
     res.json({
@@ -115,6 +154,7 @@ router.get("/insights/search", async (req, res) => {
       vwap: Math.round(vwap * 100) / 100,
       forecast,
       sentiment,
+      sentimentScore,
       currency: quote.currency ?? "INR",
       marketCap: quote.marketCap ?? 0,
       volume: quote.regularMarketVolume ?? 0,

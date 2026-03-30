@@ -20,6 +20,8 @@ export interface InsightsResult {
   vwap: number;
   forecast: InsightsResultForecast;
   sentiment: InsightsResultSentiment;
+  /** AI sentiment score 0-100 (0=very negative, 50=neutral, 100=very positive) */
+  sentimentScore: number;
   currency: string;
   marketCap: number;
   volume: number;

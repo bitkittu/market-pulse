@@ -394,6 +394,9 @@ components:
         sentiment:
           type: string
           enum: [Positive, Negative, Neutral]
+        sentimentScore:
+          type: number
+          description: AI sentiment score 0-100 (0=very negative, 50=neutral, 100=very positive)
         currency:
           type: string
         marketCap:
@@ -422,6 +425,7 @@ components:
         - vwap
         - forecast
         - sentiment
+        - sentimentScore
         - currency
         - marketCap
         - volume

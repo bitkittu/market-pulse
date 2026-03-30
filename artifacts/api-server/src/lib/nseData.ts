@@ -76,6 +76,11 @@ export function getHourlySeed(): number {
   return getDailySeed() * 100 + now.getHours();
 }
 
+export function getMinuteSeed(): number {
+  const now = new Date();
+  return getHourlySeed() * 100 + now.getMinutes();
+}
+
 export function symbolSeed(symbol: string): number {
   return symbol.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
 }
@@ -84,7 +89,7 @@ export function getNseQuote(symbol: string) {
   const stock = NSE_STOCKS[symbol];
   if (!stock) return null;
 
-  const seed = getHourlySeed();
+  const seed = getMinuteSeed();
   const ss = symbolSeed(symbol);
   const variation = (seededRandom(seed + ss * 7) - 0.5) * 0.04;
   const price = parseFloat((stock.basePrice * (1 + variation)).toFixed(2));
@@ -161,11 +166,11 @@ export function getNseHistory(symbol: string, period: string) {
 const GIFT_NIFTY_BASE = 23284.5;
 
 export function getGiftNiftyQuote() {
-  const seed = getHourlySeed();
+  const seed = getMinuteSeed();
   const variation = (seededRandom(seed * 3) - 0.49) * 0.02;
   const price = parseFloat((GIFT_NIFTY_BASE * (1 + variation)).toFixed(2));
 
-  const prevVariation = (seededRandom((seed - 1) * 3) - 0.49) * 0.02;
+  const prevVariation = (seededRandom((seed - 1000) * 3) - 0.49) * 0.02;
   const yesterdayClose = parseFloat((GIFT_NIFTY_BASE * (1 + prevVariation)).toFixed(2));
 
   const yHigh = parseFloat((yesterdayClose * (1 + seededRandom(seed * 7) * 0.012)).toFixed(2));

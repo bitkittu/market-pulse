@@ -363,6 +363,11 @@ export const SearchInsightsResponse = zod.object({
   vwap: zod.number(),
   forecast: zod.enum(["Bullish", "Bearish", "Neutral"]),
   sentiment: zod.enum(["Positive", "Negative", "Neutral"]),
+  sentimentScore: zod
+    .number()
+    .describe(
+      "AI sentiment score 0-100 (0=very negative, 50=neutral, 100=very positive)",
+    ),
   currency: zod.string(),
   marketCap: zod.number(),
   volume: zod.number(),

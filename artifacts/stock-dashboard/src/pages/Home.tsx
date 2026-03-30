@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetGiftNiftyQuote,
   useGetGiftNiftyHistory,
@@ -11,7 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format } from "date-fns";
-import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Target, ShieldAlert, Zap, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Target, ShieldAlert, Zap, Clock, RefreshCw } from "lucide-react";
 
 function cn(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
@@ -397,8 +398,44 @@ function SectorPerformance() {
 }
 
 export function Home() {
+  const qc = useQueryClient();
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [spinning, setSpinning] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setSpinning(true);
+    await qc.invalidateQueries();
+    setLastRefreshed(new Date());
+    setTimeout(() => setSpinning(false), 800);
+  }, [qc]);
+
+  const timeStr = lastRefreshed.toLocaleTimeString("en-IN", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+
   return (
     <div className="space-y-5">
+      {/* Refresh bar */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          <span>Simulated market data — refreshes every minute automatically</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
+            <Clock className="w-3 h-3" /> Updated {timeStr} IST
+          </span>
+          <button
+            onClick={handleRefresh}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/20 text-primary text-xs font-bold transition-all"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", spinning && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
       <TopPickHero />
       <GiftNiftyCard />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
