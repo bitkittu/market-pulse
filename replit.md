@@ -18,12 +18,12 @@ Full-stack NSE India stock market dashboard built with React + Vite (frontend) a
 
 ## Features
 
-- **Home Dashboard**: Today's Top Pick hero card (animated confidence ring, signal badge, risk level, price grid, AI rationale), Gift Nifty futures price + 3-month chart, NSE top 10 gainers & losers, all 12 NSE sector performance
-- **Intraday Tab**: AI intraday picks with confidence bar, risk level badge, signal filter chips, sort-by-confidence, top-3 row gold/silver/bronze glow
-- **Options Tab**: CE/PE filter tabs, OI Trend badges (Increasing/Decreasing/Stable), HIGH IV warning, IV/OI tooltips
+- **Home Dashboard**: Today's Top Pick hero card with **live NSE prices** (animated confidence ring, signal badge, risk level, price grid, AI rationale), Gift Nifty futures (real Nifty 50 index via Yahoo Finance) + 3-month chart, NSE top 10 gainers & losers with live prices, all 12 NSE sector performance with real indices. Manual Refresh button + 90-second auto-cache.
+- **Intraday Tab**: AI intraday picks backed by **live Yahoo Finance prices** with confidence bar, risk level badge, signal filter chips, sort-by-confidence, top-3 row gold/silver/bronze glow
+- **Options Tab**: CE/PE filter tabs with live underlying prices for stock options, OI Trend badges (Increasing/Decreasing/Stable), HIGH IV warning, IV/OI tooltips
 - **Performance Tab**: Historical trade log (20 trades), win rate/avg return stats, recharts BarChart + LineChart for weekly/cumulative P&L
 - **Portfolio Tab**: Add NSE/BSE stocks, 10-column sticky table, AI target/stop-loss/signal/RSI/VWAP/news sentiment/P&L%, SL Distance % with color coding, total P&L summary card
-- **Insights Tab**: Real-time stock search using Yahoo Finance API (no key needed). Shows price, RSI gauge, VWAP card, AI forecast, news sentiment, 3M price chart with VWAP reference line, and up to 15 latest news articles. Works for NSE stocks (e.g. TCS.NS) and global stocks (AAPL, TSLA, MSFT)
+- **Insights Tab**: Real-time stock search using Yahoo Finance API (no key needed). Shows price, RSI gauge, VWAP card, AI forecast, weighted news sentiment score (0-100 with progress bar), 3M price chart, and up to 15 latest news articles. Works for NSE stocks (e.g. TCS.NS) and global stocks (AAPL, TSLA, MSFT)
 - **Upstox API Integration**: Login with your Upstox API credentials for live NSE data
 
 ## Structure

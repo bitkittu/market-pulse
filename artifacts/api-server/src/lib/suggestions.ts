@@ -1,4 +1,5 @@
 import { NSE_STOCKS, getNseQuote, seededRandom, getDailySeed, symbolSeed, calculateIndicators } from "./nseData.js";
+import { getLiveQuote } from "./liveMarketData.js";
 
 // ── Signals ───────────────────────────────────────────────────────────────
 export const SIGNALS = ["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"] as const;
@@ -85,7 +86,7 @@ const INTRADAY_POOL = [
   "TECHM", "DRREDDY", "CIPLA", "POWERGRID", "EICHERMOT", "M_M",
 ];
 
-export function getIntradaySuggestions() {
+export async function getIntradaySuggestions() {
   const daySeed = getDailySeed();
   const now = new Date().toISOString();
 
@@ -97,11 +98,16 @@ export function getIntradaySuggestions() {
   scored.sort((a, b) => b.score - a.score);
   const picked = scored.slice(0, 10);
 
+  // Fetch live prices for the selected stocks in parallel
+  const liveQuotes = await Promise.all(
+    picked.map(({ sym }) => getLiveQuote(sym).catch(() => getNseQuote(sym)))
+  );
+
   return picked.map(({ sym }, rank) => {
     const stock = NSE_STOCKS[sym];
     const ss = symbolSeed(sym);
     const seed = daySeed + ss;
-    const quote = getNseQuote(sym)!;
+    const quote = (liveQuotes[rank] ?? getNseQuote(sym))!;
     const price = quote.price;
 
     // Generate support/resistance levels
@@ -194,7 +200,7 @@ function getMonthlyExpiry(): string {
   return lastThursday.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
 }
 
-export function getOptionsSuggestions() {
+export async function getOptionsSuggestions() {
   const daySeed = getDailySeed();
   const now = new Date().toISOString();
   const weeklyExpiry = getNextExpiry();
@@ -208,6 +214,16 @@ export function getOptionsSuggestions() {
   scored.sort((a, b) => b.score - a.score);
   const picked = scored.slice(0, 10);
 
+  // Fetch live prices for individual stocks in the selection (not indices)
+  const NSE_INDICES = new Set(["NIFTY", "BANKNIFTY", "FINNIFTY"]);
+  const liveQuotes = await Promise.all(
+    picked.map(({ item }) =>
+      NSE_INDICES.has(item.sym)
+        ? Promise.resolve(null)
+        : getLiveQuote(item.sym).catch(() => null)
+    )
+  );
+
   return picked.map(({ item }, rank) => {
     const seed = daySeed + symbolSeed(item.sym) * 3;
     const r = seededRandom(seed);
@@ -215,9 +231,12 @@ export function getOptionsSuggestions() {
     // Option type: CE or PE
     const optionType: "CE" | "PE" = r > 0.5 ? "CE" : "PE";
 
-    // Underlying price with daily variation
+    // Underlying price: use live price for stocks, simulated for indices
+    const liveQ = liveQuotes[rank];
     const uvariaton = (seededRandom(seed * 5) - 0.5) * 0.025;
-    const underlyingPrice = parseFloat((item.basePrice * (1 + uvariaton)).toFixed(2));
+    const underlyingPrice = liveQ
+      ? liveQ.price
+      : parseFloat((item.basePrice * (1 + uvariaton)).toFixed(2));
 
     // Round strike price to nearest tick
     const tick = underlyingPrice < 500 ? 5 : underlyingPrice < 2000 ? 50 : underlyingPrice < 10000 ? 100 : 500;

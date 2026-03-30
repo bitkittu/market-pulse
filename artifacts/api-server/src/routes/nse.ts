@@ -1,14 +1,16 @@
 import { Router, type IRouter } from "express";
 import {
-  getNseQuote,
   getNseHistory,
-  getNseMovers,
-  getNseSectors,
-  getGiftNiftyQuote,
   getGiftNiftyHistory,
   calculateIndicators,
   NSE_STOCKS,
 } from "../lib/nseData.js";
+import {
+  getLiveQuote,
+  getLiveMovers,
+  getLiveGiftNifty,
+  getLiveSectors,
+} from "../lib/liveMarketData.js";
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
 import { db, portfolioTable, upstoxSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -16,8 +18,12 @@ import { eq } from "drizzle-orm";
 const router: IRouter = Router();
 
 // ── Gift Nifty ──────────────────────────────────────────────────────────
-router.get("/gift-nifty/quote", (_req, res) => {
-  res.json(getGiftNiftyQuote());
+router.get("/gift-nifty/quote", async (_req, res) => {
+  try {
+    res.json(await getLiveGiftNifty());
+  } catch {
+    res.status(500).json({ error: "Failed to fetch Gift Nifty data" });
+  }
 });
 
 router.get("/gift-nifty/history", (req, res) => {
@@ -27,22 +33,38 @@ router.get("/gift-nifty/history", (req, res) => {
 });
 
 // ── NSE Market ──────────────────────────────────────────────────────────
-router.get("/nse/movers", (_req, res) => {
-  res.json(getNseMovers());
+router.get("/nse/movers", async (_req, res) => {
+  try {
+    res.json(await getLiveMovers());
+  } catch {
+    res.status(500).json({ error: "Failed to fetch market movers" });
+  }
 });
 
-router.get("/nse/sectors", (_req, res) => {
-  res.json(getNseSectors());
+router.get("/nse/sectors", async (_req, res) => {
+  try {
+    res.json(await getLiveSectors());
+  } catch {
+    res.status(500).json({ error: "Failed to fetch sector data" });
+  }
 });
 
-router.get("/nse/quote/:symbol", (req, res) => {
+router.get("/nse/quote/:symbol", async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
-  const quote = getNseQuote(symbol);
-  if (!quote) {
+  if (!NSE_STOCKS[symbol]) {
     res.status(404).json({ error: "Symbol not found on NSE" });
     return;
   }
-  res.json(quote);
+  try {
+    const quote = await getLiveQuote(symbol);
+    if (!quote) {
+      res.status(404).json({ error: "Symbol not found on NSE" });
+      return;
+    }
+    res.json(quote);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch quote" });
+  }
 });
 
 router.get("/nse/history/:symbol", (req, res) => {
@@ -174,12 +196,20 @@ router.post("/settings/upstox/disconnect", async (_req, res) => {
 });
 
 // ── Suggestions ──────────────────────────────────────────────────────────
-router.get("/suggestions/intraday", (_req, res) => {
-  res.json(getIntradaySuggestions());
+router.get("/suggestions/intraday", async (_req, res) => {
+  try {
+    res.json(await getIntradaySuggestions());
+  } catch {
+    res.status(500).json({ error: "Failed to generate intraday suggestions" });
+  }
 });
 
-router.get("/suggestions/options", (_req, res) => {
-  res.json(getOptionsSuggestions());
+router.get("/suggestions/options", async (_req, res) => {
+  try {
+    res.json(await getOptionsSuggestions());
+  } catch {
+    res.status(500).json({ error: "Failed to generate options suggestions" });
+  }
 });
 
 export default router;

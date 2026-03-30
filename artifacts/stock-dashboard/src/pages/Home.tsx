@@ -419,8 +419,8 @@ export function Home() {
       {/* Refresh bar */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          <span>Simulated market data — refreshes every minute automatically</span>
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Live NSE prices via Yahoo Finance · cached 90 sec</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
