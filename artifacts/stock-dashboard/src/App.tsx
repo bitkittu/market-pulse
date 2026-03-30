@@ -6,7 +6,8 @@ import { Settings } from "@/pages/Settings";
 import { IntradayDashboard } from "@/pages/IntradayDashboard";
 import { OptionsDashboard } from "@/pages/OptionsDashboard";
 import { Performance } from "@/pages/Performance";
-import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock, Zap, Activity, BarChart2 } from "lucide-react";
+import { Insights } from "@/pages/Insights";
+import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock, Zap, Activity, BarChart2, Newspaper } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,7 +15,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "settings";
+type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "insights" | "settings";
 
 function ISTClock() {
   const [time, setTime] = useState("");
@@ -66,6 +67,7 @@ const TABS: TabDef[] = [
   { id: "options",     label: "Options",     icon: Activity, accent: "violet" },
   { id: "performance", label: "Performance", icon: BarChart2, accent: "blue" },
   { id: "portfolio",   label: "Portfolio",   icon: Briefcase },
+  { id: "insights",    label: "Insights",    icon: Newspaper, accent: "amber" },
   { id: "settings",    label: "Upstox API",  icon: Settings2 },
 ];
 
@@ -96,6 +98,7 @@ function AppShell() {
                 emerald: isActive ? "bg-emerald-500 text-white" : "text-emerald-400/70 hover:text-emerald-300 hover:bg-emerald-500/10",
                 violet:  isActive ? "bg-violet-500 text-white"  : "text-violet-400/70 hover:text-violet-300 hover:bg-violet-500/10",
                 blue:    isActive ? "bg-blue-500 text-white"    : "text-blue-400/70 hover:text-blue-300 hover:bg-blue-500/10",
+                amber:   isActive ? "bg-amber-500 text-white"   : "text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10",
               };
               const cls = t.accent
                 ? accentMap[t.accent]
@@ -120,6 +123,7 @@ function AppShell() {
         {tab === "options"     && <OptionsDashboard />}
         {tab === "performance" && <Performance />}
         {tab === "portfolio"   && <Portfolio />}
+        {tab === "insights"    && <Insights />}
         {tab === "settings"    && <Settings />}
       </main>
     </div>

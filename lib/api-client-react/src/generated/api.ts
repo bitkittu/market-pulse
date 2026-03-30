@@ -23,6 +23,7 @@ import type {
   GetNseHistoryParams,
   GiftNiftyQuote,
   HealthStatus,
+  InsightsResult,
   NseMovers,
   NseStock,
   OptionsSuggestion,
@@ -30,6 +31,9 @@ import type {
   PriceHistory,
   RemovePortfolioStock200,
   SaveUpstoxSettingsRequest,
+  SearchInsights404,
+  SearchInsights500,
+  SearchInsightsParams,
   SectorPerf,
   StockIndicators,
   StockSuggestion,
@@ -1376,3 +1380,99 @@ export const useDisconnectUpstox = <
 > => {
   return useMutation(getDisconnectUpstoxMutationOptions(options));
 };
+
+/**
+ * @summary Search stock insights, indicators and news
+ */
+export const getSearchInsightsUrl = (params: SearchInsightsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/insights/search?${stringifiedParams}`
+    : `/api/insights/search`;
+};
+
+export const searchInsights = async (
+  params: SearchInsightsParams,
+  options?: RequestInit,
+): Promise<InsightsResult> => {
+  return customFetch<InsightsResult>(getSearchInsightsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getSearchInsightsQueryKey = (params?: SearchInsightsParams) => {
+  return [`/api/insights/search`, ...(params ? [params] : [])] as const;
+};
+
+export const getSearchInsightsQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchInsights>>,
+  TError = ErrorType<SearchInsights404 | SearchInsights500>,
+>(
+  params: SearchInsightsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchInsights>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getSearchInsightsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof searchInsights>>> = ({
+    signal,
+  }) => searchInsights(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchInsights>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type SearchInsightsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchInsights>>
+>;
+export type SearchInsightsQueryError = ErrorType<
+  SearchInsights404 | SearchInsights500
+>;
+
+/**
+ * @summary Search stock insights, indicators and news
+ */
+
+export function useSearchInsights<
+  TData = Awaited<ReturnType<typeof searchInsights>>,
+  TError = ErrorType<SearchInsights404 | SearchInsights500>,
+>(
+  params: SearchInsightsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof searchInsights>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getSearchInsightsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

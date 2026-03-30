@@ -343,3 +343,46 @@ export const GetOptionsSuggestionsResponse = zod.array(
 export const DisconnectUpstoxResponse = zod.object({
   success: zod.boolean(),
 });
+
+/**
+ * @summary Search stock insights, indicators and news
+ */
+export const SearchInsightsQueryParams = zod.object({
+  q: zod.coerce
+    .string()
+    .describe("Stock symbol or name (e.g. TCS, RELIANCE, AAPL)"),
+});
+
+export const SearchInsightsResponse = zod.object({
+  symbol: zod.string(),
+  name: zod.string(),
+  price: zod.number(),
+  change: zod.number(),
+  changePercent: zod.number(),
+  rsi: zod.number(),
+  vwap: zod.number(),
+  forecast: zod.enum(["Bullish", "Bearish", "Neutral"]),
+  sentiment: zod.enum(["Positive", "Negative", "Neutral"]),
+  currency: zod.string(),
+  marketCap: zod.number(),
+  volume: zod.number(),
+  fiftyTwoWeekHigh: zod.number(),
+  fiftyTwoWeekLow: zod.number(),
+  priceHistory: zod.array(
+    zod.object({
+      date: zod.string(),
+      close: zod.number(),
+      volume: zod.number(),
+    }),
+  ),
+  news: zod.array(
+    zod.object({
+      title: zod.string(),
+      description: zod.string(),
+      url: zod.string(),
+      source: zod.string(),
+      publishedAt: zod.string(),
+      thumbnail: zod.string(),
+    }),
+  ),
+});

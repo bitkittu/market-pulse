@@ -17,6 +17,8 @@ tags:
     description: User portfolio
   - name: settings
     description: API settings
+  - name: insights
+    description: Stock insights, indicators and news
 
 paths:
   /healthz:
@@ -298,8 +300,136 @@ paths:
                 required:
                   - success
 
+  /insights/search:
+    get:
+      operationId: searchInsights
+      tags: [insights]
+      summary: Search stock insights, indicators and news
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Stock symbol or name (e.g. TCS, RELIANCE, AAPL)
+      responses:
+        "200":
+          description: Stock insights result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsightsResult"
+        "404":
+          description: Symbol not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required: [error]
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required: [error]
+
+  
 components:
   schemas:
+    PriceCandle:
+      type: object
+      properties:
+        date:
+          type: string
+        close:
+          type: number
+        volume:
+          type: number
+      required: [date, close, volume]
+
+    NewsArticle:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        source:
+          type: string
+        publishedAt:
+          type: string
+        thumbnail:
+          type: string
+      required: [title, description, url, source, publishedAt, thumbnail]
+
+    InsightsResult:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        rsi:
+          type: number
+        vwap:
+          type: number
+        forecast:
+          type: string
+          enum: [Bullish, Bearish, Neutral]
+        sentiment:
+          type: string
+          enum: [Positive, Negative, Neutral]
+        currency:
+          type: string
+        marketCap:
+          type: number
+        volume:
+          type: number
+        fiftyTwoWeekHigh:
+          type: number
+        fiftyTwoWeekLow:
+          type: number
+        priceHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceCandle"
+        news:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewsArticle"
+      required:
+        - symbol
+        - name
+        - price
+        - change
+        - changePercent
+        - rsi
+        - vwap
+        - forecast
+        - sentiment
+        - currency
+        - marketCap
+        - volume
+        - fiftyTwoWeekHigh
+        - fiftyTwoWeekLow
+        - priceHistory
+        - news
+
     HealthStatus:
       type: object
       properties:

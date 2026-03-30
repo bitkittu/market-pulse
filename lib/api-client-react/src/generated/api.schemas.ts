@@ -5,6 +5,58 @@
  * NSE Stock Market Dashboard API
  * OpenAPI spec version: 0.2.0
  */
+export interface PriceCandle {
+  date: string;
+  close: number;
+  volume: number;
+}
+
+export interface NewsArticle {
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  publishedAt: string;
+  thumbnail: string;
+}
+
+export type InsightsResultForecast =
+  (typeof InsightsResultForecast)[keyof typeof InsightsResultForecast];
+
+export const InsightsResultForecast = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+} as const;
+
+export type InsightsResultSentiment =
+  (typeof InsightsResultSentiment)[keyof typeof InsightsResultSentiment];
+
+export const InsightsResultSentiment = {
+  Positive: "Positive",
+  Negative: "Negative",
+  Neutral: "Neutral",
+} as const;
+
+export interface InsightsResult {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  rsi: number;
+  vwap: number;
+  forecast: InsightsResultForecast;
+  sentiment: InsightsResultSentiment;
+  currency: string;
+  marketCap: number;
+  volume: number;
+  fiftyTwoWeekHigh: number;
+  fiftyTwoWeekLow: number;
+  priceHistory: PriceCandle[];
+  news: NewsArticle[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -302,4 +354,19 @@ export type RemovePortfolioStock200 = {
 
 export type DisconnectUpstox200 = {
   success: boolean;
+};
+
+export type SearchInsightsParams = {
+  /**
+   * Stock symbol or name (e.g. TCS, RELIANCE, AAPL)
+   */
+  q: string;
+};
+
+export type SearchInsights404 = {
+  error: string;
+};
+
+export type SearchInsights500 = {
+  error: string;
 };

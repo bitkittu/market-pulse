@@ -18,8 +18,12 @@ Full-stack NSE India stock market dashboard built with React + Vite (frontend) a
 
 ## Features
 
-- **Home Dashboard**: Gift Nifty futures price + 3-month chart with yesterday's H/L/%, NSE top 10 gainers & losers, all 12 NSE sector performance
-- **Portfolio Tab**: Add NSE/BSE stocks, VWAP Smart Money Tracker, RSI Momentum Flow with interactive charts
+- **Home Dashboard**: Today's Top Pick hero card (animated confidence ring, signal badge, risk level, price grid, AI rationale), Gift Nifty futures price + 3-month chart, NSE top 10 gainers & losers, all 12 NSE sector performance
+- **Intraday Tab**: AI intraday picks with confidence bar, risk level badge, signal filter chips, sort-by-confidence, top-3 row gold/silver/bronze glow
+- **Options Tab**: CE/PE filter tabs, OI Trend badges (Increasing/Decreasing/Stable), HIGH IV warning, IV/OI tooltips
+- **Performance Tab**: Historical trade log (20 trades), win rate/avg return stats, recharts BarChart + LineChart for weekly/cumulative P&L
+- **Portfolio Tab**: Add NSE/BSE stocks, 10-column sticky table, AI target/stop-loss/signal/RSI/VWAP/news sentiment/P&L%, SL Distance % with color coding, total P&L summary card
+- **Insights Tab**: Real-time stock search using Yahoo Finance API (no key needed). Shows price, RSI gauge, VWAP card, AI forecast, news sentiment, 3M price chart with VWAP reference line, and up to 15 latest news articles. Works for NSE stocks (e.g. TCS.NS) and global stocks (AAPL, TSLA, MSFT)
 - **Upstox API Integration**: Login with your Upstox API credentials for live NSE data
 
 ## Structure
@@ -33,9 +37,13 @@ artifacts/
   stock-dashboard/    # React + Vite frontend
     src/
       pages/
-        Home.tsx      # Gift Nifty + Market Movers + Sector Performance
-        Portfolio.tsx # Portfolio stocks with VWAP/RSI cards
-        Settings.tsx  # Upstox API connection
+        Home.tsx             # TopPickHero + Gift Nifty chart + Market Movers + Sector Performance
+        IntradayDashboard.tsx # AI intraday picks, signal chips, confidence bar, risk badges
+        OptionsDashboard.tsx  # Options CE/PE tabs, OI trend badges, IV/OI tooltips
+        Performance.tsx       # Trading performance, recharts bar+line charts, trade log
+        Portfolio.tsx         # Portfolio table, SL distance %, P&L summary card
+        Insights.tsx          # Stock search via Yahoo Finance — RSI/VWAP/forecast/sentiment/news
+        Settings.tsx          # Upstox API connection
       App.tsx         # Main app with tab navigation + IST clock
 lib/
   api-spec/openapi.yaml   # OpenAPI 3.1 spec
