@@ -20,6 +20,7 @@ import type {
   AddPortfolioStockRequest,
   DisconnectUpstox200,
   GetGiftNiftyHistoryParams,
+  GetGiftNiftyIntraday200,
   GetNseHistoryParams,
   GiftNiftyQuote,
   HealthStatus,
@@ -294,6 +295,82 @@ export function useGetGiftNiftyHistory<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGiftNiftyHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns real-time intraday price points from NSE India API. Empty when market is closed.
+ * @summary Get Gift Nifty intraday chart data (today)
+ */
+export const getGetGiftNiftyIntradayUrl = () => {
+  return `/api/gift-nifty/intraday`;
+};
+
+export const getGiftNiftyIntraday = async (
+  options?: RequestInit,
+): Promise<GetGiftNiftyIntraday200> => {
+  return customFetch<GetGiftNiftyIntraday200>(getGetGiftNiftyIntradayUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGiftNiftyIntradayQueryKey = () => {
+  return [`/api/gift-nifty/intraday`] as const;
+};
+
+export const getGetGiftNiftyIntradayQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGiftNiftyIntraday>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getGiftNiftyIntraday>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetGiftNiftyIntradayQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGiftNiftyIntraday>>
+  > = ({ signal }) => getGiftNiftyIntraday({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGiftNiftyIntraday>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGiftNiftyIntradayQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGiftNiftyIntraday>>
+>;
+export type GetGiftNiftyIntradayQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get Gift Nifty intraday chart data (today)
+ */
+
+export function useGetGiftNiftyIntraday<
+  TData = Awaited<ReturnType<typeof getGiftNiftyIntraday>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getGiftNiftyIntraday>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGiftNiftyIntradayQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

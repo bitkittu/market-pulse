@@ -34,6 +34,37 @@ router.get("/gift-nifty/history", (req, res) => {
   res.json({ symbol: "GIFT NIFTY", period, data });
 });
 
+// NSE India real-time intraday chart for Nifty 50 (used for "Today" period)
+router.get("/gift-nifty/intraday", async (_req, res) => {
+  try {
+    const resp = await fetch(
+      "https://www.nseindia.com/api/chart-databyindex?index=NIFTY%2050&indices=true",
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "en-US,en;q=0.9",
+          Referer: "https://www.nseindia.com/",
+        },
+      }
+    );
+    if (!resp.ok) { res.json({ data: [], source: "closed" }); return; }
+    const json = (await resp.json()) as {
+      grapthData?: [number, number][];
+      closePrice?: number;
+    };
+    const points = (json.grapthData ?? []).map(([ts, price]) => ({
+      timestamp: ts,
+      price,
+      label: new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" }),
+    }));
+    res.json({ data: points, closePrice: json.closePrice ?? 0, source: points.length > 0 ? "nse" : "closed" });
+  } catch {
+    res.json({ data: [], source: "closed" });
+  }
+});
+
 // ── NSE Market ──────────────────────────────────────────────────────────
 router.get("/nse/movers", async (_req, res) => {
   try {

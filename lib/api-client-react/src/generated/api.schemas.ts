@@ -75,8 +75,12 @@ export interface GiftNiftyQuote {
   open: number;
   high: number;
   low: number;
+  yearHigh?: number;
+  yearLow?: number;
   volume: number;
   updatedAt: string;
+  /** Data source: nse | upstox | yahoo | simulated */
+  dataSource?: string;
 }
 
 export interface Ohlcv {
@@ -350,6 +354,18 @@ export const GetGiftNiftyHistoryPeriod = {
   "3M": "3M",
   "6M": "6M",
 } as const;
+
+export type GetGiftNiftyIntraday200DataItem = {
+  timestamp: number;
+  price: number;
+  label: string;
+};
+
+export type GetGiftNiftyIntraday200 = {
+  data: GetGiftNiftyIntraday200DataItem[];
+  closePrice: number;
+  source: string;
+};
 
 export type GetNseHistoryParams = {
   period?: GetNseHistoryPeriod;

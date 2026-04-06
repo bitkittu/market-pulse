@@ -30,8 +30,14 @@ export const GetGiftNiftyQuoteResponse = zod.object({
   open: zod.number(),
   high: zod.number(),
   low: zod.number(),
+  yearHigh: zod.number().optional(),
+  yearLow: zod.number().optional(),
   volume: zod.number(),
   updatedAt: zod.string(),
+  dataSource: zod
+    .string()
+    .optional()
+    .describe("Data source: nse | upstox | yahoo | simulated"),
 });
 
 /**
@@ -59,6 +65,22 @@ export const GetGiftNiftyHistoryResponse = zod.object({
       volume: zod.number(),
     }),
   ),
+});
+
+/**
+ * Returns real-time intraday price points from NSE India API. Empty when market is closed.
+ * @summary Get Gift Nifty intraday chart data (today)
+ */
+export const GetGiftNiftyIntradayResponse = zod.object({
+  data: zod.array(
+    zod.object({
+      timestamp: zod.number(),
+      price: zod.number(),
+      label: zod.string(),
+    }),
+  ),
+  closePrice: zod.number(),
+  source: zod.string(),
 });
 
 /**

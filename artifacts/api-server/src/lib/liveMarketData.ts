@@ -31,8 +31,54 @@ class TTLCache {
 }
 
 const cache = new TTLCache();
-const STOCK_TTL = 90_000;   // 90 seconds
-const INDEX_TTL = 120_000;  // 2 minutes
+const STOCK_TTL  = 90_000;  // 90 seconds
+const INDEX_TTL  = 30_000;  // 30 seconds (real-time NSE data)
+
+// ── NSE India real-time index API ─────────────────────────────────────────
+// Single call returns ALL NSE indices (Nifty 50, Bank Nifty, IT, etc.)
+// Real-time — no 15-minute Yahoo Finance delay.
+interface NseIndexEntry {
+  indexSymbol: string;
+  last: number;
+  variation: number;
+  percentChange: number;
+  open: number;
+  high: number;
+  low: number;
+  previousClose: number;
+  yearHigh: number;
+  yearLow: number;
+}
+
+const NSE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://www.nseindia.com/",
+};
+
+let nseIndexMap: Map<string, NseIndexEntry> | null = null;
+let nseIndexExpiry = 0;
+
+async function fetchNseAllIndices(): Promise<Map<string, NseIndexEntry> | null> {
+  if (nseIndexMap && Date.now() < nseIndexExpiry) return nseIndexMap;
+
+  try {
+    const resp = await fetch("https://www.nseindia.com/api/allIndices", {
+      headers: NSE_HEADERS,
+    });
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as { data: NseIndexEntry[] };
+    if (!json.data || !Array.isArray(json.data)) return null;
+
+    nseIndexMap = new Map(json.data.map((e) => [e.indexSymbol, e]));
+    nseIndexExpiry = Date.now() + INDEX_TTL;
+    return nseIndexMap;
+  } catch {
+    return null;
+  }
+}
 
 export function invalidateAllCache() {
   ["movers", "nsei", "sectors"].forEach((k) => cache.invalidate(k));
@@ -224,12 +270,43 @@ export async function getLiveMovers() {
 }
 
 // ── Gift Nifty / Nifty 50 ─────────────────────────────────────────────────
+// Priority: 1. NSE India API (real-time) → 2. Upstox → 3. Yahoo Finance
 export async function getLiveGiftNifty() {
   const key = "nsei";
   const cached = cache.get<ReturnType<typeof getGiftNiftyQuote>>(key);
   if (cached) return cached;
 
-  // 1. Try Upstox Nifty 50 index
+  // 1. NSE India real-time API (no delay — same data shown on nseindia.com)
+  try {
+    const indices = await fetchNseAllIndices();
+    const n = indices?.get("NIFTY 50");
+    if (n && n.last > 0) {
+      const result = {
+        symbol: "GIFT NIFTY",
+        name: "Gift Nifty 50 Futures (Nifty 50)",
+        price: n.last,
+        change: n.variation,
+        changePercent: n.percentChange,
+        yesterdayHigh: n.high,
+        yesterdayLow: n.low,
+        yesterdayClose: n.previousClose,
+        open: n.open,
+        high: n.high,
+        low: n.low,
+        yearHigh: n.yearHigh,
+        yearLow: n.yearLow,
+        volume: 0,
+        dataSource: "nse",
+        updatedAt: new Date().toISOString(),
+      };
+      cache.set(key, result, INDEX_TTL);
+      return result;
+    }
+  } catch {
+    // fall through
+  }
+
+  // 2. Upstox Nifty 50 index
   try {
     const u = await fetchUpstoxIndexQuote("NSE_INDEX|Nifty 50");
     if (u) {
@@ -237,7 +314,7 @@ export async function getLiveGiftNifty() {
       const prevClose = u.ohlc.close;
       const result = {
         symbol: "GIFT NIFTY",
-        name: "GIFT Nifty 50 Futures",
+        name: "Gift Nifty 50 Futures (Nifty 50)",
         price,
         change: u.net_change,
         changePercent: prevClose > 0 ? (u.net_change / prevClose) * 100 : 0,
@@ -251,21 +328,21 @@ export async function getLiveGiftNifty() {
         dataSource: "upstox",
         updatedAt: new Date().toISOString(),
       };
-      cache.set(key, result, STOCK_TTL);
+      cache.set(key, result, INDEX_TTL);
       return result;
     }
   } catch {
     // fall through
   }
 
-  // 2. Yahoo Finance fallback (^NSEI proxy)
+  // 3. Yahoo Finance fallback (^NSEI — 15-min delayed)
   try {
     const q = await yf.quote("^NSEI");
     const qr = q as Record<string, unknown>;
     const price = (qr.regularMarketPrice as number) ?? 0;
     const result = {
       symbol: "GIFT NIFTY",
-      name: "GIFT Nifty 50 Futures",
+      name: "Gift Nifty 50 Futures (Nifty 50)",
       price,
       change: (qr.regularMarketChange as number) ?? 0,
       changePercent: (qr.regularMarketChangePercent as number) ?? 0,
@@ -279,7 +356,7 @@ export async function getLiveGiftNifty() {
       dataSource: "yahoo",
       updatedAt: new Date().toISOString(),
     };
-    cache.set(key, result, STOCK_TTL);
+    cache.set(key, result, INDEX_TTL);
     return result;
   } catch {
     return getGiftNiftyQuote();
@@ -310,7 +387,37 @@ export async function getLiveSectors() {
   const simFallback = getNseSectors();
   const simByName = Object.fromEntries(simFallback.map((s) => [s.sector, s]));
 
-  // 1. Try Upstox batch for all sector indices
+  // 1. NSE India real-time API — single call for all sector indices
+  // Index symbols in SECTOR_MAP "index" field match NSE allIndices exactly
+  try {
+    const nseMap = await fetchNseAllIndices();
+    if (nseMap && nseMap.size > 0) {
+      const hits = SECTOR_MAP.filter((s) => nseMap.has(s.index));
+      if (hits.length >= 6) {
+        const results = SECTOR_MAP.map((s) => {
+          const n = nseMap.get(s.index);
+          const sim = simByName[s.sector] ?? simFallback[0];
+          if (!n || !n.last) return sim;
+          return {
+            sector: s.sector,
+            index: s.index,
+            value: n.last,
+            change: n.variation,
+            changePercent: n.percentChange,
+            advancers: sim.advancers,
+            decliners: sim.decliners,
+            dataSource: "nse",
+          };
+        });
+        cache.set(key, results, INDEX_TTL);
+        return results;
+      }
+    }
+  } catch {
+    // fall through to Upstox
+  }
+
+  // 2. Upstox batch for all sector indices
   try {
     const upstoxKeys = SECTOR_MAP.map((s) => SECTOR_UPSTOX_MAP[s.sector]).filter(Boolean);
     if (upstoxKeys.length > 0) {
@@ -341,7 +448,7 @@ export async function getLiveSectors() {
     // fall through to Yahoo Finance
   }
 
-  // 2. Yahoo Finance fallback
+  // 3. Yahoo Finance fallback
   const results = await Promise.all(
     SECTOR_MAP.map(async (s) => {
       const sim = simByName[s.sector] ?? simFallback[0];

@@ -10,6 +10,8 @@ export * from "./addPortfolioStockRequest";
 export * from "./disconnectUpstox200";
 export * from "./getGiftNiftyHistoryParams";
 export * from "./getGiftNiftyHistoryPeriod";
+export * from "./getGiftNiftyIntraday200";
+export * from "./getGiftNiftyIntraday200DataItem";
 export * from "./getNseHistoryParams";
 export * from "./getNseHistoryPeriod";
 export * from "./giftNiftyQuote";

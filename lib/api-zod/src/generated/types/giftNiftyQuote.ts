@@ -18,6 +18,10 @@ export interface GiftNiftyQuote {
   open: number;
   high: number;
   low: number;
+  yearHigh?: number;
+  yearLow?: number;
   volume: number;
   updatedAt: string;
+  /** Data source: nse | upstox | yahoo | simulated */
+  dataSource?: string;
 }

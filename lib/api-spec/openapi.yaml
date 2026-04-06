@@ -70,6 +70,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/PriceHistory"
 
+  /gift-nifty/intraday:
+    get:
+      operationId: getGiftNiftyIntraday
+      tags: [giftnifty]
+      summary: Get Gift Nifty intraday chart data (today)
+      description: Returns real-time intraday price points from NSE India API. Empty when market is closed.
+      responses:
+        "200":
+          description: Intraday price points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp:
+                          type: number
+                        price:
+                          type: number
+                        label:
+                          type: string
+                      required: [timestamp, price, label]
+                  closePrice:
+                    type: number
+                  source:
+                    type: string
+                required: [data, closePrice, source]
+
   /nse/movers:
     get:
       operationId: getNseMovers
@@ -480,10 +512,17 @@ components:
           type: number
         low:
           type: number
+        yearHigh:
+          type: number
+        yearLow:
+          type: number
         volume:
           type: number
         updatedAt:
           type: string
+        dataSource:
+          type: string
+          description: "Data source: nse | upstox | yahoo | simulated"
       required:
         - symbol
         - name

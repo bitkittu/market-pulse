@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetGiftNiftyQuote,
   useGetGiftNiftyHistory,
+  useGetGiftNiftyIntraday,
   useGetNseMovers,
   useGetNseSectors,
   useGetIntradaySuggestions,
@@ -190,22 +191,55 @@ function TopPickHero() {
 }
 
 // ── Gift Nifty Section ────────────────────────────────────────────────────
+const DATA_SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  nse:       { label: "NSE Live",      cls: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+  upstox:    { label: "Upstox Live",   cls: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
+  yahoo:     { label: "Yahoo ~15m",    cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
+  simulated: { label: "Simulated",     cls: "bg-muted/50 text-muted-foreground border-border" },
+};
+
+function DataSourceBadge({ src }: { src?: string }) {
+  const b = DATA_SOURCE_BADGE[src ?? ""] ?? DATA_SOURCE_BADGE.simulated;
+  return (
+    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", b.cls)}>
+      {b.label}
+    </span>
+  );
+}
+
 function GiftNiftyCard() {
   const { data: quote, isLoading: qLoad } = useGetGiftNiftyQuote({ query: { refetchInterval: 30000 } });
-  const [period, setPeriod] = useState<"1M" | "3M" | "6M">("3M");
-  const { data: hist, isLoading: hLoad } = useGetGiftNiftyHistory({ period }, { query: { refetchInterval: 60000 } });
+  const [period, setPeriod] = useState<"1D" | "1M" | "3M" | "6M">("3M");
+
+  const { data: hist, isLoading: hLoad } = useGetGiftNiftyHistory(
+    { period: period as "1M" | "3M" | "6M" },
+    { query: { refetchInterval: 60000, enabled: period !== "1D" } }
+  );
+  const { data: intraday, isLoading: idLoad } = useGetGiftNiftyIntraday({
+    query: { refetchInterval: 60000, enabled: period === "1D" },
+  });
 
   const isPos = (quote?.changePercent ?? 0) >= 0;
   const color = isPos ? "#10b981" : "#ef4444";
 
-  const chartData = (hist?.data ?? []).map((p) => ({
+  const histChartData = (hist?.data ?? []).map((p) => ({
     ...p,
     label: format(new Date(p.timestamp), "dd MMM"),
   }));
+  const intradayChartData = (intraday?.data ?? []).map((p) => ({
+    price: p.price, close: p.price, high: p.price, low: p.price, label: p.label,
+  }));
 
-  const minP = Math.min(...chartData.map((d) => d.low));
-  const maxP = Math.max(...chartData.map((d) => d.high));
-  const pad = (maxP - minP) * 0.06;
+  const chartData  = period === "1D" ? intradayChartData : histChartData;
+  const isLoading  = period === "1D" ? idLoad : hLoad;
+  const dataKey    = period === "1D" ? "price" : "close";
+
+  const allPrices = chartData.map((d) => (period === "1D" ? (d as { price: number }).price : (d as { close: number }).close)).filter(Boolean);
+  const minP = allPrices.length ? Math.min(...allPrices) : 0;
+  const maxP = allPrices.length ? Math.max(...allPrices) : 0;
+  const pad  = Math.max((maxP - minP) * 0.06, 10);
+
+  const noIntradayData = period === "1D" && !idLoad && intradayChartData.length === 0;
 
   return (
     <div className="bg-card border border-border rounded-xl p-5">
@@ -213,6 +247,7 @@ function GiftNiftyCard() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full tracking-wider uppercase">Gift Nifty Futures</span>
+            {!qLoad && <DataSourceBadge src={quote?.dataSource} />}
           </div>
           {qLoad ? (
             <div className="h-10 w-48 bg-muted animate-pulse rounded mt-1" />
@@ -231,9 +266,9 @@ function GiftNiftyCard() {
         {!qLoad && (
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "Prev Close", value: quote?.yesterdayClose ?? 0 },
-              { label: "Yesterday High", value: quote?.yesterdayHigh ?? 0, accent: "text-emerald-400" },
-              { label: "Yesterday Low", value: quote?.yesterdayLow ?? 0, accent: "text-red-400" },
+              { label: "Prev Close",  value: quote?.yesterdayClose ?? 0 },
+              { label: "Day High",    value: quote?.high ?? quote?.yesterdayHigh ?? 0, accent: "text-emerald-400" },
+              { label: "Day Low",     value: quote?.low ?? quote?.yesterdayLow  ?? 0, accent: "text-red-400" },
             ].map((item) => (
               <div key={item.label} className="bg-background/60 rounded-lg px-3 py-2 border border-border text-center">
                 <p className="text-xs text-muted-foreground mb-0.5 whitespace-nowrap">{item.label}</p>
@@ -250,9 +285,14 @@ function GiftNiftyCard() {
       </div>
 
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-muted-foreground font-medium">Price History</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-medium">Price Chart</span>
+          {period === "1D" && intraday?.source === "nse" && (
+            <span className="text-[10px] text-blue-400 font-semibold">· NSE real-time</span>
+          )}
+        </div>
         <div className="flex bg-background/60 rounded-lg p-0.5 border border-border">
-          {(["1M", "3M", "6M"] as const).map((p) => (
+          {(["1D", "1M", "3M", "6M"] as const).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
               className={cn("px-3 py-1 text-xs font-mono rounded-md transition-all",
                 period === p ? "bg-primary text-white font-bold" : "text-muted-foreground hover:text-foreground")}>
@@ -263,8 +303,14 @@ function GiftNiftyCard() {
       </div>
 
       <div className="h-52">
-        {hLoad ? (
+        {isLoading ? (
           <div className="h-full bg-muted/30 animate-pulse rounded-lg" />
+        ) : noIntradayData ? (
+          <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
+            <span className="text-2xl">📊</span>
+            <p className="text-xs">Intraday data available during NSE market hours</p>
+            <p className="text-[10px] opacity-60">Mon–Fri · 9:15 AM – 3:30 PM IST</p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
@@ -282,10 +328,10 @@ function GiftNiftyCard() {
                 tickFormatter={(v) => v.toFixed(0)} />
               <Tooltip
                 contentStyle={{ backgroundColor: "hsl(224,40%,9%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontFamily: "JetBrains Mono", fontSize: 12 }}
-                formatter={(v: number) => [`${fmt(v)}`, "Close"]}
-                labelFormatter={(l) => `Date: ${l}`}
+                formatter={(v: number) => [`₹${fmt(v)}`, period === "1D" ? "Price" : "Close"]}
+                labelFormatter={(l) => period === "1D" ? `Time: ${l}` : `Date: ${l}`}
               />
-              <Area type="monotone" dataKey="close" stroke={color} strokeWidth={1.5}
+              <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.5}
                 fill="url(#giftGrad)" dot={false} isAnimationActive={false} />
             </AreaChart>
           </ResponsiveContainer>
@@ -423,10 +469,10 @@ export function Home() {
       {/* Refresh bar */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <div className={`w-2 h-2 rounded-full animate-pulse ${upstoxLive ? "bg-violet-400" : "bg-emerald-400"}`} />
+          <div className={`w-2 h-2 rounded-full animate-pulse ${upstoxLive ? "bg-violet-400" : "bg-blue-400"}`} />
           {upstoxLive
-            ? <span>Live NSE prices via <span className="text-violet-400 font-semibold">Upstox</span> · cached 90 sec</span>
-            : <span>Live NSE prices via Yahoo Finance · cached 90 sec</span>
+            ? <span>Live NSE prices via <span className="text-violet-400 font-semibold">Upstox</span> · stocks 90 sec · indices 30 sec</span>
+            : <span>Indices via <span className="text-blue-400 font-semibold">NSE India</span> (real-time) · stocks via Yahoo Finance</span>
           }
         </div>
         <div className="flex items-center gap-3">
