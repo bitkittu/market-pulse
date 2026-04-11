@@ -1,0 +1,182 @@
+Build a full-stack stock market trading analysis web app (SaaS style) focused on Indian markets (NSE/BSE).
+
+The app should behave like a real trading assistant (not just informational).
+
+---
+
+## CORE GOAL:
+
+Help traders instantly understand:
+
+* Market direction
+* Key levels
+* What action to take (Buy/Sell)
+
+---
+
+## UI/UX REQUIREMENTS:
+
+* Modern fintech UI (dark theme preferred)
+* Inspired by Zerodha, TradingView, Moneycontrol
+* Clean dashboard with clear hierarchy
+* Mobile responsive
+* Fast loading
+
+---
+
+## MAIN DASHBOARD (HOME PAGE):
+
+1. MARKET STATUS (TOP SECTION)
+
+* Show:
+
+  * Nifty 50 price + %
+  * Bank Nifty price + %
+  * Market Bias (Bullish / Bearish / Sideways)
+* Add visual indicator (green/red meter)
+
+2. TRADE DECISION BOX (MOST IMPORTANT)
+
+* Show:
+
+  * Market Bias
+  * Buy Above Level
+  * Sell Below Level
+  * Confidence % (e.g., 72%)
+  * Timeframe (Intraday / Swing)
+
+3. KEY LEVELS SECTION
+
+* Previous Day High
+* Previous Day Low
+* Support Levels (S1, S2)
+* Resistance Levels (R1, R2)
+* VWAP (optional)
+
+4. LIVE MARKET DATA
+
+* Top Gainers (Top 5)
+* Top Losers (Top 5)
+* Sector Performance (optional)
+
+5. CHART SECTION
+
+* Embed TradingView chart for:
+
+  * Nifty
+  * Bank Nifty
+* Allow timeframe selection
+
+---
+
+## MONEY FLOW ANALYSIS (IMPORTANT)
+
+Add section showing:
+
+* Volume spikes
+* Open Interest (OI) change
+* Delivery % (if available)
+* Smart Money Indicator (simple logic-based)
+
+---
+
+## SIGNALS ENGINE:
+
+Generate trading signals based on:
+
+* Breakout above resistance → BUY
+* Breakdown below support → SELL
+
+Display:
+
+* Signal type (BUY / SELL / HOLD)
+* Entry price
+* Stop loss
+* Target
+
+---
+
+## ALERT SYSTEM:
+
+Allow user to:
+
+* Set price alerts
+* Set breakout alerts
+
+Trigger:
+
+* Notification (UI alert)
+* Optional email alert
+
+---
+
+## PORTFOLIO TRACKER:
+
+User can:
+
+* Add stock
+* Enter quantity + buy price
+
+Show:
+
+* Current price
+* P&L
+* Total investment
+* Portfolio summary
+
+---
+
+## LEARNING SECTION (FOR BEGINNERS):
+
+Add simple educational content:
+
+* What is support/resistance
+* What is breakout trading
+* Risk management basics
+
+---
+
+## BACKEND REQUIREMENTS:
+
+* Use Node.js or Python backend
+* Fetch stock data using:
+
+  * Yahoo Finance API OR NSE API
+
+---
+
+## DATABASE:
+
+* Users table
+* Portfolio table
+* Alerts table
+
+---
+
+## EXTRA FEATURES (OPTIONAL BUT IMPORTANT):
+
+* Watchlist
+* Dark/light toggle
+* Search stock feature
+* Auto-refresh data every 1–5 minutes
+
+---
+
+## IMPORTANT:
+
+* Focus on actionable insights, not just data
+* Show "what to do" clearly
+* Keep UI simple and trader-friendly
+
+---
+
+## OUTPUT:
+
+Generate full working app with:
+
+* Frontend
+* Backend
+* Database structure
+* API integration
+
+---

@@ -18,6 +18,7 @@ import type {
 
 import type {
   AddPortfolioStockRequest,
+  DecisionPanel,
   DisconnectUpstox200,
   GetGiftNiftyHistoryParams,
   GetGiftNiftyIntraday200,
@@ -118,6 +119,82 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns market status, key levels (pivot points S1/R1/S2/R2), trade decision (BUY/SELL/WAIT), market pressure, money flow, and signals table for top 10 stocks
+ * @summary Get full trading decision panel
+ */
+export const getGetDecisionPanelUrl = () => {
+  return `/api/decision-engine`;
+};
+
+export const getDecisionPanel = async (
+  options?: RequestInit,
+): Promise<DecisionPanel> => {
+  return customFetch<DecisionPanel>(getGetDecisionPanelUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDecisionPanelQueryKey = () => {
+  return [`/api/decision-engine`] as const;
+};
+
+export const getGetDecisionPanelQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDecisionPanel>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDecisionPanel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDecisionPanelQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDecisionPanel>>
+  > = ({ signal }) => getDecisionPanel({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDecisionPanel>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDecisionPanelQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDecisionPanel>>
+>;
+export type GetDecisionPanelQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get full trading decision panel
+ */
+
+export function useGetDecisionPanel<
+  TData = Awaited<ReturnType<typeof getDecisionPanel>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDecisionPanel>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDecisionPanelQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

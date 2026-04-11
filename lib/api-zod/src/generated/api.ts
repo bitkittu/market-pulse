@@ -15,6 +15,71 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * Returns market status, key levels (pivot points S1/R1/S2/R2), trade decision (BUY/SELL/WAIT), market pressure, money flow, and signals table for top 10 stocks
+ * @summary Get full trading decision panel
+ */
+export const GetDecisionPanelResponse = zod.object({
+  marketStatus: zod.enum(["BULLISH", "BEARISH", "SIDEWAYS"]),
+  confidence: zod.number(),
+  tradeDecision: zod.object({
+    action: zod.enum(["BUY", "SELL", "WAIT"]),
+    color: zod.enum(["green", "red", "yellow"]),
+    buyAbove: zod.number().nullish(),
+    sellBelow: zod.number().nullish(),
+    entry: zod.number(),
+    stopLoss: zod.number(),
+    target: zod.number(),
+    riskReward: zod.number(),
+    timeframe: zod.string(),
+    confidence: zod.number(),
+  }),
+  keyLevels: zod.object({
+    pivot: zod.number(),
+    r1: zod.number(),
+    r2: zod.number(),
+    r3: zod.number(),
+    s1: zod.number(),
+    s2: zod.number(),
+    s3: zod.number(),
+    vwap: zod.number(),
+    prevHigh: zod.number(),
+    prevLow: zod.number(),
+    prevClose: zod.number(),
+  }),
+  marketPressure: zod.object({
+    buyerStrength: zod.number(),
+    sellerStrength: zod.number(),
+    label: zod.string(),
+    trend: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+  }),
+  moneyFlow: zod.object({
+    volumeSpike: zod.boolean(),
+    oiChange: zod.enum(["UP", "DOWN", "FLAT"]),
+    smartMoneySignal: zod.enum(["ACCUMULATION", "DISTRIBUTION", "NEUTRAL"]),
+    description: zod.string(),
+  }),
+  signalsTable: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      name: zod.string(),
+      signal: zod.enum(["BUY", "SELL", "HOLD"]),
+      action: zod.string(),
+      price: zod.number(),
+      entry: zod.number(),
+      stopLoss: zod.number(),
+      target: zod.number(),
+      riskReward: zod.number(),
+      confidence: zod.number(),
+    }),
+  ),
+  niftyPrice: zod.number(),
+  niftyChange: zod.number(),
+  niftyChangePct: zod.number(),
+  dataSource: zod.string().optional(),
+  updatedAt: zod.string(),
+});
+
+/**
  * Returns Gift Nifty current price, yesterday high/low and change percentage
  * @summary Get Gift Nifty current quote
  */

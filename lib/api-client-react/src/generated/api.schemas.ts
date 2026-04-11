@@ -342,6 +342,138 @@ export interface OptionsSuggestion {
   updatedAt: string;
 }
 
+export interface KeyLevels {
+  pivot: number;
+  r1: number;
+  r2: number;
+  r3: number;
+  s1: number;
+  s2: number;
+  s3: number;
+  vwap: number;
+  prevHigh: number;
+  prevLow: number;
+  prevClose: number;
+}
+
+export type TradeDecisionAction =
+  (typeof TradeDecisionAction)[keyof typeof TradeDecisionAction];
+
+export const TradeDecisionAction = {
+  BUY: "BUY",
+  SELL: "SELL",
+  WAIT: "WAIT",
+} as const;
+
+export type TradeDecisionColor =
+  (typeof TradeDecisionColor)[keyof typeof TradeDecisionColor];
+
+export const TradeDecisionColor = {
+  green: "green",
+  red: "red",
+  yellow: "yellow",
+} as const;
+
+export interface TradeDecision {
+  action: TradeDecisionAction;
+  color: TradeDecisionColor;
+  buyAbove?: number | null;
+  sellBelow?: number | null;
+  entry: number;
+  stopLoss: number;
+  target: number;
+  riskReward: number;
+  timeframe: string;
+  confidence: number;
+}
+
+export type MarketPressureTrend =
+  (typeof MarketPressureTrend)[keyof typeof MarketPressureTrend];
+
+export const MarketPressureTrend = {
+  BULLISH: "BULLISH",
+  BEARISH: "BEARISH",
+  NEUTRAL: "NEUTRAL",
+} as const;
+
+export interface MarketPressure {
+  buyerStrength: number;
+  sellerStrength: number;
+  label: string;
+  trend: MarketPressureTrend;
+}
+
+export type MoneyFlowOiChange =
+  (typeof MoneyFlowOiChange)[keyof typeof MoneyFlowOiChange];
+
+export const MoneyFlowOiChange = {
+  UP: "UP",
+  DOWN: "DOWN",
+  FLAT: "FLAT",
+} as const;
+
+export type MoneyFlowSmartMoneySignal =
+  (typeof MoneyFlowSmartMoneySignal)[keyof typeof MoneyFlowSmartMoneySignal];
+
+export const MoneyFlowSmartMoneySignal = {
+  ACCUMULATION: "ACCUMULATION",
+  DISTRIBUTION: "DISTRIBUTION",
+  NEUTRAL: "NEUTRAL",
+} as const;
+
+export interface MoneyFlow {
+  volumeSpike: boolean;
+  oiChange: MoneyFlowOiChange;
+  smartMoneySignal: MoneyFlowSmartMoneySignal;
+  description: string;
+}
+
+export type SignalRowSignal =
+  (typeof SignalRowSignal)[keyof typeof SignalRowSignal];
+
+export const SignalRowSignal = {
+  BUY: "BUY",
+  SELL: "SELL",
+  HOLD: "HOLD",
+} as const;
+
+export interface SignalRow {
+  symbol: string;
+  name: string;
+  signal: SignalRowSignal;
+  action: string;
+  price: number;
+  entry: number;
+  stopLoss: number;
+  target: number;
+  riskReward: number;
+  confidence: number;
+}
+
+export type DecisionPanelMarketStatus =
+  (typeof DecisionPanelMarketStatus)[keyof typeof DecisionPanelMarketStatus];
+
+export const DecisionPanelMarketStatus = {
+  BULLISH: "BULLISH",
+  BEARISH: "BEARISH",
+  SIDEWAYS: "SIDEWAYS",
+} as const;
+
+export interface DecisionPanel {
+  marketStatus: DecisionPanelMarketStatus;
+  confidence: number;
+  tradeDecision: TradeDecision;
+  keyLevels: KeyLevels;
+  marketPressure: MarketPressure;
+  moneyFlow: MoneyFlow;
+  signalsTable: SignalRow[];
+  niftyPrice: number;
+  niftyChange: number;
+  niftyChangePct: number;
+  dataSource?: string;
+  updatedAt: string;
+}
+
 export type GetGiftNiftyHistoryParams = {
   period?: GetGiftNiftyHistoryPeriod;
 };

@@ -13,6 +13,7 @@ import {
   invalidateAllCache,
 } from "../lib/liveMarketData.js";
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
+import { getDecisionPanel } from "../lib/decisionEngine.js";
 import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
 import { db, portfolioTable, upstoxSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -62,6 +63,24 @@ router.get("/gift-nifty/intraday", async (_req, res) => {
     res.json({ data: points, closePrice: json.closePrice ?? 0, source: points.length > 0 ? "nse" : "closed" });
   } catch {
     res.json({ data: [], source: "closed" });
+  }
+});
+
+// ── Trading Decision Engine ────────────────────────────────────────────
+let decisionCache: { data: Awaited<ReturnType<typeof getDecisionPanel>>; expiry: number } | null = null;
+
+router.get("/decision-engine", async (_req, res) => {
+  try {
+    if (decisionCache && decisionCache.expiry > Date.now()) {
+      res.json(decisionCache.data);
+      return;
+    }
+    const panel = await getDecisionPanel();
+    decisionCache = { data: panel, expiry: Date.now() + 60_000 };
+    res.json(panel);
+  } catch (err) {
+    console.error("Decision engine error:", err);
+    res.status(500).json({ error: "Failed to compute decision panel" });
   }
 });
 

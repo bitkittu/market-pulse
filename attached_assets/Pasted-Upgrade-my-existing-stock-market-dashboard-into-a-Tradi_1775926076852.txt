@@ -1,0 +1,199 @@
+Upgrade my existing stock market dashboard into a "Trading Decision Engine" instead of an informational website.
+
+---
+
+## CORE GOAL:
+
+The platform must answer:
+👉 "What should I do RIGHT NOW?"
+
+Not just show data.
+
+---
+
+## MAIN DASHBOARD REDESIGN:
+
+1. TOP ACTION PANEL (MOST IMPORTANT)
+   Create a sticky top section showing:
+
+* Market Status: Bullish / Bearish / Sideways
+* Trade Decision:
+
+  * BUY ABOVE: [price]
+  * SELL BELOW: [price]
+* Confidence Score: (0–100%)
+* Timeframe: Intraday / Swing
+
+Add color coding:
+
+* Green = Buy
+* Red = Sell
+* Yellow = Wait
+
+---
+
+2. LIVE DECISION ENGINE (AUTO LOGIC)
+
+---
+
+Build logic to generate signals:
+
+IF price > previous day high AND volume spike:
+→ Signal = BUY
+
+IF price < previous day low:
+→ Signal = SELL
+
+IF price inside range:
+→ Signal = WAIT
+
+Display:
+
+* Entry
+* Stop Loss
+* Target
+* Risk/Reward ratio
+
+---
+
+3. KEY LEVELS PANEL (RIGHT SIDE)
+
+---
+
+Show clearly:
+
+* Previous High
+* Previous Low
+* Support (S1, S2)
+* Resistance (R1, R2)
+* VWAP
+
+Make it visually highlighted (big numbers)
+
+---
+
+4. MARKET PRESSURE INDICATOR
+
+---
+
+Create a simple meter:
+
+* Buyers Strength %
+* Sellers Strength %
+
+Based on:
+
+* Price movement
+* Volume
+* Trend
+
+Display as:
+"Buyers: 65% | Sellers: 35%"
+
+---
+
+5. MONEY FLOW SECTION
+
+---
+
+Show:
+
+* Volume spike (Yes/No)
+* Open Interest change (↑ / ↓)
+* Smart money signal (Accumulation / Distribution)
+
+---
+
+6. SIGNALS TABLE (ACTIONABLE)
+
+---
+
+Create table:
+
+| Stock | Signal | Entry | SL | Target | Confidence |
+| ----- | ------ | ----- | -- | ------ | ---------- |
+
+Signals must be:
+
+* BUY
+* SELL
+* HOLD
+
+---
+
+7. ALERT SYSTEM (CRITICAL)
+
+---
+
+Allow users to:
+
+* Set breakout alerts
+* Set price alerts
+
+Trigger:
+
+* On-screen notification
+* Sound alert (optional)
+
+---
+
+8. REMOVE UNNECESSARY TEXT
+
+---
+
+* Reduce long explanations
+* Replace with:
+  ✔ numbers
+  ✔ signals
+  ✔ levels
+
+---
+
+9. UX IMPROVEMENTS
+
+---
+
+* Make decision box always visible (sticky)
+* Use cards for each section
+* Highlight most important numbers
+* Mobile-friendly layout
+
+---
+
+10. TRADER MODE vs LEARNING MODE
+
+---
+
+Add toggle:
+
+* Trader Mode:
+  → Only signals + levels
+
+* Learning Mode:
+  → Show explanations
+
+---
+
+11. DATA SOURCES
+
+---
+
+Use:
+
+* Yahoo Finance API OR NSE data
+
+Auto-refresh every 1–2 minutes
+
+---
+
+12. OUTPUT EXPECTATION
+
+---
+
+Transform UI into:
+
+* Fast decision dashboard
+* Real-time signals system
+* Minimal text, maximum action
+
+---

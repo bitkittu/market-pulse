@@ -34,6 +34,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /decision-engine:
+    get:
+      operationId: getDecisionPanel
+      tags: [decision]
+      summary: Get full trading decision panel
+      description: Returns market status, key levels (pivot points S1/R1/S2/R2), trade decision (BUY/SELL/WAIT), market pressure, money flow, and signals table for top 10 stocks
+      responses:
+        "200":
+          description: Decision panel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionPanel"
+
   /gift-nifty/quote:
     get:
       operationId: getGiftNiftyQuote
@@ -953,4 +967,103 @@ components:
         - oiTrend
         - confidence
         - rationale
+        - updatedAt
+
+    KeyLevels:
+      type: object
+      properties:
+        pivot:      { type: number }
+        r1:         { type: number }
+        r2:         { type: number }
+        r3:         { type: number }
+        s1:         { type: number }
+        s2:         { type: number }
+        s3:         { type: number }
+        vwap:       { type: number }
+        prevHigh:   { type: number }
+        prevLow:    { type: number }
+        prevClose:  { type: number }
+      required: [pivot, r1, r2, r3, s1, s2, s3, vwap, prevHigh, prevLow, prevClose]
+
+    TradeDecision:
+      type: object
+      properties:
+        action:     { type: string, enum: [BUY, SELL, WAIT] }
+        color:      { type: string, enum: [green, red, yellow] }
+        buyAbove:   { type: number, nullable: true }
+        sellBelow:  { type: number, nullable: true }
+        entry:      { type: number }
+        stopLoss:   { type: number }
+        target:     { type: number }
+        riskReward: { type: number }
+        timeframe:  { type: string }
+        confidence: { type: number }
+      required: [action, color, entry, stopLoss, target, riskReward, timeframe, confidence]
+
+    MarketPressure:
+      type: object
+      properties:
+        buyerStrength:  { type: number }
+        sellerStrength: { type: number }
+        label:          { type: string }
+        trend:          { type: string, enum: [BULLISH, BEARISH, NEUTRAL] }
+      required: [buyerStrength, sellerStrength, label, trend]
+
+    MoneyFlow:
+      type: object
+      properties:
+        volumeSpike:      { type: boolean }
+        oiChange:         { type: string, enum: [UP, DOWN, FLAT] }
+        smartMoneySignal: { type: string, enum: [ACCUMULATION, DISTRIBUTION, NEUTRAL] }
+        description:      { type: string }
+      required: [volumeSpike, oiChange, smartMoneySignal, description]
+
+    SignalRow:
+      type: object
+      properties:
+        symbol:     { type: string }
+        name:       { type: string }
+        signal:     { type: string, enum: [BUY, SELL, HOLD] }
+        action:     { type: string }
+        price:      { type: number }
+        entry:      { type: number }
+        stopLoss:   { type: number }
+        target:     { type: number }
+        riskReward: { type: number }
+        confidence: { type: number }
+      required: [symbol, name, signal, action, price, entry, stopLoss, target, riskReward, confidence]
+
+    DecisionPanel:
+      type: object
+      properties:
+        marketStatus:    { type: string, enum: [BULLISH, BEARISH, SIDEWAYS] }
+        confidence:      { type: number }
+        tradeDecision:
+          $ref: "#/components/schemas/TradeDecision"
+        keyLevels:
+          $ref: "#/components/schemas/KeyLevels"
+        marketPressure:
+          $ref: "#/components/schemas/MarketPressure"
+        moneyFlow:
+          $ref: "#/components/schemas/MoneyFlow"
+        signalsTable:
+          type: array
+          items:
+            $ref: "#/components/schemas/SignalRow"
+        niftyPrice:    { type: number }
+        niftyChange:   { type: number }
+        niftyChangePct: { type: number }
+        dataSource:    { type: string }
+        updatedAt:     { type: string }
+      required:
+        - marketStatus
+        - confidence
+        - tradeDecision
+        - keyLevels
+        - marketPressure
+        - moneyFlow
+        - signalsTable
+        - niftyPrice
+        - niftyChange
+        - niftyChangePct
         - updatedAt
