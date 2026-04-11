@@ -475,3 +475,62 @@ export async function getLiveSectors() {
   cache.set(key, results, INDEX_TTL);
   return results;
 }
+
+// ── Global Indices (Yahoo Finance) ─────────────────────────────────────────
+const GLOBAL_TTL = 120_000; // 2 minutes
+
+const GLOBAL_INDEX_META: Record<string, { label: string; currency: string }> = {
+  "^NYA":      { label: "NYSE Composite",     currency: "USD" },
+  "000001.SS": { label: "Shanghai Composite", currency: "CNY" },
+  "^HSI":      { label: "Hang Seng Index",    currency: "HKD" },
+  "^NSEI":     { label: "Nifty 50",           currency: "INR" },
+};
+
+export async function getGlobalIndexQuote(ticker: string) {
+  const key = `global-quote-${ticker}`;
+  const cached = cache.get<object>(key);
+  if (cached) return cached;
+
+  const q = await yf.quote(ticker);
+  const qr = q as Record<string, unknown>;
+  const meta = GLOBAL_INDEX_META[ticker];
+  const result = {
+    ticker,
+    name:          (qr.shortName as string) ?? meta?.label ?? ticker,
+    price:         (qr.regularMarketPrice as number)        ?? 0,
+    change:        (qr.regularMarketChange as number)       ?? 0,
+    changePercent: (qr.regularMarketChangePercent as number) ?? 0,
+    currency:      (qr.currency as string) ?? meta?.currency ?? "USD",
+    dataSource:    "yahoo",
+  };
+  cache.set(key, result, GLOBAL_TTL);
+  return result;
+}
+
+export async function getGlobalIndexHistory(ticker: string, period: string) {
+  const key = `global-history-${ticker}-${period}`;
+  const cached = cache.get<object[]>(key);
+  if (cached) return cached;
+
+  const months = period === "1M" ? 1 : 3;
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+
+  const rows = await yf.historical(ticker, {
+    period1: startDate.toISOString().split("T")[0],
+    period2: new Date().toISOString().split("T")[0],
+    interval: "1d",
+  });
+
+  const data = rows.map((d) => ({
+    timestamp: (d.date as Date).toISOString(),
+    open:   d.open  ?? 0,
+    high:   d.high  ?? 0,
+    low:    d.low   ?? 0,
+    close:  d.close ?? 0,
+    volume: d.volume ?? 0,
+  }));
+
+  cache.set(key, data, GLOBAL_TTL);
+  return data;
+}

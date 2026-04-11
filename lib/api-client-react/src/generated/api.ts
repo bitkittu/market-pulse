@@ -22,8 +22,11 @@ import type {
   DisconnectUpstox200,
   GetGiftNiftyHistoryParams,
   GetGiftNiftyIntraday200,
+  GetGlobalIndexHistoryParams,
+  GetGlobalIndexQuoteParams,
   GetNseHistoryParams,
   GiftNiftyQuote,
+  GlobalIndexQuote,
   HealthStatus,
   InsightsResult,
   NseMovers,
@@ -448,6 +451,206 @@ export function useGetGiftNiftyIntraday<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGiftNiftyIntradayQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get global index current quote (Yahoo Finance ~15m delay)
+ */
+export const getGetGlobalIndexQuoteUrl = (
+  params: GetGlobalIndexQuoteParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/global-index/quote?${stringifiedParams}`
+    : `/api/global-index/quote`;
+};
+
+export const getGlobalIndexQuote = async (
+  params: GetGlobalIndexQuoteParams,
+  options?: RequestInit,
+): Promise<GlobalIndexQuote> => {
+  return customFetch<GlobalIndexQuote>(getGetGlobalIndexQuoteUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGlobalIndexQuoteQueryKey = (
+  params?: GetGlobalIndexQuoteParams,
+) => {
+  return [`/api/global-index/quote`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetGlobalIndexQuoteQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGlobalIndexQuote>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetGlobalIndexQuoteParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGlobalIndexQuote>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGlobalIndexQuoteQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGlobalIndexQuote>>
+  > = ({ signal }) =>
+    getGlobalIndexQuote(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGlobalIndexQuote>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGlobalIndexQuoteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGlobalIndexQuote>>
+>;
+export type GetGlobalIndexQuoteQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get global index current quote (Yahoo Finance ~15m delay)
+ */
+
+export function useGetGlobalIndexQuote<
+  TData = Awaited<ReturnType<typeof getGlobalIndexQuote>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetGlobalIndexQuoteParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGlobalIndexQuote>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGlobalIndexQuoteQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get global index price history (Yahoo Finance)
+ */
+export const getGetGlobalIndexHistoryUrl = (
+  params: GetGlobalIndexHistoryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/global-index/history?${stringifiedParams}`
+    : `/api/global-index/history`;
+};
+
+export const getGlobalIndexHistory = async (
+  params: GetGlobalIndexHistoryParams,
+  options?: RequestInit,
+): Promise<PriceHistory> => {
+  return customFetch<PriceHistory>(getGetGlobalIndexHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGlobalIndexHistoryQueryKey = (
+  params?: GetGlobalIndexHistoryParams,
+) => {
+  return [`/api/global-index/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetGlobalIndexHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGlobalIndexHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetGlobalIndexHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGlobalIndexHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGlobalIndexHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGlobalIndexHistory>>
+  > = ({ signal }) =>
+    getGlobalIndexHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGlobalIndexHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGlobalIndexHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGlobalIndexHistory>>
+>;
+export type GetGlobalIndexHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get global index price history (Yahoo Finance)
+ */
+
+export function useGetGlobalIndexHistory<
+  TData = Awaited<ReturnType<typeof getGlobalIndexHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetGlobalIndexHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGlobalIndexHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGlobalIndexHistoryQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

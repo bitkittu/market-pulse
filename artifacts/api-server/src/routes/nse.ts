@@ -11,6 +11,8 @@ import {
   getLiveGiftNifty,
   getLiveSectors,
   invalidateAllCache,
+  getGlobalIndexQuote,
+  getGlobalIndexHistory,
 } from "../lib/liveMarketData.js";
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
 import { getDecisionPanel } from "../lib/decisionEngine.js";
@@ -277,6 +279,37 @@ router.get("/suggestions/options", async (_req, res) => {
     res.json(await getOptionsSuggestions());
   } catch {
     res.status(500).json({ error: "Failed to generate options suggestions" });
+  }
+});
+
+// ── Global Indices (Yahoo Finance) ──────────────────────────────────────────
+const ALLOWED_GLOBAL = new Set(["^NYA", "000001.SS", "^HSI", "^NSEI"]);
+
+router.get("/global-index/quote", async (req, res) => {
+  const ticker = req.query.ticker as string;
+  if (!ticker || !ALLOWED_GLOBAL.has(ticker)) {
+    res.status(400).json({ error: "Invalid ticker. Allowed: ^NYA, 000001.SS, ^HSI, ^NSEI" });
+    return;
+  }
+  try {
+    res.json(await getGlobalIndexQuote(ticker));
+  } catch {
+    res.status(500).json({ error: `Failed to fetch quote for ${ticker}` });
+  }
+});
+
+router.get("/global-index/history", async (req, res) => {
+  const ticker = req.query.ticker as string;
+  const period = (req.query.period as string) || "3M";
+  if (!ticker || !ALLOWED_GLOBAL.has(ticker)) {
+    res.status(400).json({ error: "Invalid ticker. Allowed: ^NYA, 000001.SS, ^HSI, ^NSEI" });
+    return;
+  }
+  try {
+    const data = await getGlobalIndexHistory(ticker, period);
+    res.json({ ticker, period, data });
+  } catch {
+    res.status(500).json({ error: `Failed to fetch history for ${ticker}` });
   }
 });
 

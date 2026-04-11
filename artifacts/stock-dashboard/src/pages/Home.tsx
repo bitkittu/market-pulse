@@ -5,6 +5,8 @@ import {
   useGetGiftNiftyQuote,
   useGetGiftNiftyHistory,
   useGetGiftNiftyIntraday,
+  useGetGlobalIndexQuote,
+  useGetGlobalIndexHistory,
   useGetNseMovers,
   useGetNseSectors,
   useGetUpstoxSettings,
@@ -607,6 +609,107 @@ function GiftNiftyCard() {
   );
 }
 
+// ── Global Index Card (NYSE / Shanghai / Hang Seng / Gift Nifty) ─────────
+const GLOBAL_INDEX_CONFIG: Record<string, {
+  label: string; exchange: string; color: string;
+  badge: string; numFmt: (n: number) => string;
+}> = {
+  "^NSEI":      { label: "Gift Nifty",       exchange: "NSE IFSC", color: "#f97316", badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",   numFmt: (n) => "₹" + fmt(n, 2) },
+  "^NYA":       { label: "NYSE Composite",   exchange: "XNYS",     color: "#3b82f6", badge: "bg-blue-500/15 text-blue-400 border-blue-500/30",         numFmt: (n) => fmt(n, 2) },
+  "000001.SS":  { label: "Shanghai Comp.",   exchange: "XSHG",     color: "#ef4444", badge: "bg-red-500/15 text-red-400 border-red-500/30",            numFmt: (n) => fmt(n, 2) },
+  "^HSI":       { label: "Hang Seng Index",  exchange: "XHKG",     color: "#a855f7", badge: "bg-purple-500/15 text-purple-400 border-purple-500/30",   numFmt: (n) => fmt(n, 2) },
+};
+
+function GlobalIndexCard({ ticker }: { ticker: string }) {
+  const cfg   = GLOBAL_INDEX_CONFIG[ticker];
+  const color = cfg?.color ?? "#10b981";
+  const [period, setPeriod] = useState<"1M" | "3M">("3M");
+
+  const { data: quote } = useGetGlobalIndexQuote(
+    { ticker },
+    { query: { refetchInterval: 120_000 } },
+  );
+  const { data: hist } = useGetGlobalIndexHistory(
+    { ticker, period },
+    { query: { refetchInterval: 180_000 } },
+  );
+
+  const chartData = (hist?.data ?? []).map((p: { close: number; timestamp: string }) => ({
+    val:   p.close,
+    label: format(new Date(p.timestamp), "dd MMM"),
+  }));
+
+  const vals = chartData.map((d) => d.val).filter(Boolean);
+  const minV = vals.length ? Math.min(...vals) : 0;
+  const maxV = vals.length ? Math.max(...vals) : 0;
+  const pad  = Math.max((maxV - minV) * 0.06, 10);
+  const isPos = (quote?.changePercent ?? 0) >= 0;
+  const lineColor = isPos ? color : "#ef4444";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", cfg?.badge ?? "bg-muted/30 text-muted-foreground border-border")}>
+            {cfg?.exchange ?? ticker}
+          </span>
+          <span className="text-xs font-bold">{cfg?.label ?? ticker}</span>
+          {quote && <ChangeChip v={quote.changePercent} />}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold font-mono">
+            {quote ? (cfg?.numFmt ?? fmt)(quote.price) : "—"}
+          </span>
+          <div className="flex bg-background/60 rounded-lg p-0.5 border border-border">
+            {(["1M", "3M"] as const).map((p) => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={cn("px-1.5 py-0.5 text-[10px] font-mono rounded-md transition-all",
+                  period === p ? "bg-primary text-white font-bold" : "text-muted-foreground hover:text-foreground")}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="h-28">
+        {chartData.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <Skeleton className="w-full h-full" />
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={lineColor} stopOpacity={0.2} />
+                  <stop offset="95%" stopColor={lineColor} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="label" axisLine={false} tickLine={false}
+                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 8, fontFamily: "JetBrains Mono" }} minTickGap={40} />
+              <YAxis domain={[minV - pad, maxV + pad]} axisLine={false} tickLine={false} orientation="right"
+                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 8, fontFamily: "JetBrains Mono" }}
+                tickFormatter={(v) => v >= 1000 ? (v / 1000).toFixed(1) + "k" : v.toFixed(0)} width={36} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "hsl(224,40%,9%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontFamily: "JetBrains Mono", fontSize: 10 }}
+                formatter={(v: number) => [(cfg?.numFmt ?? fmt)(v), cfg?.label ?? ticker]}
+                labelFormatter={(l) => `Date: ${l}`} />
+              <Area type="monotone" dataKey="val" stroke={lineColor} strokeWidth={1.5}
+                fill={`url(#grad-${ticker})`} dot={false} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+      <div className="mt-1 text-right">
+        <span className={cn("text-[9px] font-bold border rounded px-1 py-0.5", DATA_SOURCE_BADGE.yahoo.cls)}>
+          Yahoo ~15m
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── NSE Movers (compact) ──────────────────────────────────────────────────
 function MoversCompact() {
   const { data: movers } = useGetNseMovers({ query: { refetchInterval: 90000 } });
@@ -746,6 +849,18 @@ export function Home() {
           <MoversCompact />
           <SectorsCompact />
         </div>
+      </div>
+
+      {/* ── 7. Global Index Charts ── */}
+      <div className="flex items-center gap-2 px-1 pt-2">
+        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Global Markets</span>
+        <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", DATA_SOURCE_BADGE.yahoo.cls)}>Yahoo ~15m</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <GlobalIndexCard ticker="^NSEI" />
+        <GlobalIndexCard ticker="^NYA" />
+        <GlobalIndexCard ticker="000001.SS" />
+        <GlobalIndexCard ticker="^HSI" />
       </div>
     </div>
   );

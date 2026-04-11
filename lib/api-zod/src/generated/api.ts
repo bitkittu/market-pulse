@@ -149,6 +149,50 @@ export const GetGiftNiftyIntradayResponse = zod.object({
 });
 
 /**
+ * @summary Get global index current quote (Yahoo Finance ~15m delay)
+ */
+export const GetGlobalIndexQuoteQueryParams = zod.object({
+  ticker: zod.enum(["^NYA", "000001.SS", "^HSI", "^NSEI"]),
+});
+
+export const GetGlobalIndexQuoteResponse = zod.object({
+  ticker: zod.string(),
+  name: zod.string(),
+  price: zod.number(),
+  change: zod.number(),
+  changePercent: zod.number(),
+  currency: zod.string(),
+  dataSource: zod.string().optional(),
+});
+
+/**
+ * @summary Get global index price history (Yahoo Finance)
+ */
+export const getGlobalIndexHistoryQueryPeriodDefault = `3M`;
+
+export const GetGlobalIndexHistoryQueryParams = zod.object({
+  ticker: zod.enum(["^NYA", "000001.SS", "^HSI", "^NSEI"]),
+  period: zod
+    .enum(["1M", "3M"])
+    .default(getGlobalIndexHistoryQueryPeriodDefault),
+});
+
+export const GetGlobalIndexHistoryResponse = zod.object({
+  symbol: zod.string(),
+  period: zod.string(),
+  data: zod.array(
+    zod.object({
+      timestamp: zod.string(),
+      open: zod.number(),
+      high: zod.number(),
+      low: zod.number(),
+      close: zod.number(),
+      volume: zod.number(),
+    }),
+  ),
+});
+
+/**
  * Returns top 10 NSE gainers and top 10 NSE losers
  * @summary Get NSE top gainers and losers
  */

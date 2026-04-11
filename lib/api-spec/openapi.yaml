@@ -13,6 +13,8 @@ tags:
     description: Gift Nifty data
   - name: nse
     description: NSE Indian stock market
+  - name: global
+    description: Global index data (NYSE, Shanghai, Hang Seng)
   - name: portfolio
     description: User portfolio
   - name: settings
@@ -115,6 +117,53 @@ paths:
                   source:
                     type: string
                 required: [data, closePrice, source]
+
+  /global-index/quote:
+    get:
+      operationId: getGlobalIndexQuote
+      tags: [global]
+      summary: Get global index current quote (Yahoo Finance ~15m delay)
+      parameters:
+        - name: ticker
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: ["^NYA", "000001.SS", "^HSI", "^NSEI"]
+      responses:
+        "200":
+          description: Global index quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlobalIndexQuote"
+
+  /global-index/history:
+    get:
+      operationId: getGlobalIndexHistory
+      tags: [global]
+      summary: Get global index price history (Yahoo Finance)
+      parameters:
+        - name: ticker
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: ["^NYA", "000001.SS", "^HSI", "^NSEI"]
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [1M, 3M]
+            default: 3M
+      responses:
+        "200":
+          description: Global index history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistory"
 
   /nse/movers:
     get:
@@ -1017,6 +1066,18 @@ components:
         smartMoneySignal: { type: string, enum: [ACCUMULATION, DISTRIBUTION, NEUTRAL] }
         description:      { type: string }
       required: [volumeSpike, oiChange, smartMoneySignal, description]
+
+    GlobalIndexQuote:
+      type: object
+      properties:
+        ticker:        { type: string }
+        name:          { type: string }
+        price:         { type: number }
+        change:        { type: number }
+        changePercent: { type: number }
+        currency:      { type: string }
+        dataSource:    { type: string }
+      required: [ticker, name, price, change, changePercent, currency]
 
     SignalRow:
       type: object

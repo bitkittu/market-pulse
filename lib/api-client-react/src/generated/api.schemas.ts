@@ -428,6 +428,16 @@ export interface MoneyFlow {
   description: string;
 }
 
+export interface GlobalIndexQuote {
+  ticker: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  currency: string;
+  dataSource?: string;
+}
+
 export type SignalRowSignal =
   (typeof SignalRowSignal)[keyof typeof SignalRowSignal];
 
@@ -498,6 +508,43 @@ export type GetGiftNiftyIntraday200 = {
   closePrice: number;
   source: string;
 };
+
+export type GetGlobalIndexQuoteParams = {
+  ticker: GetGlobalIndexQuoteTicker;
+};
+
+export type GetGlobalIndexQuoteTicker =
+  (typeof GetGlobalIndexQuoteTicker)[keyof typeof GetGlobalIndexQuoteTicker];
+
+export const GetGlobalIndexQuoteTicker = {
+  "^NYA": "^NYA",
+  "000001SS": "000001.SS",
+  "^HSI": "^HSI",
+  "^NSEI": "^NSEI",
+} as const;
+
+export type GetGlobalIndexHistoryParams = {
+  ticker: GetGlobalIndexHistoryTicker;
+  period?: GetGlobalIndexHistoryPeriod;
+};
+
+export type GetGlobalIndexHistoryTicker =
+  (typeof GetGlobalIndexHistoryTicker)[keyof typeof GetGlobalIndexHistoryTicker];
+
+export const GetGlobalIndexHistoryTicker = {
+  "^NYA": "^NYA",
+  "000001SS": "000001.SS",
+  "^HSI": "^HSI",
+  "^NSEI": "^NSEI",
+} as const;
+
+export type GetGlobalIndexHistoryPeriod =
+  (typeof GetGlobalIndexHistoryPeriod)[keyof typeof GetGlobalIndexHistoryPeriod];
+
+export const GetGlobalIndexHistoryPeriod = {
+  "1M": "1M",
+  "3M": "3M",
+} as const;
 
 export type GetNseHistoryParams = {
   period?: GetNseHistoryPeriod;
