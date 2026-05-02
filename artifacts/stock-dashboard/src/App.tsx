@@ -7,7 +7,8 @@ import { IntradayDashboard } from "@/pages/IntradayDashboard";
 import { OptionsDashboard } from "@/pages/OptionsDashboard";
 import { Performance } from "@/pages/Performance";
 import { Insights } from "@/pages/Insights";
-import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock, Zap, Activity, BarChart2, Newspaper } from "lucide-react";
+import { Commodities } from "@/pages/Commodities";
+import { LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock, Zap, Activity, BarChart2, Newspaper, Wheat } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,7 +16,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "insights" | "settings";
+type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "insights" | "commodities" | "settings";
 
 function ISTClock() {
   const [time, setTime] = useState("");
@@ -63,9 +64,10 @@ type TabDef = { id: Tab; label: string; icon: typeof LayoutDashboard; accent?: s
 
 const TABS: TabDef[] = [
   { id: "home",        label: "Dashboard",   icon: LayoutDashboard },
-  { id: "intraday",    label: "Intraday",    icon: Zap,      accent: "emerald" },
-  { id: "options",     label: "Options",     icon: Activity, accent: "violet" },
+  { id: "intraday",    label: "Intraday",    icon: Zap,       accent: "emerald" },
+  { id: "options",     label: "Options",     icon: Activity,  accent: "violet" },
   { id: "performance", label: "Performance", icon: BarChart2, accent: "blue" },
+  { id: "commodities", label: "Commodities", icon: Wheat,     accent: "orange" },
   { id: "portfolio",   label: "Portfolio",   icon: Briefcase },
   { id: "insights",    label: "Insights",    icon: Newspaper, accent: "amber" },
   { id: "settings",    label: "Upstox API",  icon: Settings2 },
@@ -99,6 +101,7 @@ function AppShell() {
                 violet:  isActive ? "bg-violet-500 text-white"  : "text-violet-400/70 hover:text-violet-300 hover:bg-violet-500/10",
                 blue:    isActive ? "bg-blue-500 text-white"    : "text-blue-400/70 hover:text-blue-300 hover:bg-blue-500/10",
                 amber:   isActive ? "bg-amber-500 text-white"   : "text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10",
+                orange:  isActive ? "bg-orange-500 text-white"  : "text-orange-400/70 hover:text-orange-300 hover:bg-orange-500/10",
               };
               const cls = t.accent
                 ? accentMap[t.accent]
@@ -122,6 +125,7 @@ function AppShell() {
         {tab === "intraday"    && <IntradayDashboard />}
         {tab === "options"     && <OptionsDashboard />}
         {tab === "performance" && <Performance />}
+        {tab === "commodities" && <Commodities />}
         {tab === "portfolio"   && <Portfolio />}
         {tab === "insights"    && <Insights />}
         {tab === "settings"    && <Settings />}

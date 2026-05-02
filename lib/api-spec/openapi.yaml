@@ -13,6 +13,8 @@ tags:
     description: Gift Nifty data
   - name: nse
     description: NSE Indian stock market
+  - name: commodities
+    description: Live commodity prices and movement predictions
   - name: global
     description: Global index data (NYSE, Shanghai, Hang Seng)
   - name: portfolio
@@ -117,6 +119,52 @@ paths:
                   source:
                     type: string
                 required: [data, closePrice, source]
+
+  /commodities:
+    get:
+      operationId: getCommodities
+      tags: [commodities]
+      summary: Get live commodity quotes with prediction and sparkline
+      description: Returns Gold, Silver, Crude Oil, Natural Gas, Copper, Platinum, Wheat, Corn, Soybeans with live price, sparkline, and movement prediction
+      responses:
+        "200":
+          description: Live commodity data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatedAt: { type: string }
+                  commodities:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CommodityItem"
+                required: [updatedAt, commodities]
+
+  /commodities/history:
+    get:
+      operationId: getCommodityHistory
+      tags: [commodities]
+      summary: Get commodity price history
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema: { type: string }
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [1M, 3M, 6M]
+            default: 3M
+      responses:
+        "200":
+          description: Commodity price history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistory"
 
   /global-index/quote:
     get:
@@ -1066,6 +1114,37 @@ components:
         smartMoneySignal: { type: string, enum: [ACCUMULATION, DISTRIBUTION, NEUTRAL] }
         description:      { type: string }
       required: [volumeSpike, oiChange, smartMoneySignal, description]
+
+    CommodityPrediction:
+      type: object
+      properties:
+        signal:      { type: string, enum: [BULLISH, BEARISH, NEUTRAL] }
+        confidence:  { type: number }
+        momentum:    { type: number }
+        buyPressure: { type: number }
+      required: [signal, confidence, momentum, buyPressure]
+
+    CommodityItem:
+      type: object
+      properties:
+        symbol:        { type: string }
+        name:          { type: string }
+        category:      { type: string }
+        emoji:         { type: string }
+        price:         { type: number }
+        change:        { type: number }
+        changePercent: { type: number }
+        currency:      { type: string }
+        unit:          { type: string }
+        dayHigh:       { type: number }
+        dayLow:        { type: number }
+        prevClose:     { type: number }
+        sparkline:
+          type: array
+          items: { type: number }
+        prediction:
+          $ref: "#/components/schemas/CommodityPrediction"
+      required: [symbol, name, category, emoji, price, change, changePercent, currency, unit, dayHigh, dayLow, prevClose, sparkline, prediction]
 
     GlobalIndexQuote:
       type: object

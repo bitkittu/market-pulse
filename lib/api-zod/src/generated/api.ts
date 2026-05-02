@@ -149,6 +149,64 @@ export const GetGiftNiftyIntradayResponse = zod.object({
 });
 
 /**
+ * Returns Gold, Silver, Crude Oil, Natural Gas, Copper, Platinum, Wheat, Corn, Soybeans with live price, sparkline, and movement prediction
+ * @summary Get live commodity quotes with prediction and sparkline
+ */
+export const GetCommoditiesResponse = zod.object({
+  updatedAt: zod.string(),
+  commodities: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      name: zod.string(),
+      category: zod.string(),
+      emoji: zod.string(),
+      price: zod.number(),
+      change: zod.number(),
+      changePercent: zod.number(),
+      currency: zod.string(),
+      unit: zod.string(),
+      dayHigh: zod.number(),
+      dayLow: zod.number(),
+      prevClose: zod.number(),
+      sparkline: zod.array(zod.number()),
+      prediction: zod.object({
+        signal: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+        confidence: zod.number(),
+        momentum: zod.number(),
+        buyPressure: zod.number(),
+      }),
+    }),
+  ),
+});
+
+/**
+ * @summary Get commodity price history
+ */
+export const getCommodityHistoryQueryPeriodDefault = `3M`;
+
+export const GetCommodityHistoryQueryParams = zod.object({
+  symbol: zod.coerce.string(),
+  period: zod
+    .enum(["1M", "3M", "6M"])
+    .default(getCommodityHistoryQueryPeriodDefault),
+});
+
+export const GetCommodityHistoryResponse = zod.object({
+  symbol: zod.string(),
+  period: zod.string(),
+  data: zod.array(
+    zod.object({
+      timestamp: zod.string(),
+      open: zod.number(),
+      high: zod.number(),
+      low: zod.number(),
+      close: zod.number(),
+      volume: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary Get global index current quote (Yahoo Finance ~15m delay)
  */
 export const GetGlobalIndexQuoteQueryParams = zod.object({

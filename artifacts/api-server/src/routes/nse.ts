@@ -13,6 +13,8 @@ import {
   invalidateAllCache,
   getGlobalIndexQuote,
   getGlobalIndexHistory,
+  getLiveCommodities,
+  getCommodityHistory,
 } from "../lib/liveMarketData.js";
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
 import { getDecisionPanel } from "../lib/decisionEngine.js";
@@ -279,6 +281,35 @@ router.get("/suggestions/options", async (_req, res) => {
     res.json(await getOptionsSuggestions());
   } catch {
     res.status(500).json({ error: "Failed to generate options suggestions" });
+  }
+});
+
+// ── Commodities ─────────────────────────────────────────────────────────────
+const VALID_COMMODITY_SYMBOLS = new Set([
+  "GC=F","SI=F","CL=F","BZ=F","NG=F","HG=F","PL=F","ZW=F","ZC=F","ZS=F",
+]);
+
+router.get("/commodities", async (_req, res) => {
+  try {
+    const commodities = await getLiveCommodities();
+    res.json({ updatedAt: new Date().toISOString(), commodities });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch commodity data" });
+  }
+});
+
+router.get("/commodities/history", async (req, res) => {
+  const symbol = req.query.symbol as string;
+  const period = (req.query.period as string) || "3M";
+  if (!symbol || !VALID_COMMODITY_SYMBOLS.has(symbol)) {
+    res.status(400).json({ error: "Invalid commodity symbol" });
+    return;
+  }
+  try {
+    const data = await getCommodityHistory(symbol, period);
+    res.json({ symbol, period, data });
+  } catch {
+    res.status(500).json({ error: `Failed to fetch history for ${symbol}` });
   }
 });
 

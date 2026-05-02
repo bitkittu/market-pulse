@@ -476,6 +476,177 @@ export async function getLiveSectors() {
   return results;
 }
 
+// ── Commodities (Yahoo Finance) ────────────────────────────────────────────
+const COMMODITY_TTL = 90_000; // 90 seconds
+
+export interface CommodityItem {
+  symbol:        string;
+  name:          string;
+  category:      string;
+  emoji:         string;
+  price:         number;
+  change:        number;
+  changePercent: number;
+  currency:      string;
+  unit:          string;
+  dayHigh:       number;
+  dayLow:        number;
+  prevClose:     number;
+  sparkline:     number[];       // last 10 close prices
+  prediction: {
+    signal:      "BULLISH" | "BEARISH" | "NEUTRAL";
+    confidence:  number;
+    momentum:    number;         // 5-day % move
+    buyPressure: number;         // 0-100 — position in 20-day range
+  };
+}
+
+const COMMODITY_META = [
+  { symbol: "GC=F",  name: "Gold",          category: "Precious Metals", emoji: "🥇", unit: "/oz"    },
+  { symbol: "SI=F",  name: "Silver",         category: "Precious Metals", emoji: "🥈", unit: "/oz"    },
+  { symbol: "CL=F",  name: "Crude Oil (WTI)",category: "Energy",          emoji: "🛢️", unit: "/bbl"   },
+  { symbol: "BZ=F",  name: "Brent Crude",    category: "Energy",          emoji: "⛽", unit: "/bbl"   },
+  { symbol: "NG=F",  name: "Natural Gas",    category: "Energy",          emoji: "🔥", unit: "/MMBtu" },
+  { symbol: "HG=F",  name: "Copper",         category: "Base Metals",     emoji: "🔶", unit: "/lb"    },
+  { symbol: "PL=F",  name: "Platinum",       category: "Precious Metals", emoji: "💎", unit: "/oz"    },
+  { symbol: "ZW=F",  name: "Wheat",          category: "Agriculture",     emoji: "🌾", unit: "/bu"    },
+  { symbol: "ZC=F",  name: "Corn",           category: "Agriculture",     emoji: "🌽", unit: "/bu"    },
+  { symbol: "ZS=F",  name: "Soybeans",       category: "Agriculture",     emoji: "🫘", unit: "/bu"    },
+];
+
+function predictFromHistory(prices: number[]): CommodityItem["prediction"] {
+  const n = prices.length;
+  if (n < 5) return { signal: "NEUTRAL", confidence: 50, momentum: 0, buyPressure: 50 };
+
+  const current = prices[n - 1];
+  const prev5   = prices[Math.max(0, n - 6)];
+  const momentum = ((current - prev5) / prev5) * 100;
+
+  const slice20 = prices.slice(Math.max(0, n - 20));
+  const max20   = Math.max(...slice20);
+  const min20   = Math.min(...slice20);
+  const range   = max20 - min20;
+  const buyPressure = range > 0 ? Math.round(((current - min20) / range) * 100) : 50;
+
+  // RSI (14-period)
+  let gains = 0, losses = 0, cnt = 0;
+  for (let i = Math.max(1, n - 14); i < n; i++, cnt++) {
+    const d = prices[i] - prices[i - 1];
+    if (d > 0) gains += d; else losses += Math.abs(d);
+  }
+  const ag = cnt ? gains / cnt : 0;
+  const al = cnt ? losses / cnt : 0;
+  const rsi = al === 0 ? 100 : 100 - 100 / (1 + ag / al);
+
+  let signal: "BULLISH" | "BEARISH" | "NEUTRAL";
+  let confidence: number;
+
+  if (momentum > 0.4 && buyPressure > 55 && rsi > 53) {
+    signal     = "BULLISH";
+    confidence = Math.min(95, Math.round(50 + Math.abs(momentum) * 6 + (buyPressure - 50) * 0.6));
+  } else if (momentum < -0.4 && buyPressure < 45 && rsi < 47) {
+    signal     = "BEARISH";
+    confidence = Math.min(95, Math.round(50 + Math.abs(momentum) * 6 + (50 - buyPressure) * 0.6));
+  } else {
+    signal     = "NEUTRAL";
+    confidence = Math.round(40 + Math.abs(50 - buyPressure) * 0.4);
+  }
+
+  return { signal, confidence, momentum: parseFloat(momentum.toFixed(2)), buyPressure };
+}
+
+export async function getLiveCommodities(): Promise<CommodityItem[]> {
+  const key = "commodities-all";
+  const cached = cache.get<CommodityItem[]>(key);
+  if (cached) return cached;
+
+  const results = await Promise.all(
+    COMMODITY_META.map(async (meta) => {
+      try {
+        // Fetch quote
+        const q   = await yf.quote(meta.symbol);
+        const qr  = q as Record<string, unknown>;
+        const price       = (qr.regularMarketPrice      as number) ?? 0;
+        const change      = (qr.regularMarketChange     as number) ?? 0;
+        const changePct   = (qr.regularMarketChangePercent as number) ?? 0;
+        const dayHigh     = (qr.regularMarketDayHigh    as number) ?? price;
+        const dayLow      = (qr.regularMarketDayLow     as number) ?? price;
+        const prevClose   = (qr.regularMarketPreviousClose as number) ?? price;
+        const currency    = (qr.currency as string) ?? "USD";
+
+        // Fetch 20-day history for sparkline + prediction
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 25);
+        const hist = await yf.historical(meta.symbol, {
+          period1: startDate.toISOString().split("T")[0],
+          period2: new Date().toISOString().split("T")[0],
+          interval: "1d",
+        });
+        const closes    = hist.map((d) => d.close ?? 0).filter(Boolean);
+        const sparkline = closes.slice(-10);
+        const prediction = predictFromHistory(closes);
+
+        return {
+          symbol: meta.symbol, name: meta.name, category: meta.category,
+          emoji: meta.emoji, unit: meta.unit,
+          price, change, changePercent: changePct,
+          currency, dayHigh, dayLow, prevClose,
+          sparkline, prediction,
+        } satisfies CommodityItem;
+      } catch {
+        // Simulated fallback
+        const basePrices: Record<string, number> = {
+          "GC=F": 2342, "SI=F": 29.8, "CL=F": 78.4, "BZ=F": 82.1,
+          "NG=F": 2.14, "HG=F": 4.52, "PL=F": 956, "ZW=F": 578, "ZC=F": 446, "ZS=F": 1168,
+        };
+        const base = basePrices[meta.symbol] ?? 100;
+        const seed = Date.now() / 60000;
+        const chg  = (Math.sin(seed + meta.symbol.charCodeAt(0)) * 0.015) * base;
+        const spark = Array.from({ length: 10 }, (_, i) =>
+          parseFloat((base + Math.sin((seed + i) * 0.7) * base * 0.02).toFixed(2)));
+        return {
+          symbol: meta.symbol, name: meta.name, category: meta.category,
+          emoji: meta.emoji, unit: meta.unit,
+          price: parseFloat((base + chg).toFixed(2)),
+          change: parseFloat(chg.toFixed(2)),
+          changePercent: parseFloat(((chg / base) * 100).toFixed(2)),
+          currency: "USD", dayHigh: base + Math.abs(chg) * 1.5,
+          dayLow: base - Math.abs(chg) * 1.5, prevClose: base,
+          sparkline: spark, prediction: predictFromHistory(spark),
+        } satisfies CommodityItem;
+      }
+    })
+  );
+
+  cache.set(key, results, COMMODITY_TTL);
+  return results;
+}
+
+export async function getCommodityHistory(symbol: string, period: string) {
+  const key = `commodity-hist-${symbol}-${period}`;
+  const cached = cache.get<object[]>(key);
+  if (cached) return cached;
+
+  const months = period === "1M" ? 1 : period === "3M" ? 3 : 6;
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+
+  const rows = await yf.historical(symbol, {
+    period1: startDate.toISOString().split("T")[0],
+    period2: new Date().toISOString().split("T")[0],
+    interval: "1d",
+  });
+
+  const data = rows.map((d) => ({
+    timestamp: (d.date as Date).toISOString(),
+    open: d.open ?? 0, high: d.high ?? 0, low: d.low ?? 0,
+    close: d.close ?? 0, volume: d.volume ?? 0,
+  }));
+
+  cache.set(key, data, COMMODITY_TTL);
+  return data;
+}
+
 // ── Global Indices (Yahoo Finance) ─────────────────────────────────────────
 const GLOBAL_TTL = 120_000; // 2 minutes
 

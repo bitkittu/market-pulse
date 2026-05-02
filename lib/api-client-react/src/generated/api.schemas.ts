@@ -428,6 +428,39 @@ export interface MoneyFlow {
   description: string;
 }
 
+export type CommodityPredictionSignal =
+  (typeof CommodityPredictionSignal)[keyof typeof CommodityPredictionSignal];
+
+export const CommodityPredictionSignal = {
+  BULLISH: "BULLISH",
+  BEARISH: "BEARISH",
+  NEUTRAL: "NEUTRAL",
+} as const;
+
+export interface CommodityPrediction {
+  signal: CommodityPredictionSignal;
+  confidence: number;
+  momentum: number;
+  buyPressure: number;
+}
+
+export interface CommodityItem {
+  symbol: string;
+  name: string;
+  category: string;
+  emoji: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  currency: string;
+  unit: string;
+  dayHigh: number;
+  dayLow: number;
+  prevClose: number;
+  sparkline: number[];
+  prediction: CommodityPrediction;
+}
+
 export interface GlobalIndexQuote {
   ticker: string;
   name: string;
@@ -508,6 +541,25 @@ export type GetGiftNiftyIntraday200 = {
   closePrice: number;
   source: string;
 };
+
+export type GetCommodities200 = {
+  updatedAt: string;
+  commodities: CommodityItem[];
+};
+
+export type GetCommodityHistoryParams = {
+  symbol: string;
+  period?: GetCommodityHistoryPeriod;
+};
+
+export type GetCommodityHistoryPeriod =
+  (typeof GetCommodityHistoryPeriod)[keyof typeof GetCommodityHistoryPeriod];
+
+export const GetCommodityHistoryPeriod = {
+  "1M": "1M",
+  "3M": "3M",
+  "6M": "6M",
+} as const;
 
 export type GetGlobalIndexQuoteParams = {
   ticker: GetGlobalIndexQuoteTicker;

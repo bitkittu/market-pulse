@@ -20,6 +20,8 @@ import type {
   AddPortfolioStockRequest,
   DecisionPanel,
   DisconnectUpstox200,
+  GetCommodities200,
+  GetCommodityHistoryParams,
   GetGiftNiftyHistoryParams,
   GetGiftNiftyIntraday200,
   GetGlobalIndexHistoryParams,
@@ -451,6 +453,182 @@ export function useGetGiftNiftyIntraday<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGiftNiftyIntradayQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns Gold, Silver, Crude Oil, Natural Gas, Copper, Platinum, Wheat, Corn, Soybeans with live price, sparkline, and movement prediction
+ * @summary Get live commodity quotes with prediction and sparkline
+ */
+export const getGetCommoditiesUrl = () => {
+  return `/api/commodities`;
+};
+
+export const getCommodities = async (
+  options?: RequestInit,
+): Promise<GetCommodities200> => {
+  return customFetch<GetCommodities200>(getGetCommoditiesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommoditiesQueryKey = () => {
+  return [`/api/commodities`] as const;
+};
+
+export const getGetCommoditiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommodities>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCommodities>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCommoditiesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommodities>>> = ({
+    signal,
+  }) => getCommodities({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommodities>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommoditiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommodities>>
+>;
+export type GetCommoditiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get live commodity quotes with prediction and sparkline
+ */
+
+export function useGetCommodities<
+  TData = Awaited<ReturnType<typeof getCommodities>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCommodities>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommoditiesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get commodity price history
+ */
+export const getGetCommodityHistoryUrl = (
+  params: GetCommodityHistoryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/commodities/history?${stringifiedParams}`
+    : `/api/commodities/history`;
+};
+
+export const getCommodityHistory = async (
+  params: GetCommodityHistoryParams,
+  options?: RequestInit,
+): Promise<PriceHistory> => {
+  return customFetch<PriceHistory>(getGetCommodityHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommodityHistoryQueryKey = (
+  params?: GetCommodityHistoryParams,
+) => {
+  return [`/api/commodities/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCommodityHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommodityHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetCommodityHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommodityHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCommodityHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommodityHistory>>
+  > = ({ signal }) =>
+    getCommodityHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommodityHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommodityHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommodityHistory>>
+>;
+export type GetCommodityHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get commodity price history
+ */
+
+export function useGetCommodityHistory<
+  TData = Awaited<ReturnType<typeof getCommodityHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetCommodityHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommodityHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommodityHistoryQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
