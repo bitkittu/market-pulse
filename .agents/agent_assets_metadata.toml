@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "CWrLQP_QqI4YmBtgit1Io"
+uri = "file://artifacts/stock-dashboard/public/nse-dashboard-full-code.txt"
+type = "text"
+title = "NSE Dashboard — Full Source Code (for Claude.ai)"
