@@ -11,42 +11,62 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import {
-  RefreshCw, TrendingUp, TrendingDown, Minus,
-  ChevronDown, ChevronUp, Clock, Info,
+  RefreshCw, TrendingUp, TrendingDown, Minus, Clock, Info,
 } from "lucide-react";
 
-// ── Utils ─────────────────────────────────────────────────────────────────
+// ── Utils ──────────────────────────────────────────────────────────────────
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
-function fmt(n: number, dec = 2) {
-  if (n >= 1000) return n.toFixed(dec).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return n.toFixed(dec);
+
+function fmtInr(usdVal: number, rate: number): string {
+  const inr = usdVal * rate;
+  const decimals = inr >= 1000 ? 0 : inr >= 10 ? 0 : 2;
+  return "₹" + new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals,
+  }).format(inr);
 }
 
-// ── Prediction styles ─────────────────────────────────────────────────────
+function fmtInrChange(usdVal: number, rate: number): string {
+  const inr = usdVal * rate;
+  const decimals = Math.abs(inr) >= 100 ? 0 : 2;
+  const s = new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: decimals,
+  }).format(Math.abs(inr));
+  return (inr >= 0 ? "+" : "−") + "₹" + s;
+}
+
+function inrAxisFmt(inr: number): string {
+  if (inr >= 1_00_000) return "₹" + (inr / 1_00_000).toFixed(1) + "L";
+  if (inr >= 1000)    return "₹" + (inr / 1000).toFixed(1) + "k";
+  return "₹" + inr.toFixed(0);
+}
+
+// ── Prediction styles ──────────────────────────────────────────────────────
 const PRED = {
   BULLISH: {
-    badge: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
-    bar:   "bg-emerald-500",
-    glow:  "shadow-emerald-500/10",
-    border:"border-emerald-500/20",
-    icon:  TrendingUp,
-    label: "BULLISH",
+    badge:  "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+    bar:    "bg-emerald-500",
+    glow:   "shadow-emerald-500/10",
+    border: "border-emerald-500/20",
+    icon:   TrendingUp,
+    label:  "BULLISH",
   },
   BEARISH: {
-    badge: "bg-red-500/20 text-red-400 border-red-500/40",
-    bar:   "bg-red-500",
-    glow:  "shadow-red-500/10",
-    border:"border-red-500/20",
-    icon:  TrendingDown,
-    label: "BEARISH",
+    badge:  "bg-red-500/20 text-red-400 border-red-500/40",
+    bar:    "bg-red-500",
+    glow:   "shadow-red-500/10",
+    border: "border-red-500/20",
+    icon:   TrendingDown,
+    label:  "BEARISH",
   },
   NEUTRAL: {
-    badge: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
-    bar:   "bg-yellow-500",
-    glow:  "shadow-yellow-500/10",
-    border:"border-yellow-500/20",
-    icon:  Minus,
-    label: "NEUTRAL",
+    badge:  "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
+    bar:    "bg-yellow-500",
+    glow:   "shadow-yellow-500/10",
+    border: "border-yellow-500/20",
+    icon:   Minus,
+    label:  "NEUTRAL",
   },
 };
 
@@ -59,7 +79,7 @@ const CAT_COLORS: Record<string, string> = {
 
 const CATEGORIES = ["All", "Precious Metals", "Energy", "Base Metals", "Agriculture"];
 
-// ── Sparkline (10-point inline) ───────────────────────────────────────────
+// ── Sparkline ──────────────────────────────────────────────────────────────
 function Sparkline({ data, positive }: { data: number[]; positive: boolean }) {
   if (!data.length) return <div className="h-8 w-full bg-muted/20 rounded" />;
   const min = Math.min(...data);
@@ -81,13 +101,12 @@ function Sparkline({ data, positive }: { data: number[]; positive: boolean }) {
       </defs>
       <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth="2"
         vectorEffect="non-scaling-stroke" />
-      <polygon points={`0,100 ${pts.join(" ")} 100,100`}
-        fill={`url(#sg-${positive})`} />
+      <polygon points={`0,100 ${pts.join(" ")} 100,100`} fill={`url(#sg-${positive})`} />
     </svg>
   );
 }
 
-// ── Money Flow Bar ────────────────────────────────────────────────────────
+// ── Money Flow Bar ─────────────────────────────────────────────────────────
 function MoneyFlowBar({ buyPressure, size = "sm" }: { buyPressure: number; size?: "sm" | "lg" }) {
   const sell = 100 - buyPressure;
   const bullish = buyPressure > 55;
@@ -117,8 +136,8 @@ function MoneyFlowBar({ buyPressure, size = "sm" }: { buyPressure: number; size?
   );
 }
 
-// ── Detail Chart ──────────────────────────────────────────────────────────
-function DetailChart({ commodity }: { commodity: CommodityItem }) {
+// ── Full-width Detail Panel ────────────────────────────────────────────────
+function DetailPanel({ commodity, usdToInr }: { commodity: CommodityItem; usdToInr: number }) {
   const [period, setPeriod] = useState<"1M" | "3M" | "6M">("3M");
   const { data: hist, isLoading } = useGetCommodityHistory(
     { symbol: commodity.symbol, period },
@@ -126,22 +145,22 @@ function DetailChart({ commodity }: { commodity: CommodityItem }) {
   );
 
   const chartData = (hist?.data ?? []).map((p: { close: number; timestamp: string }) => ({
-    val:   p.close,
+    val:   p.close * usdToInr,
     label: format(new Date(p.timestamp), "dd MMM"),
   }));
 
-  const vals  = chartData.map((d) => d.val).filter(Boolean);
-  const minV  = vals.length ? Math.min(...vals) : 0;
-  const maxV  = vals.length ? Math.max(...vals) : 0;
-  const pad   = Math.max((maxV - minV) * 0.06, 1);
+  const vals = chartData.map((d) => d.val).filter(Boolean);
+  const minV = vals.length ? Math.min(...vals) : 0;
+  const maxV = vals.length ? Math.max(...vals) : 0;
+  const pad  = Math.max((maxV - minV) * 0.06, 1);
   const isPos = (commodity.changePercent ?? 0) >= 0;
   const color = isPos ? "#10b981" : "#ef4444";
   const pred  = PRED[commodity.prediction.signal];
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 mt-4">
+    <div className="bg-card border border-border rounded-xl p-5 w-full">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-2xl">{commodity.emoji}</span>
@@ -150,36 +169,37 @@ function DetailChart({ commodity }: { commodity: CommodityItem }) {
               {commodity.category}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-baseline gap-3 flex-wrap">
             <span className="text-3xl font-black font-mono">
-              {commodity.currency === "USD" ? "$" : ""}{fmt(commodity.price, commodity.price >= 100 ? 2 : 4)}
+              {fmtInr(commodity.price, usdToInr)}
               <span className="text-sm text-muted-foreground font-normal ml-1">{commodity.unit}</span>
             </span>
-            <span className={cn("text-sm font-bold", isPos ? "text-emerald-400" : "text-red-400")}>
+            <span className={cn("text-base font-bold font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
               {isPos ? "+" : ""}{commodity.changePercent.toFixed(2)}%
+            </span>
+            <span className={cn("text-sm font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
+              {fmtInrChange(commodity.change, usdToInr)}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex bg-background/60 rounded-lg p-0.5 border border-border">
-            {(["1M","3M","6M"] as const).map((p) => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={cn("px-2.5 py-1 text-xs font-mono rounded-md transition-all",
-                  period === p ? "bg-primary text-white font-bold" : "text-muted-foreground hover:text-foreground")}>
-                {p}
-              </button>
-            ))}
-          </div>
+        <div className="flex bg-background/60 rounded-lg p-0.5 border border-border">
+          {(["1M","3M","6M"] as const).map((p) => (
+            <button key={p} onClick={() => setPeriod(p)}
+              className={cn("px-3 py-1.5 text-xs font-mono rounded-md transition-all",
+                period === p ? "bg-primary text-white font-bold" : "text-muted-foreground hover:text-foreground")}>
+              {p}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="h-52 mb-4">
+      {/* Chart — full width */}
+      <div className="h-64 mb-5">
         {isLoading ? (
           <div className="h-full bg-muted/20 rounded-xl animate-pulse" />
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="detailGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor={color} stopOpacity={0.25} />
@@ -188,14 +208,17 @@ function DetailChart({ commodity }: { commodity: CommodityItem }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
               <XAxis dataKey="label" axisLine={false} tickLine={false}
-                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10, fontFamily: "JetBrains Mono" }} minTickGap={45} />
-              <YAxis domain={[minV - pad, maxV + pad]} axisLine={false} tickLine={false} orientation="right" width={55}
-                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10, fontFamily: "JetBrains Mono" }}
-                tickFormatter={(v) => (v >= 1000 ? (v / 1000).toFixed(1) + "k" : v.toFixed(1))} />
-              <ReferenceLine y={commodity.prevClose} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10, fontFamily: "monospace" }}
+                minTickGap={50} />
+              <YAxis domain={[minV - pad, maxV + pad]} axisLine={false} tickLine={false}
+                orientation="right" width={72}
+                tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10, fontFamily: "monospace" }}
+                tickFormatter={inrAxisFmt} />
+              <ReferenceLine y={commodity.prevClose * usdToInr}
+                stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
               <Tooltip
-                contentStyle={{ backgroundColor: "hsl(224,40%,9%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontFamily: "JetBrains Mono", fontSize: 11 }}
-                formatter={(v: number) => [`$${fmt(v)}`, commodity.name]}
+                contentStyle={{ backgroundColor: "hsl(224,40%,9%)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontFamily: "monospace", fontSize: 11 }}
+                formatter={(v: number) => [fmtInr(v / usdToInr, usdToInr), commodity.name]}
                 labelFormatter={(l) => `Date: ${l}`} />
               <Area type="monotone" dataKey="val" stroke={color} strokeWidth={2}
                 fill="url(#detailGrad)" dot={false} isAnimationActive={false} />
@@ -205,7 +228,7 @@ function DetailChart({ commodity }: { commodity: CommodityItem }) {
       </div>
 
       {/* Metrics row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {/* Prediction */}
         <div className={cn("bg-background/50 border rounded-xl p-3", pred.border)}>
           <p className="text-[10px] text-muted-foreground font-bold tracking-widest mb-1">PREDICTION</p>
@@ -235,17 +258,17 @@ function DetailChart({ commodity }: { commodity: CommodityItem }) {
         {/* Day range */}
         <div className="bg-background/50 border border-border rounded-xl p-3">
           <p className="text-[10px] text-muted-foreground font-bold tracking-widest mb-1">DAY RANGE</p>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex justify-between text-[10px] font-mono">
-              <span className="text-red-400">L {fmt(commodity.dayLow)}</span>
-              <span className="text-emerald-400">H {fmt(commodity.dayHigh)}</span>
+              <span className="text-red-400">L {fmtInr(commodity.dayLow, usdToInr)}</span>
+              <span className="text-emerald-400">H {fmtInr(commodity.dayHigh, usdToInr)}</span>
             </div>
             <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-emerald-500 rounded-full" />
             </div>
             <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>Prev: {fmt(commodity.prevClose)}</span>
-              <span>Cur: {fmt(commodity.price)}</span>
+              <span>Prev: {fmtInr(commodity.prevClose, usdToInr)}</span>
+              <span>Cur: {fmtInr(commodity.price, usdToInr)}</span>
             </div>
           </div>
         </div>
@@ -254,18 +277,17 @@ function DetailChart({ commodity }: { commodity: CommodityItem }) {
   );
 }
 
-// ── Commodity Card ────────────────────────────────────────────────────────
+// ── Commodity Card ─────────────────────────────────────────────────────────
 function CommodityCard({
-  commodity,
-  selected,
-  onSelect,
+  commodity, usdToInr, selected, onSelect,
 }: {
   commodity: CommodityItem;
+  usdToInr: number;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const isPos = commodity.changePercent >= 0;
-  const pred  = PRED[commodity.prediction.signal];
+  const isPos   = commodity.changePercent >= 0;
+  const pred    = PRED[commodity.prediction.signal];
   const PredIcon = pred.icon;
 
   return (
@@ -294,11 +316,10 @@ function CommodityCard({
         </div>
       </div>
 
-      {/* Price */}
-      <div className="flex items-baseline gap-2 mb-1">
+      {/* Price in INR */}
+      <div className="flex items-baseline gap-2 mb-0.5">
         <span className="text-xl font-black font-mono text-foreground">
-          {commodity.currency === "USD" ? "$" : ""}
-          {fmt(commodity.price, commodity.price >= 100 ? 2 : 4)}
+          {fmtInr(commodity.price, usdToInr)}
         </span>
         <span className="text-[10px] text-muted-foreground">{commodity.unit}</span>
       </div>
@@ -307,7 +328,7 @@ function CommodityCard({
           {isPos ? "▲" : "▼"} {isPos ? "+" : ""}{commodity.changePercent.toFixed(2)}%
         </span>
         <span className={cn("text-xs font-mono text-muted-foreground")}>
-          {isPos ? "+" : ""}{commodity.change.toFixed(3)}
+          {fmtInrChange(commodity.change, usdToInr)}
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground font-mono">
           5d: <span className={commodity.prediction.momentum >= 0 ? "text-emerald-400" : "text-red-400"}>
@@ -324,7 +345,7 @@ function CommodityCard({
       {/* Money flow */}
       <MoneyFlowBar buyPressure={commodity.prediction.buyPressure} size="sm" />
 
-      {/* Confidence */}
+      {/* Confidence bar */}
       <div className="mt-2 flex items-center gap-2">
         <div className="flex-1 h-1 bg-muted/40 rounded-full overflow-hidden">
           <div className={cn("h-full rounded-full", pred.bar)} style={{ width: `${commodity.prediction.confidence}%` }} />
@@ -333,27 +354,27 @@ function CommodityCard({
       </div>
 
       {/* Expand hint */}
-      <div className="mt-2 flex items-center justify-center text-[9px] text-muted-foreground/50 gap-0.5">
-        {selected ? <><ChevronUp className="w-2.5 h-2.5" /> less</> : <><ChevronDown className="w-2.5 h-2.5" /> chart & analysis</>}
+      <div className={cn("mt-2 flex items-center justify-center text-[9px] gap-0.5 font-mono",
+        selected ? "text-primary/70" : "text-muted-foreground/50")}>
+        {selected ? "▲ close chart" : "▼ chart & analysis"}
       </div>
     </div>
   );
 }
 
-// ── Summary banner ────────────────────────────────────────────────────────
+// ── Summary Banner ─────────────────────────────────────────────────────────
 function SummaryBanner({ items }: { items: CommodityItem[] }) {
-  const bull = items.filter((c) => c.prediction.signal === "BULLISH").length;
-  const bear = items.filter((c) => c.prediction.signal === "BEARISH").length;
-  const neut = items.filter((c) => c.prediction.signal === "NEUTRAL").length;
+  const bull  = items.filter((c) => c.prediction.signal === "BULLISH").length;
+  const bear  = items.filter((c) => c.prediction.signal === "BEARISH").length;
+  const neut  = items.filter((c) => c.prediction.signal === "NEUTRAL").length;
   const total = items.length || 1;
   const overall = bull > bear ? "BULLISH" : bear > bull ? "BEARISH" : "NEUTRAL";
-  const pred = PRED[overall];
+  const pred    = PRED[overall];
   const OverallIcon = pred.icon;
 
   return (
     <div className="bg-card border border-border rounded-xl px-5 py-3">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* Overall */}
         <div className="flex items-center gap-3">
           <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm font-black", pred.badge)}>
             <OverallIcon className="w-4 h-4" />
@@ -364,7 +385,6 @@ function SummaryBanner({ items }: { items: CommodityItem[] }) {
             Based on momentum + RSI + range position
           </div>
         </div>
-        {/* Counts */}
         <div className="flex items-center gap-4">
           <div className="text-center">
             <p className="text-xl font-black text-emerald-400">{bull}</p>
@@ -378,11 +398,10 @@ function SummaryBanner({ items }: { items: CommodityItem[] }) {
             <p className="text-xl font-black text-red-400">{bear}</p>
             <p className="text-[10px] text-muted-foreground font-bold">Bearish</p>
           </div>
-          {/* Ratio bar */}
           <div className="hidden sm:flex items-center gap-1.5">
             <div className="h-3 rounded-full overflow-hidden bg-red-500/30 flex w-32">
-              <div className="bg-emerald-500"   style={{ width: `${(bull / total) * 100}%` }} />
-              <div className="bg-yellow-500"    style={{ width: `${(neut / total) * 100}%` }} />
+              <div className="bg-emerald-500" style={{ width: `${(bull / total) * 100}%` }} />
+              <div className="bg-yellow-500"  style={{ width: `${(neut / total) * 100}%` }} />
             </div>
           </div>
         </div>
@@ -391,11 +410,10 @@ function SummaryBanner({ items }: { items: CommodityItem[] }) {
   );
 }
 
-// ── Money Flow Chart (all commodities overview) ───────────────────────────
+// ── Money Flow Chart ───────────────────────────────────────────────────────
 function MoneyFlowChart({ items }: { items: CommodityItem[] }) {
   if (!items.length) return null;
   const sorted = [...items].sort((a, b) => b.prediction.buyPressure - a.prediction.buyPressure);
-
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
@@ -429,8 +447,8 @@ function MoneyFlowChart({ items }: { items: CommodityItem[] }) {
   );
 }
 
-// ── Movement Prediction Table ─────────────────────────────────────────────
-function PredictionTable({ items }: { items: CommodityItem[] }) {
+// ── Prediction Table ───────────────────────────────────────────────────────
+function PredictionTable({ items, usdToInr }: { items: CommodityItem[]; usdToInr: number }) {
   if (!items.length) return null;
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -444,7 +462,7 @@ function PredictionTable({ items }: { items: CommodityItem[] }) {
             <tr className="border-b border-border/60 text-muted-foreground">
               <th className="text-left px-4 py-2 font-semibold">Commodity</th>
               <th className="text-center px-3 py-2 font-semibold">Signal</th>
-              <th className="text-right px-3 py-2 font-semibold">Price</th>
+              <th className="text-right px-3 py-2 font-semibold">Price (INR)</th>
               <th className="text-right px-3 py-2 font-semibold">5d Momentum</th>
               <th className="text-right px-3 py-2 font-semibold">Buy Pressure</th>
               <th className="text-right px-4 py-2 font-semibold">Confidence</th>
@@ -472,7 +490,7 @@ function PredictionTable({ items }: { items: CommodityItem[] }) {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    <p className="font-mono font-bold">${fmt(c.price, c.price >= 100 ? 2 : 4)}</p>
+                    <p className="font-mono font-bold">{fmtInr(c.price, usdToInr)}<span className="text-muted-foreground text-[9px] ml-1">{c.unit}</span></p>
                     <p className={cn("text-[10px] font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
                       {isPos ? "+" : ""}{c.changePercent.toFixed(2)}%
                     </p>
@@ -511,19 +529,20 @@ function PredictionTable({ items }: { items: CommodityItem[] }) {
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────
+// ── Main Page ──────────────────────────────────────────────────────────────
 export function Commodities() {
   const qc = useQueryClient();
-  const [category, setCategory] = useState("All");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [spinning, setSpinning] = useState(false);
+  const [category, setCategory]   = useState("All");
+  const [selected, setSelected]   = useState<string | null>(null);
+  const [spinning, setSpinning]   = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   const { data, isLoading } = useGetCommodities({
     query: { refetchInterval: 90_000 },
   });
 
-  const items: CommodityItem[] = data?.commodities ?? [];
+  const items: CommodityItem[]  = data?.commodities ?? [];
+  const usdToInr: number        = data?.usdToInr ?? 84.5;
 
   const filtered = category === "All"
     ? items
@@ -545,11 +564,13 @@ export function Commodities() {
 
   return (
     <div className="space-y-4">
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black">Commodities</h1>
-          <p className="text-xs text-muted-foreground">Global futures · Yahoo Finance (~15m delay) · Predictions via momentum + RSI</p>
+          <p className="text-xs text-muted-foreground">
+            Global futures · Yahoo Finance (~15m delay) · Prices in INR (1 USD ≈ ₹{usdToInr.toFixed(1)})
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -565,17 +586,17 @@ export function Commodities() {
         </div>
       </div>
 
-      {/* ── Summary banner ── */}
+      {/* Summary banner */}
       {isLoading ? (
         <div className="h-16 bg-card border border-border rounded-xl animate-pulse" />
       ) : (
         <SummaryBanner items={items} />
       )}
 
-      {/* ── Category tabs ── */}
+      {/* Category tabs */}
       <div className="flex items-center gap-1.5 flex-wrap">
         {CATEGORIES.map((cat) => (
-          <button key={cat} onClick={() => setCategory(cat)}
+          <button key={cat} onClick={() => { setCategory(cat); setSelected(null); }}
             className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
               category === cat
                 ? "bg-primary text-white border-primary shadow"
@@ -590,7 +611,7 @@ export function Commodities() {
         ))}
       </div>
 
-      {/* ── Card grid ── */}
+      {/* Card grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
@@ -600,34 +621,30 @@ export function Commodities() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((c) => (
-            <div key={c.symbol}>
-              <CommodityCard
-                commodity={c}
-                selected={selected === c.symbol}
-                onSelect={() => setSelected(selected === c.symbol ? null : c.symbol)}
-              />
-              {/* Inline detail chart below selected card (mobile/small screens) */}
-              {selected === c.symbol && <DetailChart commodity={c} />}
-            </div>
+            <CommodityCard
+              key={c.symbol}
+              commodity={c}
+              usdToInr={usdToInr}
+              selected={selected === c.symbol}
+              onSelect={() => setSelected(selected === c.symbol ? null : c.symbol)}
+            />
           ))}
         </div>
       )}
 
-      {/* ── Detail chart (desktop: below grid) ── */}
+      {/* Full-width detail panel — outside the grid */}
       {selectedItem && !isLoading && (
-        <div className="hidden xl:block">
-          {/* Already shown inline above on smaller grids; shown here on XL layout */}
-        </div>
+        <DetailPanel commodity={selectedItem} usdToInr={usdToInr} />
       )}
 
-      {/* ── Money Flow Analysis ── */}
+      {/* Money Flow Analysis */}
       {!isLoading && items.length > 0 && (
         <MoneyFlowChart items={filtered.length ? filtered : items} />
       )}
 
-      {/* ── Prediction Table ── */}
+      {/* Prediction Table */}
       {!isLoading && items.length > 0 && (
-        <PredictionTable items={filtered.length ? filtered : items} />
+        <PredictionTable items={filtered.length ? filtered : items} usdToInr={usdToInr} />
       )}
     </div>
   );

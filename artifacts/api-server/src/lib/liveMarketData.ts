@@ -622,6 +622,21 @@ export async function getLiveCommodities(): Promise<CommodityItem[]> {
   return results;
 }
 
+export async function getUsdToInr(): Promise<number> {
+  const key = "usd-inr-rate";
+  const cached = cache.get<number>(key);
+  if (cached) return cached;
+  try {
+    const q  = await yf.quote("USDINR=X");
+    const qr = q as Record<string, unknown>;
+    const rate = (qr.regularMarketPrice as number) ?? 84.5;
+    cache.set(key, rate, 300_000);
+    return rate;
+  } catch {
+    return 84.5;
+  }
+}
+
 export async function getCommodityHistory(symbol: string, period: string) {
   const key = `commodity-hist-${symbol}-${period}`;
   const cached = cache.get<object[]>(key);

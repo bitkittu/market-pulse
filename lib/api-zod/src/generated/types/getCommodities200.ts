@@ -9,5 +9,6 @@ import type { CommodityItem } from "./commodityItem";
 
 export type GetCommodities200 = {
   updatedAt: string;
+  usdToInr?: number;
   commodities: CommodityItem[];
 };

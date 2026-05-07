@@ -154,6 +154,7 @@ export const GetGiftNiftyIntradayResponse = zod.object({
  */
 export const GetCommoditiesResponse = zod.object({
   updatedAt: zod.string(),
+  usdToInr: zod.number().optional(),
   commodities: zod.array(
     zod.object({
       symbol: zod.string(),

@@ -14,6 +14,7 @@ import {
   getGlobalIndexQuote,
   getGlobalIndexHistory,
   getLiveCommodities,
+  getUsdToInr,
   getCommodityHistory,
 } from "../lib/liveMarketData.js";
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
@@ -319,8 +320,11 @@ const VALID_COMMODITY_SYMBOLS = new Set([
 
 router.get("/commodities", async (_req, res) => {
   try {
-    const commodities = await getLiveCommodities();
-    res.json({ updatedAt: new Date().toISOString(), commodities });
+    const [commodities, usdToInr] = await Promise.all([
+      getLiveCommodities(),
+      getUsdToInr(),
+    ]);
+    res.json({ updatedAt: new Date().toISOString(), usdToInr, commodities });
   } catch {
     res.status(500).json({ error: "Failed to fetch commodity data" });
   }

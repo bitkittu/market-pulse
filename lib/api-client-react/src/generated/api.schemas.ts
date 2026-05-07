@@ -544,6 +544,7 @@ export type GetGiftNiftyIntraday200 = {
 
 export type GetCommodities200 = {
   updatedAt: string;
+  usdToInr?: number;
   commodities: CommodityItem[];
 };
 
