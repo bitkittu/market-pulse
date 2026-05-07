@@ -4,7 +4,8 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-const connectionString = process.env.NEON_DATABASE_URL ?? process.env.DATABASE_URL;
+const neonUrl = process.env.NEON_DATABASE_URL;
+const connectionString = neonUrl ?? process.env.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(
@@ -12,10 +13,13 @@ if (!connectionString) {
   );
 }
 
+// When using Neon, pass ssl as a Pool-level option (rejectUnauthorized: false).
+// This overrides sslmode from the URL without mangling the connection string.
 export const pool = new Pool({
   connectionString,
-  ssl: process.env.NEON_DATABASE_URL ? { rejectUnauthorized: false } : undefined,
+  ssl: neonUrl ? { rejectUnauthorized: false } : undefined,
 });
+
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

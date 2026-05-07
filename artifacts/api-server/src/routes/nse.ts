@@ -135,62 +135,77 @@ router.get("/nse/history/:symbol", (req, res) => {
 });
 
 // ── Portfolio ────────────────────────────────────────────────────────────
-router.get("/portfolio", async (_req, res) => {
-  const items = await db.select().from(portfolioTable).orderBy(portfolioTable.addedAt);
-  res.json(
-    items.map((i) => ({
-      id: i.id,
-      symbol: i.symbol,
-      exchange: i.exchange,
-      addedAt: i.addedAt.toISOString(),
-      buyPrice: i.buyPrice ?? undefined,
-      quantity: i.quantity ?? undefined,
-    }))
-  );
+router.get("/portfolio", async (req, res) => {
+  try {
+    const items = await db.select().from(portfolioTable).orderBy(portfolioTable.addedAt);
+    res.json(
+      items.map((i) => ({
+        id: i.id,
+        symbol: i.symbol,
+        exchange: i.exchange,
+        addedAt: i.addedAt.toISOString(),
+        buyPrice: i.buyPrice ?? undefined,
+        quantity: i.quantity ?? undefined,
+      }))
+    );
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch portfolio");
+    res.status(500).json({ error: "Failed to fetch portfolio" });
+  }
 });
 
 router.post("/portfolio", async (req, res) => {
-  const { symbol, exchange = "NSE", buyPrice, quantity } = req.body;
-  if (!symbol || typeof symbol !== "string") {
-    res.status(400).json({ error: "Symbol is required" });
-    return;
-  }
-  const upper = symbol.toUpperCase();
-  const [existing] = await db.select().from(portfolioTable).where(eq(portfolioTable.symbol, upper));
-  if (existing) {
+  try {
+    const { symbol, exchange = "NSE", buyPrice, quantity } = req.body;
+    if (!symbol || typeof symbol !== "string") {
+      res.status(400).json({ error: "Symbol is required" });
+      return;
+    }
+    const upper = symbol.toUpperCase();
+    const [existing] = await db.select().from(portfolioTable).where(eq(portfolioTable.symbol, upper));
+    if (existing) {
+      res.json({
+        id: existing.id,
+        symbol: existing.symbol,
+        exchange: existing.exchange,
+        addedAt: existing.addedAt.toISOString(),
+        buyPrice: existing.buyPrice ?? undefined,
+        quantity: existing.quantity ?? undefined,
+      });
+      return;
+    }
+    const [inserted] = await db
+      .insert(portfolioTable)
+      .values({
+        symbol: upper,
+        exchange: exchange.toUpperCase(),
+        buyPrice: buyPrice ? Number(buyPrice) : null,
+        quantity: quantity ? Number(quantity) : null,
+      })
+      .returning();
     res.json({
-      id: existing.id,
-      symbol: existing.symbol,
-      exchange: existing.exchange,
-      addedAt: existing.addedAt.toISOString(),
-      buyPrice: existing.buyPrice ?? undefined,
-      quantity: existing.quantity ?? undefined,
+      id: inserted.id,
+      symbol: inserted.symbol,
+      exchange: inserted.exchange,
+      addedAt: inserted.addedAt.toISOString(),
+      buyPrice: inserted.buyPrice ?? undefined,
+      quantity: inserted.quantity ?? undefined,
     });
-    return;
+  } catch (err) {
+    req.log.error({ err }, "Failed to add portfolio item");
+    res.status(500).json({ error: "Failed to add portfolio item" });
   }
-  const [inserted] = await db
-    .insert(portfolioTable)
-    .values({
-      symbol: upper,
-      exchange: exchange.toUpperCase(),
-      buyPrice: buyPrice ? Number(buyPrice) : null,
-      quantity: quantity ? Number(quantity) : null,
-    })
-    .returning();
-  res.json({
-    id: inserted.id,
-    symbol: inserted.symbol,
-    exchange: inserted.exchange,
-    addedAt: inserted.addedAt.toISOString(),
-    buyPrice: inserted.buyPrice ?? undefined,
-    quantity: inserted.quantity ?? undefined,
-  });
 });
 
 router.delete("/portfolio/:symbol", async (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  await db.delete(portfolioTable).where(eq(portfolioTable.symbol, symbol));
-  res.json({ success: true });
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    await db.delete(portfolioTable).where(eq(portfolioTable.symbol, symbol));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete portfolio item");
+    res.status(500).json({ error: "Failed to delete portfolio item" });
+  }
 });
 
 router.get("/portfolio/:symbol/indicators", (req, res) => {
@@ -204,58 +219,71 @@ router.get("/portfolio/:symbol/indicators", (req, res) => {
 });
 
 // ── Upstox Settings ──────────────────────────────────────────────────────
-router.get("/settings/upstox", async (_req, res) => {
-  const [settings] = await db.select().from(upstoxSettingsTable).limit(1);
-  if (!settings) {
+router.get("/settings/upstox", async (req, res) => {
+  try {
+    const [settings] = await db.select().from(upstoxSettingsTable).limit(1);
+    if (!settings) {
+      res.json({ connected: false, liveDataEnabled: false });
+      return;
+    }
+    res.json({
+      connected: true,
+      apiKeyMasked: settings.apiKey.slice(0, 4) + "●●●●●●●●" + settings.apiKey.slice(-4),
+      clientId: settings.clientId ?? undefined,
+      connectedAt: settings.connectedAt.toISOString(),
+      liveDataEnabled: settings.liveDataEnabled,
+      hasAccessToken: !!settings.accessToken,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch Upstox settings");
     res.json({ connected: false, liveDataEnabled: false });
-    return;
   }
-  res.json({
-    connected: true,
-    apiKeyMasked: settings.apiKey.slice(0, 4) + "●●●●●●●●" + settings.apiKey.slice(-4),
-    clientId: settings.clientId ?? undefined,
-    connectedAt: settings.connectedAt.toISOString(),
-    liveDataEnabled: settings.liveDataEnabled,
-    hasAccessToken: !!settings.accessToken,
-  });
 });
 
 router.post("/settings/upstox", async (req, res) => {
-  const { apiKey, apiSecret, clientId, accessToken } = req.body;
-  if (!apiKey || typeof apiKey !== "string") {
-    res.status(400).json({ error: "API Key is required" });
-    return;
+  try {
+    const { apiKey, apiSecret, clientId, accessToken } = req.body;
+    if (!apiKey || typeof apiKey !== "string") {
+      res.status(400).json({ error: "API Key is required" });
+      return;
+    }
+    await db.delete(upstoxSettingsTable);
+    const [inserted] = await db
+      .insert(upstoxSettingsTable)
+      .values({
+        apiKey,
+        apiSecret: apiSecret || null,
+        clientId: clientId || null,
+        accessToken: accessToken || null,
+        liveDataEnabled: true,
+      })
+      .returning();
+    invalidateTokenCache();
+    invalidateAllCache();
+    res.json({
+      connected: true,
+      apiKeyMasked: inserted.apiKey.slice(0, 4) + "●●●●●●●●" + inserted.apiKey.slice(-4),
+      clientId: inserted.clientId ?? undefined,
+      connectedAt: inserted.connectedAt.toISOString(),
+      liveDataEnabled: inserted.liveDataEnabled,
+      hasAccessToken: !!inserted.accessToken,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to save Upstox settings");
+    res.status(500).json({ error: "Failed to save Upstox settings" });
   }
-  // Remove existing, then insert
-  await db.delete(upstoxSettingsTable);
-  const [inserted] = await db
-    .insert(upstoxSettingsTable)
-    .values({
-      apiKey,
-      apiSecret: apiSecret || null,
-      clientId: clientId || null,
-      accessToken: accessToken || null,
-      liveDataEnabled: true,
-    })
-    .returning();
-  // Clear caches so next request uses the new token
-  invalidateTokenCache();
-  invalidateAllCache();
-  res.json({
-    connected: true,
-    apiKeyMasked: inserted.apiKey.slice(0, 4) + "●●●●●●●●" + inserted.apiKey.slice(-4),
-    clientId: inserted.clientId ?? undefined,
-    connectedAt: inserted.connectedAt.toISOString(),
-    liveDataEnabled: inserted.liveDataEnabled,
-    hasAccessToken: !!inserted.accessToken,
-  });
 });
 
-router.post("/settings/upstox/disconnect", async (_req, res) => {
-  await db.delete(upstoxSettingsTable);
-  invalidateTokenCache();
-  invalidateAllCache();
-  res.json({ success: true });
+router.post("/settings/upstox/disconnect", async (req, res) => {
+  try {
+    await db.delete(upstoxSettingsTable);
+    invalidateTokenCache();
+    invalidateAllCache();
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to disconnect Upstox");
+    res.status(500).json({ error: "Failed to disconnect" });
+  }
 });
 
 router.post("/settings/upstox/test", async (_req, res) => {
