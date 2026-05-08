@@ -120,7 +120,7 @@ function NavDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 min-w-[11rem] bg-card border border-border rounded-xl shadow-2xl py-1 overflow-hidden">
+        <div className="absolute top-full left-0 mt-1.5 z-[200] min-w-[11rem] bg-card border border-border rounded-xl shadow-2xl py-1 overflow-hidden">
           {children}
         </div>
       )}
@@ -192,8 +192,8 @@ function AppShell() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-visible">
+        <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center justify-between gap-2 overflow-visible">
 
           {/* Logo */}
           <div className="flex items-center gap-2 shrink-0">
@@ -207,7 +207,7 @@ function AppShell() {
           </div>
 
           {/* Nav */}
-          <nav className="flex items-center gap-0.5 overflow-x-auto scrollbar-hide flex-1 justify-center">
+          <nav className="flex items-center gap-0.5 overflow-visible flex-1 justify-center">
 
             {/* Dashboard */}
             <button onClick={() => goTab("home")}
