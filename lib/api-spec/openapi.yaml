@@ -497,7 +497,44 @@ paths:
                     type: string
                 required: [error]
 
-  
+  /fo-analyzer:
+    post:
+      operationId: foAnalyzer
+      tags: [insights]
+      summary: Analyze F&O trade with AI
+      description: Accepts a trade position (CE/PE/FUT) and returns comprehensive AI analysis including direction, confidence, decision, P&L, indicators, insights and intraday chart data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoTradeInput"
+      responses:
+        "200":
+          description: F&O AI analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FoAnalysisResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                required: [error]
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                required: [error]
+
 components:
   schemas:
     PriceCandle:
@@ -1208,3 +1245,108 @@ components:
         - niftyChange
         - niftyChangePct
         - updatedAt
+
+    FoTradeInput:
+      type: object
+      required: [symbol, optionType, strikePrice, buyPrice, currentPremium, lots, expiry]
+      properties:
+        symbol:         { type: string, description: "NSE stock or index symbol (RELIANCE, NIFTY, BANKNIFTY)" }
+        optionType:     { type: string, enum: [CE, PE, FUT] }
+        strikePrice:    { type: number }
+        buyPrice:       { type: number, description: "Premium paid per unit when entering" }
+        currentPremium: { type: number, description: "Current market premium per unit" }
+        lots:           { type: number }
+        expiry:         { type: string, description: "Expiry date in YYYY-MM-DD format" }
+        entryTime:      { type: string, description: "Entry time in HH:MM format (IST)" }
+        stopLoss:       { type: number, description: "Optional stop loss premium level" }
+        target:         { type: number, description: "Optional target premium level" }
+
+    FoChartPoint:
+      type: object
+      required: [time, price]
+      properties:
+        time:      { type: string }
+        price:     { type: number }
+        predicted: { type: boolean }
+
+    FoExitSuggestion:
+      type: object
+      required: [price, stopLoss, targets, holdDuration, bestExitTime]
+      properties:
+        price:        { type: number }
+        stopLoss:     { type: number }
+        targets:      { type: array, items: { type: number } }
+        holdDuration: { type: string }
+        bestExitTime: { type: string }
+
+    FoPnl:
+      type: object
+      required: [currentPnl, currentPnlPct, targetPnl, maxLoss, lotSize, totalPremiumPaid]
+      properties:
+        currentPnl:       { type: number }
+        currentPnlPct:    { type: number }
+        targetPnl:        { type: number }
+        maxLoss:          { type: number }
+        lotSize:          { type: number }
+        totalPremiumPaid: { type: number }
+
+    FoIndicators:
+      type: object
+      required: [rsi, vwap, momentum, volumeSpike, oi, pcr, trend, support, resistance]
+      properties:
+        rsi:         { type: number }
+        vwap:        { type: number }
+        momentum:    { type: string }
+        volumeSpike: { type: boolean }
+        oi:          { type: string }
+        pcr:         { type: number }
+        trend:       { type: string }
+        support:     { type: number }
+        resistance:  { type: number }
+
+    FoAnalysisResult:
+      type: object
+      required:
+        - symbol
+        - optionType
+        - strikePrice
+        - livePrice
+        - liveChange
+        - liveChangePct
+        - direction
+        - confidence
+        - decision
+        - riskLevel
+        - exitSuggestion
+        - pnl
+        - indicators
+        - insights
+        - rationale
+        - alerts
+        - priceChart
+        - daysToExpiry
+      properties:
+        symbol:        { type: string }
+        optionType:    { type: string }
+        strikePrice:   { type: number }
+        livePrice:     { type: number }
+        liveChange:    { type: number }
+        liveChangePct: { type: number }
+        direction:     { type: string, enum: [Bullish, Bearish, Sideways] }
+        confidence:    { type: number }
+        decision:      { type: string, enum: [HOLD, SELL, BOOK_PROFIT, WAIT, ADD_MORE, AVOID_TRADE] }
+        riskLevel:     { type: string, enum: [Low, Medium, High] }
+        exitSuggestion:
+          $ref: "#/components/schemas/FoExitSuggestion"
+        pnl:
+          $ref: "#/components/schemas/FoPnl"
+        indicators:
+          $ref: "#/components/schemas/FoIndicators"
+        insights:    { type: array, items: { type: string } }
+        rationale:   { type: string }
+        alerts:      { type: array, items: { type: string } }
+        priceChart:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoChartPoint"
+        daysToExpiry: { type: number }

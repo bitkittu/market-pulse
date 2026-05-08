@@ -594,3 +594,85 @@ export const SearchInsightsResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * Accepts a trade position (CE/PE/FUT) and returns comprehensive AI analysis including direction, confidence, decision, P&L, indicators, insights and intraday chart data
+ * @summary Analyze F&O trade with AI
+ */
+export const FoAnalyzerBody = zod.object({
+  symbol: zod
+    .string()
+    .describe("NSE stock or index symbol (RELIANCE, NIFTY, BANKNIFTY)"),
+  optionType: zod.enum(["CE", "PE", "FUT"]),
+  strikePrice: zod.number(),
+  buyPrice: zod.number().describe("Premium paid per unit when entering"),
+  currentPremium: zod.number().describe("Current market premium per unit"),
+  lots: zod.number(),
+  expiry: zod.string().describe("Expiry date in YYYY-MM-DD format"),
+  entryTime: zod
+    .string()
+    .optional()
+    .describe("Entry time in HH:MM format (IST)"),
+  stopLoss: zod
+    .number()
+    .optional()
+    .describe("Optional stop loss premium level"),
+  target: zod.number().optional().describe("Optional target premium level"),
+});
+
+export const FoAnalyzerResponse = zod.object({
+  symbol: zod.string(),
+  optionType: zod.string(),
+  strikePrice: zod.number(),
+  livePrice: zod.number(),
+  liveChange: zod.number(),
+  liveChangePct: zod.number(),
+  direction: zod.enum(["Bullish", "Bearish", "Sideways"]),
+  confidence: zod.number(),
+  decision: zod.enum([
+    "HOLD",
+    "SELL",
+    "BOOK_PROFIT",
+    "WAIT",
+    "ADD_MORE",
+    "AVOID_TRADE",
+  ]),
+  riskLevel: zod.enum(["Low", "Medium", "High"]),
+  exitSuggestion: zod.object({
+    price: zod.number(),
+    stopLoss: zod.number(),
+    targets: zod.array(zod.number()),
+    holdDuration: zod.string(),
+    bestExitTime: zod.string(),
+  }),
+  pnl: zod.object({
+    currentPnl: zod.number(),
+    currentPnlPct: zod.number(),
+    targetPnl: zod.number(),
+    maxLoss: zod.number(),
+    lotSize: zod.number(),
+    totalPremiumPaid: zod.number(),
+  }),
+  indicators: zod.object({
+    rsi: zod.number(),
+    vwap: zod.number(),
+    momentum: zod.string(),
+    volumeSpike: zod.boolean(),
+    oi: zod.string(),
+    pcr: zod.number(),
+    trend: zod.string(),
+    support: zod.number(),
+    resistance: zod.number(),
+  }),
+  insights: zod.array(zod.string()),
+  rationale: zod.string(),
+  alerts: zod.array(zod.string()),
+  priceChart: zod.array(
+    zod.object({
+      time: zod.string(),
+      price: zod.number(),
+      predicted: zod.boolean().optional(),
+    }),
+  ),
+  daysToExpiry: zod.number(),
+});

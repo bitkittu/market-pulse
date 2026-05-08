@@ -20,6 +20,7 @@ import {
 import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
 import { getDecisionPanel } from "../lib/decisionEngine.js";
 import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
+import { analyzeFoTrade } from "../lib/foAnalyzer.js";
 import { db, portfolioTable, upstoxSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -373,6 +374,37 @@ router.get("/global-index/history", async (req, res) => {
     res.json({ ticker, period, data });
   } catch {
     res.status(500).json({ error: `Failed to fetch history for ${ticker}` });
+  }
+});
+
+// ── F&O AI Analyzer ───────────────────────────────────────────────────────
+router.post("/fo-analyzer", async (req, res) => {
+  try {
+    const { symbol, optionType, strikePrice, buyPrice, currentPremium, lots, expiry, entryTime, stopLoss, target } = req.body;
+    if (!symbol || !optionType || !strikePrice || !buyPrice || !currentPremium || !lots || !expiry) {
+      res.status(400).json({ error: "Missing required fields: symbol, optionType, strikePrice, buyPrice, currentPremium, lots, expiry" });
+      return;
+    }
+    if (!["CE", "PE", "FUT"].includes(optionType)) {
+      res.status(400).json({ error: "optionType must be CE, PE, or FUT" });
+      return;
+    }
+    const result = await analyzeFoTrade({
+      symbol: String(symbol),
+      optionType: optionType as "CE" | "PE" | "FUT",
+      strikePrice: Number(strikePrice),
+      buyPrice: Number(buyPrice),
+      currentPremium: Number(currentPremium),
+      lots: Number(lots),
+      expiry: String(expiry),
+      entryTime: entryTime ? String(entryTime) : undefined,
+      stopLoss: stopLoss !== undefined ? Number(stopLoss) : undefined,
+      target: target !== undefined ? Number(target) : undefined,
+    });
+    res.json(result);
+  } catch (err) {
+    req.log.error({ err }, "F&O analyzer error");
+    res.status(500).json({ error: "Failed to analyze trade" });
   }
 });
 

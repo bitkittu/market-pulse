@@ -1,0 +1,120 @@
+Add a new advanced module inside the Insights section called “F&O AI Analyzer” for Futures & Options traders.
+
+The feature should work like this:
+
+When a user searches or selects a stock (example: RELIANCE, NIFTY, BANKNIFTY, TCS, etc.), they should also be able to enter:
+
+Option Type (CE / PE / Futures)
+Strike Price
+Buy Price
+Current Price
+Number of Lots
+Expiry Date
+Entry Time
+Premium Value
+Stop Loss (optional)
+Target Price (optional)
+
+After entering the data, the AI engine should analyze live market conditions and generate intelligent trading insights.
+
+The AI should analyze:
+
+Stock trend direction
+Option chain sentiment
+VWAP
+RSI
+Open Interest (OI)
+PCR Ratio
+Volume spike
+Support & Resistance
+Futures data
+Intraday momentum
+News sentiment
+Overall market trend (Bullish / Bearish / Sideways)
+
+Based on the entered trade and live market data, AI should provide:
+
+Trade Direction Prediction
+Probability of stock moving UP or DOWN
+Bullish or Bearish confidence percentage
+Smart Exit Suggestions
+Suggested exit price
+Suggested stop loss
+Suggested target levels
+Recommended hold duration
+Best time to exit the trade
+AI Decision Engine
+HOLD
+SELL
+BOOK PROFIT
+WAIT
+ADD MORE
+AVOID TRADE
+Risk Analysis
+Risk Level: Low / Medium / High
+Possible premium decay warning
+Theta decay alerts
+Volatility alerts
+Trade Performance Estimation
+Estimated P&L
+Lot-wise profit/loss calculation
+Probability score of success
+Smart Insights
+“Momentum is weakening”
+“OI build-up indicates bullish continuation”
+“Price near resistance zone”
+“Premium decay risk increasing”
+“Strong buying seen in futures”
+Graphs & Visualizations
+Intraday trend chart
+AI prediction graph
+Support/resistance levels
+Entry vs Current vs Target graph
+Profit/Loss projection graph
+
+UI Requirements:
+
+Maintain the same dark premium trading dashboard design
+Add a new tab beside “Stock Insights” called:
+“F&O AI Analyzer”
+Use modern trading cards, glowing indicators, charts, and AI badges
+Mobile responsive
+Fast loading
+Real-time updates
+
+Important:
+
+Use AI-generated reasoning text similar to professional trading terminals
+Use dynamic badges like:
+Bullish
+Bearish
+High Risk
+Strong Momentum
+Smart Exit Suggested
+Add confidence meters and probability bars
+
+Advanced Features:
+
+AI should continuously monitor the entered trade
+Auto-update signals every few seconds/minutes
+Show alerts if trend changes
+Detect fake breakout or reversal signals
+Detect expiry-day volatility
+Generate simple trader-friendly explanations
+
+Example AI Output:
+
+“RELIANCE 1450 CE shows bullish momentum with strong OI support. RSI is above 60 and price is trading above VWAP. AI confidence level is 82% bullish. Suggested hold till 2:15 PM with trailing stop loss at ₹18. Market momentum remains positive but volatility may increase near closing session.”
+
+Technical Suggestions:
+
+Use TradingView charts if possible
+Use NSE option chain APIs
+Use real-time websocket updates
+Build reusable AI insight cards
+Create scalable component structure
+Use React + Tailwind UI
+Add loading skeletons and animated transitions
+
+Goal:
+Create an intelligent AI-powered Futures & Options analysis system inside the existing stock dashboard that behaves like a smart trading assistant and helps users make better entry, hold, and exit decisions based on live market data and AI analysis.

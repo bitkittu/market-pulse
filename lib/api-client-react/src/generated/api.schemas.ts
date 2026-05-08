@@ -517,6 +517,121 @@ export interface DecisionPanel {
   updatedAt: string;
 }
 
+export type FoTradeInputOptionType =
+  (typeof FoTradeInputOptionType)[keyof typeof FoTradeInputOptionType];
+
+export const FoTradeInputOptionType = {
+  CE: "CE",
+  PE: "PE",
+  FUT: "FUT",
+} as const;
+
+export interface FoTradeInput {
+  /** NSE stock or index symbol (RELIANCE, NIFTY, BANKNIFTY) */
+  symbol: string;
+  optionType: FoTradeInputOptionType;
+  strikePrice: number;
+  /** Premium paid per unit when entering */
+  buyPrice: number;
+  /** Current market premium per unit */
+  currentPremium: number;
+  lots: number;
+  /** Expiry date in YYYY-MM-DD format */
+  expiry: string;
+  /** Entry time in HH:MM format (IST) */
+  entryTime?: string;
+  /** Optional stop loss premium level */
+  stopLoss?: number;
+  /** Optional target premium level */
+  target?: number;
+}
+
+export interface FoChartPoint {
+  time: string;
+  price: number;
+  predicted?: boolean;
+}
+
+export interface FoExitSuggestion {
+  price: number;
+  stopLoss: number;
+  targets: number[];
+  holdDuration: string;
+  bestExitTime: string;
+}
+
+export interface FoPnl {
+  currentPnl: number;
+  currentPnlPct: number;
+  targetPnl: number;
+  maxLoss: number;
+  lotSize: number;
+  totalPremiumPaid: number;
+}
+
+export interface FoIndicators {
+  rsi: number;
+  vwap: number;
+  momentum: string;
+  volumeSpike: boolean;
+  oi: string;
+  pcr: number;
+  trend: string;
+  support: number;
+  resistance: number;
+}
+
+export type FoAnalysisResultDirection =
+  (typeof FoAnalysisResultDirection)[keyof typeof FoAnalysisResultDirection];
+
+export const FoAnalysisResultDirection = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Sideways: "Sideways",
+} as const;
+
+export type FoAnalysisResultDecision =
+  (typeof FoAnalysisResultDecision)[keyof typeof FoAnalysisResultDecision];
+
+export const FoAnalysisResultDecision = {
+  HOLD: "HOLD",
+  SELL: "SELL",
+  BOOK_PROFIT: "BOOK_PROFIT",
+  WAIT: "WAIT",
+  ADD_MORE: "ADD_MORE",
+  AVOID_TRADE: "AVOID_TRADE",
+} as const;
+
+export type FoAnalysisResultRiskLevel =
+  (typeof FoAnalysisResultRiskLevel)[keyof typeof FoAnalysisResultRiskLevel];
+
+export const FoAnalysisResultRiskLevel = {
+  Low: "Low",
+  Medium: "Medium",
+  High: "High",
+} as const;
+
+export interface FoAnalysisResult {
+  symbol: string;
+  optionType: string;
+  strikePrice: number;
+  livePrice: number;
+  liveChange: number;
+  liveChangePct: number;
+  direction: FoAnalysisResultDirection;
+  confidence: number;
+  decision: FoAnalysisResultDecision;
+  riskLevel: FoAnalysisResultRiskLevel;
+  exitSuggestion: FoExitSuggestion;
+  pnl: FoPnl;
+  indicators: FoIndicators;
+  insights: string[];
+  rationale: string;
+  alerts: string[];
+  priceChart: FoChartPoint[];
+  daysToExpiry: number;
+}
+
 export type GetGiftNiftyHistoryParams = {
   period?: GetGiftNiftyHistoryPeriod;
 };
@@ -635,5 +750,13 @@ export type SearchInsights404 = {
 };
 
 export type SearchInsights500 = {
+  error: string;
+};
+
+export type FoAnalyzer400 = {
+  error: string;
+};
+
+export type FoAnalyzer500 = {
   error: string;
 };

@@ -20,6 +20,10 @@ import type {
   AddPortfolioStockRequest,
   DecisionPanel,
   DisconnectUpstox200,
+  FoAnalysisResult,
+  FoAnalyzer400,
+  FoAnalyzer500,
+  FoTradeInput,
   GetCommodities200,
   GetCommodityHistoryParams,
   GetGiftNiftyHistoryParams,
@@ -2093,3 +2097,90 @@ export function useSearchInsights<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Accepts a trade position (CE/PE/FUT) and returns comprehensive AI analysis including direction, confidence, decision, P&L, indicators, insights and intraday chart data
+ * @summary Analyze F&O trade with AI
+ */
+export const getFoAnalyzerUrl = () => {
+  return `/api/fo-analyzer`;
+};
+
+export const foAnalyzer = async (
+  foTradeInput: FoTradeInput,
+  options?: RequestInit,
+): Promise<FoAnalysisResult> => {
+  return customFetch<FoAnalysisResult>(getFoAnalyzerUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(foTradeInput),
+  });
+};
+
+export const getFoAnalyzerMutationOptions = <
+  TError = ErrorType<FoAnalyzer400 | FoAnalyzer500>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof foAnalyzer>>,
+    TError,
+    { data: BodyType<FoTradeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof foAnalyzer>>,
+  TError,
+  { data: BodyType<FoTradeInput> },
+  TContext
+> => {
+  const mutationKey = ["foAnalyzer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof foAnalyzer>>,
+    { data: BodyType<FoTradeInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return foAnalyzer(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FoAnalyzerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof foAnalyzer>>
+>;
+export type FoAnalyzerMutationBody = BodyType<FoTradeInput>;
+export type FoAnalyzerMutationError = ErrorType<FoAnalyzer400 | FoAnalyzer500>;
+
+/**
+ * @summary Analyze F&O trade with AI
+ */
+export const useFoAnalyzer = <
+  TError = ErrorType<FoAnalyzer400 | FoAnalyzer500>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof foAnalyzer>>,
+    TError,
+    { data: BodyType<FoTradeInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof foAnalyzer>>,
+  TError,
+  { data: BodyType<FoTradeInput> },
+  TContext
+> => {
+  return useMutation(getFoAnalyzerMutationOptions(options));
+};

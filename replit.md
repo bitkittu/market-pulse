@@ -23,7 +23,9 @@ Full-stack NSE India stock market dashboard built with React + Vite (frontend) a
 - **Options Tab**: CE/PE filter tabs with live underlying prices for stock options, OI Trend badges (Increasing/Decreasing/Stable), HIGH IV warning, IV/OI tooltips
 - **Performance Tab**: Historical trade log (20 trades), win rate/avg return stats, recharts BarChart + LineChart for weekly/cumulative P&L
 - **Portfolio Tab**: Add NSE/BSE stocks, 10-column sticky table, AI target/stop-loss/signal/RSI/VWAP/news sentiment/P&L%, SL Distance % with color coding, total P&L summary card
-- **Insights Tab**: Real-time stock search using Yahoo Finance API (no key needed). Shows price, RSI gauge, VWAP card, AI forecast, weighted news sentiment score (0-100 with progress bar), 3M price chart, and up to 15 latest news articles. Works for NSE stocks (e.g. TCS.NS) and global stocks (AAPL, TSLA, MSFT)
+- **Insights Tab**: Two sub-tabs:
+  - **Stock Insights**: Real-time stock search using Yahoo Finance API (no key needed). Shows price, RSI gauge, VWAP card, AI forecast, weighted news sentiment score (0-100 with progress bar), 3M price chart, and up to 15 latest news articles. Works for NSE stocks (e.g. TCS.NS) and global stocks (AAPL, TSLA, MSFT)
+  - **F&O AI Analyzer**: Full trade entry form for CE/PE/FUT positions. Fetches live underlying price from Yahoo Finance, computes RSI/VWAP/PCR/OI/momentum indicators, generates AI decision (HOLD/SELL/BOOK_PROFIT/WAIT/ADD_MORE/AVOID_TRADE), P&L summary, exit strategy, smart insights list, alerts, intraday price chart (actual + AI forecast lines), and P&L projection bar chart. Lot sizes hardcoded for NIFTY=75, BANKNIFTY=30, RELIANCE=250, TCS=150, etc.
 - **Upstox API Integration**: Login with your Upstox API credentials for live NSE data
 
 ## Structure

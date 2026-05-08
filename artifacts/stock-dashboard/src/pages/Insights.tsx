@@ -6,8 +6,9 @@ import {
 import {
   Search, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2, Newspaper,
   ExternalLink, Globe, Activity, BarChart2, RefreshCw, ArrowUpRight, ArrowDownRight,
-  Zap, DollarSign, Target, Info,
+  Zap, DollarSign, Target, Info, Brain,
 } from "lucide-react";
+import { FoAnalyzer } from "./FoAnalyzer";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 
@@ -229,8 +230,8 @@ function NewsCard({ article, idx }: { article: NewsArticle; idx: number }) {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────
-export function Insights() {
+// ── Stock Insights Inner ───────────────────────────────────────────────────
+function StockInsights() {
   const [input, setInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -491,6 +492,43 @@ export function Insights() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Main Insights Page (with sub-tabs) ────────────────────────────────────
+const SUB_TABS = [
+  { id: "stock", label: "Stock Insights", icon: Newspaper },
+  { id: "fo", label: "F&O AI Analyzer", icon: Brain },
+] as const;
+
+type SubTab = typeof SUB_TABS[number]["id"];
+
+export function Insights() {
+  const [subTab, setSubTab] = useState<SubTab>("stock");
+  return (
+    <div className="space-y-5">
+      {/* Sub-tab bar */}
+      <div className="flex gap-1 p-1 bg-card border border-border rounded-xl w-fit">
+        {SUB_TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setSubTab(id)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all",
+              subTab === id
+                ? "bg-primary text-white shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "stock" && <StockInsights />}
+      {subTab === "fo" && <FoAnalyzer />}
     </div>
   );
 }
