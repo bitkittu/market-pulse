@@ -193,6 +193,7 @@ export function getGiftNiftyQuote() {
     high: parseFloat((price * (1 + r * 0.008)).toFixed(2)),
     low: parseFloat((price * (1 - r * 0.008)).toFixed(2)),
     volume: Math.floor(seededRandom(seed * 17) * 500000 + 50000),
+    dataSource: "simulated",
     updatedAt: new Date().toISOString(),
   };
 }

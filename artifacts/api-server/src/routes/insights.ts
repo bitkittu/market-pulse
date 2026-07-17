@@ -148,9 +148,19 @@ router.get("/insights/search", async (req, res) => {
       yahooFinance.search(q, { newsCount: 20 }, { validateResult: false }),
     ]);
 
+    // yahoo-finance2 returns `unknown` for chart()/search() when validateResult
+    // is false (skips runtime schema validation), so we cast to the documented
+    // response shape ourselves, only once each promise is confirmed fulfilled.
+    const chartValue = chart.status === "fulfilled"
+      ? (chart.value as { quotes?: Array<{ date: Date; close: number | null; volume: number | null }> })
+      : undefined;
+    const searchValue = searchResult.status === "fulfilled"
+      ? (searchResult.value as { news?: unknown })
+      : undefined;
+
     const candles: { date: string; close: number; volume: number }[] = [];
-    if (chart.status === "fulfilled" && chart.value?.quotes) {
-      for (const c of chart.value.quotes) {
+    if (chartValue?.quotes) {
+      for (const c of chartValue.quotes) {
         if (c.close != null) candles.push({ date: new Date(c.date).toISOString().split("T")[0], close: c.close, volume: c.volume ?? 0 });
       }
     }
@@ -163,8 +173,8 @@ router.get("/insights/search", async (req, res) => {
     const changePercent = quote.regularMarketChangePercent ?? 0;
 
     const rawNews: Array<{ title?: string; link?: string; publisher?: string; providerPublishTime?: Date | number; thumbnail?: { resolutions?: Array<{ url?: string }> } }> =
-      searchResult.status === "fulfilled" && Array.isArray(searchResult.value?.news)
-        ? (searchResult.value.news as typeof rawNews)
+      Array.isArray(searchValue?.news)
+        ? (searchValue.news as typeof rawNews)
         : [];
 
     const news = rawNews.slice(0, 15).map((n) => ({

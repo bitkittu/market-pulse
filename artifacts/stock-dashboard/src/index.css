@@ -139,12 +139,43 @@
   .glow-orange {
     box-shadow: 0 0 20px rgba(249, 115, 22, 0.15);
   }
+  /* Legacy ticker used by dashboard components */
   .ticker-scroll {
     animation: ticker 40s linear infinite;
+  }
+  /* Landing page ticker */
+  .animate-ticker {
+    animation: ticker 35s linear infinite;
   }
   @keyframes ticker {
     0%   { transform: translateX(0); }
     100% { transform: translateX(-50%); }
+  }
+  /* Animated background blobs */
+  .animate-blob {
+    animation: blob 12s ease-in-out infinite;
+  }
+  .animate-blob-delay {
+    animation: blob 14s ease-in-out 3s infinite;
+  }
+  .animate-blob-slow {
+    animation: blob 18s ease-in-out 6s infinite;
+  }
+  @keyframes blob {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%       { transform: translate(30px, -20px) scale(1.05); }
+    66%       { transform: translate(-20px, 30px) scale(0.95); }
+  }
+  /* Floating cards in hero */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .animate-float-delay {
+    animation: float 6s ease-in-out 3s infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-8px); }
   }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

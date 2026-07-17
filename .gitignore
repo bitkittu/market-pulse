@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local environment overrides (never commit these)
+.env
+.env.local
+.env.*.local
+
+# Replit tooling artifacts
+.config/replit/

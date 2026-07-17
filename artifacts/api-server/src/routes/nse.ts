@@ -10,6 +10,7 @@ import {
   getLiveMovers,
   getLiveGiftNifty,
   getLiveSectors,
+  getLiveIndiaVix,
   invalidateAllCache,
   getGlobalIndexQuote,
   getGlobalIndexHistory,
@@ -22,7 +23,8 @@ import { getDecisionPanel } from "../lib/decisionEngine.js";
 import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
 import { analyzeFoTrade } from "../lib/foAnalyzer.js";
 import { db, portfolioTable, upstoxSettingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { requireAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
 
@@ -107,6 +109,14 @@ router.get("/nse/sectors", async (_req, res) => {
   }
 });
 
+router.get("/nse/india-vix", async (_req, res) => {
+  try {
+    res.json(await getLiveIndiaVix());
+  } catch {
+    res.status(500).json({ error: "Failed to fetch India VIX" });
+  }
+});
+
 router.get("/nse/quote/:symbol", async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   if (!NSE_STOCKS[symbol]) {
@@ -137,9 +147,13 @@ router.get("/nse/history/:symbol", (req, res) => {
 });
 
 // ── Portfolio ────────────────────────────────────────────────────────────
-router.get("/portfolio", async (req, res) => {
+router.get("/portfolio", requireAuth, async (req, res) => {
   try {
-    const items = await db.select().from(portfolioTable).orderBy(portfolioTable.addedAt);
+    const items = await db
+      .select()
+      .from(portfolioTable)
+      .where(eq(portfolioTable.userId, req.user!.id))
+      .orderBy(portfolioTable.addedAt);
     res.json(
       items.map((i) => ({
         id: i.id,
@@ -156,7 +170,7 @@ router.get("/portfolio", async (req, res) => {
   }
 });
 
-router.post("/portfolio", async (req, res) => {
+router.post("/portfolio", requireAuth, async (req, res) => {
   try {
     const { symbol, exchange = "NSE", buyPrice, quantity } = req.body;
     if (!symbol || typeof symbol !== "string") {
@@ -164,7 +178,10 @@ router.post("/portfolio", async (req, res) => {
       return;
     }
     const upper = symbol.toUpperCase();
-    const [existing] = await db.select().from(portfolioTable).where(eq(portfolioTable.symbol, upper));
+    const [existing] = await db
+      .select()
+      .from(portfolioTable)
+      .where(and(eq(portfolioTable.userId, req.user!.id), eq(portfolioTable.symbol, upper)));
     if (existing) {
       res.json({
         id: existing.id,
@@ -176,15 +193,17 @@ router.post("/portfolio", async (req, res) => {
       });
       return;
     }
-    const [inserted] = await db
+    const [{ id: insertedId }] = await db
       .insert(portfolioTable)
       .values({
+        userId: req.user!.id,
         symbol: upper,
         exchange: exchange.toUpperCase(),
         buyPrice: buyPrice ? Number(buyPrice) : null,
         quantity: quantity ? Number(quantity) : null,
       })
-      .returning();
+      .$returningId();
+    const [inserted] = await db.select().from(portfolioTable).where(eq(portfolioTable.id, insertedId));
     res.json({
       id: inserted.id,
       symbol: inserted.symbol,
@@ -199,10 +218,12 @@ router.post("/portfolio", async (req, res) => {
   }
 });
 
-router.delete("/portfolio/:symbol", async (req, res) => {
+router.delete("/portfolio/:symbol", requireAuth, async (req, res) => {
   try {
-    const symbol = req.params.symbol.toUpperCase();
-    await db.delete(portfolioTable).where(eq(portfolioTable.symbol, symbol));
+    const symbol = String(req.params.symbol).toUpperCase();
+    await db
+      .delete(portfolioTable)
+      .where(and(eq(portfolioTable.userId, req.user!.id), eq(portfolioTable.symbol, symbol)));
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Failed to delete portfolio item");
@@ -221,9 +242,9 @@ router.get("/portfolio/:symbol/indicators", (req, res) => {
 });
 
 // ── Upstox Settings ──────────────────────────────────────────────────────
-router.get("/settings/upstox", async (req, res) => {
+router.get("/settings/upstox", requireAuth, async (req, res) => {
   try {
-    const [settings] = await db.select().from(upstoxSettingsTable).limit(1);
+    const [settings] = await db.select().from(upstoxSettingsTable).where(eq(upstoxSettingsTable.userId, req.user!.id));
     if (!settings) {
       res.json({ connected: false, liveDataEnabled: false });
       return;
@@ -242,24 +263,26 @@ router.get("/settings/upstox", async (req, res) => {
   }
 });
 
-router.post("/settings/upstox", async (req, res) => {
+router.post("/settings/upstox", requireAuth, async (req, res) => {
   try {
     const { apiKey, apiSecret, clientId, accessToken } = req.body;
     if (!apiKey || typeof apiKey !== "string") {
       res.status(400).json({ error: "API Key is required" });
       return;
     }
-    await db.delete(upstoxSettingsTable);
-    const [inserted] = await db
+    await db.delete(upstoxSettingsTable).where(eq(upstoxSettingsTable.userId, req.user!.id));
+    const [{ id: insertedId }] = await db
       .insert(upstoxSettingsTable)
       .values({
+        userId: req.user!.id,
         apiKey,
         apiSecret: apiSecret || null,
         clientId: clientId || null,
         accessToken: accessToken || null,
         liveDataEnabled: true,
       })
-      .returning();
+      .$returningId();
+    const [inserted] = await db.select().from(upstoxSettingsTable).where(eq(upstoxSettingsTable.id, insertedId));
     invalidateTokenCache();
     invalidateAllCache();
     res.json({
@@ -276,9 +299,9 @@ router.post("/settings/upstox", async (req, res) => {
   }
 });
 
-router.post("/settings/upstox/disconnect", async (req, res) => {
+router.post("/settings/upstox/disconnect", requireAuth, async (req, res) => {
   try {
-    await db.delete(upstoxSettingsTable);
+    await db.delete(upstoxSettingsTable).where(eq(upstoxSettingsTable.userId, req.user!.id));
     invalidateTokenCache();
     invalidateAllCache();
     res.json({ success: true });

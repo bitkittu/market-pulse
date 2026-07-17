@@ -1,11 +1,13 @@
-import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { mysqlTable, bigint, varchar, boolean, timestamp } from "drizzle-orm/mysql-core";
+import { usersTable } from "./users";
 
-export const upstoxSettingsTable = pgTable("upstox_settings", {
-  id: serial("id").primaryKey(),
-  apiKey: text("api_key").notNull(),
-  apiSecret: text("api_secret"),
-  clientId: text("client_id"),
-  accessToken: text("access_token"),
+export const upstoxSettingsTable = mysqlTable("upstox_settings", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull().unique().references(() => usersTable.id, { onDelete: "cascade" }),
+  apiKey: varchar("api_key", { length: 255 }).notNull(),
+  apiSecret: varchar("api_secret", { length: 255 }),
+  clientId: varchar("client_id", { length: 100 }),
+  accessToken: varchar("access_token", { length: 500 }),
   liveDataEnabled: boolean("live_data_enabled").notNull().default(true),
   connectedAt: timestamp("connected_at").defaultNow().notNull(),
 });

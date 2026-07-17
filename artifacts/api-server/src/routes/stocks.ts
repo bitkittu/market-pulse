@@ -10,7 +10,8 @@ import {
   getAiMarketSummary,
 } from "../lib/stockData.js";
 import { db, watchlistTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { requireAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
 
@@ -105,30 +106,43 @@ router.get("/stocks/sectors", (_req, res) => {
   res.json(getSectorPerformance());
 });
 
-router.get("/watchlist", async (req, res) => {
-  const items = await db.select().from(watchlistTable).orderBy(watchlistTable.addedAt);
+router.get("/watchlist", requireAuth, async (req, res) => {
+  const items = await db
+    .select()
+    .from(watchlistTable)
+    .where(eq(watchlistTable.userId, req.user!.id))
+    .orderBy(watchlistTable.addedAt);
   res.json(items.map((i) => ({ id: i.id, symbol: i.symbol, addedAt: i.addedAt.toISOString() })));
 });
 
-router.post("/watchlist", async (req, res) => {
+router.post("/watchlist", requireAuth, async (req, res) => {
   const { symbol } = req.body;
   if (!symbol || typeof symbol !== "string") {
     res.status(400).json({ error: "Symbol is required" });
     return;
   }
   const upper = symbol.toUpperCase();
-  const [existing] = await db.select().from(watchlistTable).where(eq(watchlistTable.symbol, upper));
+  const [existing] = await db
+    .select()
+    .from(watchlistTable)
+    .where(and(eq(watchlistTable.userId, req.user!.id), eq(watchlistTable.symbol, upper)));
   if (existing) {
     res.json({ id: existing.id, symbol: existing.symbol, addedAt: existing.addedAt.toISOString() });
     return;
   }
-  const [inserted] = await db.insert(watchlistTable).values({ symbol: upper }).returning();
+  const [{ id: insertedId }] = await db
+    .insert(watchlistTable)
+    .values({ userId: req.user!.id, symbol: upper })
+    .$returningId();
+  const [inserted] = await db.select().from(watchlistTable).where(eq(watchlistTable.id, insertedId));
   res.json({ id: inserted.id, symbol: inserted.symbol, addedAt: inserted.addedAt.toISOString() });
 });
 
-router.delete("/watchlist/:symbol", async (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
-  await db.delete(watchlistTable).where(eq(watchlistTable.symbol, symbol));
+router.delete("/watchlist/:symbol", requireAuth, async (req, res) => {
+  const symbol = String(req.params.symbol).toUpperCase();
+  await db
+    .delete(watchlistTable)
+    .where(and(eq(watchlistTable.userId, req.user!.id), eq(watchlistTable.symbol, symbol)));
   res.json({ success: true });
 });
 

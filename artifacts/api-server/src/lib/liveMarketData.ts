@@ -363,6 +363,48 @@ export async function getLiveGiftNifty() {
   }
 }
 
+// ── India VIX ─────────────────────────────────────────────────────────────
+export async function getLiveIndiaVix() {
+  const key = "india-vix";
+  const cached = cache.get<{
+    symbol: string; name: string; price: number; change: number;
+    changePercent: number; dataSource: string; updatedAt: string;
+  }>(key);
+  if (cached) return cached;
+
+  try {
+    const indices = await fetchNseAllIndices();
+    const v = indices?.get("INDIA VIX");
+    if (v && v.last > 0) {
+      const result = {
+        symbol: "INDIA VIX",
+        name: "India VIX",
+        price: v.last,
+        change: v.variation,
+        changePercent: v.percentChange,
+        dataSource: "nse",
+        updatedAt: new Date().toISOString(),
+      };
+      cache.set(key, result, INDEX_TTL);
+      return result;
+    }
+  } catch {
+    // fall through to simulated
+  }
+
+  const result = {
+    symbol: "INDIA VIX",
+    name: "India VIX",
+    price: 14.82,
+    change: -0.32,
+    changePercent: -2.10,
+    dataSource: "simulated",
+    updatedAt: new Date().toISOString(),
+  };
+  cache.set(key, result, INDEX_TTL);
+  return result;
+}
+
 // ── NSE Sector indices ─────────────────────────────────────────────────────
 const SECTOR_MAP = [
   { sector: "Banking",            index: "NIFTY BANK",        yfSym: "^NSEBANK"    },

@@ -37,7 +37,6 @@ export * from "./getGlobalIndexHistoryPeriod";
 export * from "./getGlobalIndexHistoryTicker";
 export * from "./getGlobalIndexQuoteParams";
 export * from "./getGlobalIndexQuoteTicker";
-export * from "./getNseHistoryParams";
 export * from "./getNseHistoryPeriod";
 export * from "./giftNiftyQuote";
 export * from "./globalIndexQuote";
