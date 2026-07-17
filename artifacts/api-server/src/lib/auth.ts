@@ -1,14 +1,6 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
-import {
-  db,
-  usersTable,
-  rolesTable,
-  permissionsTable,
-  rolePermissionsTable,
-  type UserRow,
-} from "@workspace/db";
+import { collections, nextId, type UserRow } from "@workspace/db";
 import type { Request, Response, NextFunction } from "express";
 
 export const SESSION_COOKIE = "mp_session";
@@ -91,23 +83,15 @@ export interface AuthedUser extends UserRow {
 }
 
 export async function loadAuthedUser(userId: number): Promise<AuthedUser | null> {
-  const [row] = await db
-    .select({ user: usersTable, roleName: rolesTable.name })
-    .from(usersTable)
-    .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
-    .where(eq(usersTable.id, userId));
-  if (!row) return null;
+  const user = await collections.users().findOne({ id: userId });
+  if (!user) return null;
 
-  const permRows = await db
-    .select({ name: permissionsTable.name })
-    .from(rolePermissionsTable)
-    .innerJoin(permissionsTable, eq(rolePermissionsTable.permissionId, permissionsTable.id))
-    .where(eq(rolePermissionsTable.roleId, row.user.roleId));
+  const role = await collections.roles().findOne({ id: user.roleId });
 
   return {
-    ...row.user,
-    roleName: row.roleName,
-    permissions: new Set(permRows.map((p) => p.name)),
+    ...user,
+    roleName: role?.name ?? "user",
+    permissions: new Set(role?.permissions ?? []),
   };
 }
 
@@ -157,61 +141,51 @@ export function requirePermission(permission: string) {
   };
 }
 
-// Bootstraps roles/permissions/role_permissions on a fresh database, and
-// creates the first admin account if none exists yet. On a database that
-// already has this data (e.g. a hand-seeded one) every step is a no-op.
+// Bootstraps the roles (with their embedded permission lists) on a fresh
+// database, and creates the first admin account if none exists yet. Every
+// step is idempotent, so this is safe to run on every boot.
 export async function seedAuthDefaults(): Promise<void> {
-  const existingRoles = await db.select().from(rolesTable);
-  const roleByName = new Map(existingRoles.map((r) => [r.name, r]));
-
   for (const role of DEFAULT_ROLES) {
-    if (!roleByName.has(role.name)) {
-      const [{ id }] = await db.insert(rolesTable).values(role).$returningId();
-      roleByName.set(role.name, { ...role, id, createdAt: new Date() });
+    const permissions = ROLE_PERMISSIONS[role.name] ?? [];
+    const existing = await collections.roles().findOne({ name: role.name });
+    if (existing) {
+      // Keep the permission list in sync as the app's defaults evolve.
+      await collections.roles().updateOne(
+        { name: role.name },
+        { $set: { description: role.description, permissions: [...permissions] } },
+      );
+    } else {
+      await collections.roles().insertOne({
+        id: await nextId("roles"),
+        name: role.name,
+        description: role.description,
+        permissions: [...permissions],
+        createdAt: new Date(),
+      });
     }
   }
 
-  const existingPermissions = await db.select().from(permissionsTable);
-  const permByName = new Map(existingPermissions.map((p) => [p.name, p]));
-
-  for (const perm of DEFAULT_PERMISSIONS) {
-    if (!permByName.has(perm.name)) {
-      const [{ id }] = await db.insert(permissionsTable).values(perm).$returningId();
-      permByName.set(perm.name, { ...perm, id, createdAt: new Date() });
-    }
-  }
-
-  const existingRolePerms = await db.select().from(rolePermissionsTable);
-  const existingPairs = new Set(existingRolePerms.map((rp) => `${rp.roleId}:${rp.permissionId}`));
-
-  for (const [roleName, permNames] of Object.entries(ROLE_PERMISSIONS)) {
-    const role = roleByName.get(roleName);
-    if (!role) continue;
-    for (const permName of permNames) {
-      const perm = permByName.get(permName);
-      if (!perm) continue;
-      const key = `${role.id}:${perm.id}`;
-      if (!existingPairs.has(key)) {
-        await db.insert(rolePermissionsTable).values({ roleId: role.id, permissionId: perm.id });
-        existingPairs.add(key);
-      }
-    }
-  }
-
-  const adminRole = roleByName.get("admin");
+  const adminRole = await collections.roles().findOne({ name: "admin" });
   if (!adminRole) return;
 
-  const [existingAdmin] = await db.select().from(usersTable).where(eq(usersTable.roleId, adminRole.id));
+  const existingAdmin = await collections.users().findOne({ roleId: adminRole.id });
   if (existingAdmin) return;
 
   const email = (process.env["ADMIN_EMAIL"] ?? "admin@marketpulse.ai").trim().toLowerCase();
   const password = process.env["ADMIN_PASSWORD"] ?? "Admin@123";
   const passwordHash = await hashPassword(password);
-  await db.insert(usersTable).values({
+  const now = new Date();
+  await collections.users().insertOne({
+    id: await nextId("users"),
     name: "Admin",
     email,
     passwordHash,
     roleId: adminRole.id,
     plan: "premium",
+    status: "active",
+    emailVerifiedAt: null,
+    lastLoginAt: null,
+    createdAt: now,
+    updatedAt: now,
   });
 }

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAuthDefaults } from "./lib/auth.js";
+import { connectDb } from "@workspace/db";
 
 const rawPort = process.env["PORT"] ?? "3001";
 const port = Number(rawPort);
@@ -9,8 +10,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-seedAuthDefaults()
-  .catch((err) => logger.error({ err }, "Failed to seed auth defaults"))
+connectDb()
+  .then(() => seedAuthDefaults())
+  .catch((err) => logger.error({ err }, "Failed to connect to database / seed defaults"))
   .finally(() => {
     app.listen(port, (err) => {
       if (err) {

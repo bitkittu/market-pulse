@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable, rolesTable } from "@workspace/db";
+import { collections } from "@workspace/db";
 import { requireAuth, requirePermission, toPublicUser } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -9,11 +8,12 @@ router.use(requireAuth);
 
 router.get("/admin/users", requirePermission("users.view"), async (_req, res) => {
   try {
-    const rows = await db
-      .select({ user: usersTable, roleName: rolesTable.name })
-      .from(usersTable)
-      .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id));
-    res.json(rows.map(({ user, roleName }) => toPublicUser(user, roleName)));
+    const [users, roles] = await Promise.all([
+      collections.users().find().toArray(),
+      collections.roles().find().toArray(),
+    ]);
+    const roleName = (roleId: number) => roles.find((r) => r.id === roleId)?.name ?? "user";
+    res.json(users.map((user) => toPublicUser(user, roleName(user.roleId))));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[admin] list users error:", msg);
@@ -29,21 +29,18 @@ router.delete("/admin/users/:id", requirePermission("users.manage"), async (req,
   }
 
   try {
-    const [row] = await db
-      .select({ user: usersTable, roleName: rolesTable.name })
-      .from(usersTable)
-      .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
-      .where(eq(usersTable.id, id));
-    if (!row) {
+    const user = await collections.users().findOne({ id });
+    if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
     }
-    if (row.roleName === "admin") {
+    const role = await collections.roles().findOne({ id: user.roleId });
+    if (role?.name === "admin") {
       res.status(403).json({ error: "Cannot delete an admin account" });
       return;
     }
 
-    await db.delete(usersTable).where(eq(usersTable.id, id));
+    await collections.users().deleteOne({ id });
     res.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -66,19 +63,16 @@ router.post("/admin/users/:id/plan", requirePermission("users.manage"), async (r
   }
 
   try {
-    const [row] = await db
-      .select({ user: usersTable, roleName: rolesTable.name })
-      .from(usersTable)
-      .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
-      .where(eq(usersTable.id, id));
-    if (!row) {
+    const user = await collections.users().findOne({ id });
+    if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
     }
+    const role = await collections.roles().findOne({ id: user.roleId });
 
-    await db.update(usersTable).set({ plan }).where(eq(usersTable.id, id));
-    const [updated] = await db.select().from(usersTable).where(eq(usersTable.id, id));
-    res.json({ user: toPublicUser(updated, row.roleName) });
+    await collections.users().updateOne({ id }, { $set: { plan, updatedAt: new Date() } });
+    const updated = await collections.users().findOne({ id });
+    res.json({ user: toPublicUser(updated!, role?.name ?? "user") });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[admin] update plan error:", msg);

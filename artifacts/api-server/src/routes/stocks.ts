@@ -9,8 +9,7 @@ import {
   getAiAnalysis,
   getAiMarketSummary,
 } from "../lib/stockData.js";
-import { db, watchlistTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { collections, nextId } from "@workspace/db";
 import { requireAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -107,11 +106,11 @@ router.get("/stocks/sectors", (_req, res) => {
 });
 
 router.get("/watchlist", requireAuth, async (req, res) => {
-  const items = await db
-    .select()
-    .from(watchlistTable)
-    .where(eq(watchlistTable.userId, req.user!.id))
-    .orderBy(watchlistTable.addedAt);
+  const items = await collections
+    .watchlist()
+    .find({ userId: req.user!.id })
+    .sort({ addedAt: 1 })
+    .toArray();
   res.json(items.map((i) => ({ id: i.id, symbol: i.symbol, addedAt: i.addedAt.toISOString() })));
 });
 
@@ -122,27 +121,24 @@ router.post("/watchlist", requireAuth, async (req, res) => {
     return;
   }
   const upper = symbol.toUpperCase();
-  const [existing] = await db
-    .select()
-    .from(watchlistTable)
-    .where(and(eq(watchlistTable.userId, req.user!.id), eq(watchlistTable.symbol, upper)));
+  const existing = await collections.watchlist().findOne({ userId: req.user!.id, symbol: upper });
   if (existing) {
     res.json({ id: existing.id, symbol: existing.symbol, addedAt: existing.addedAt.toISOString() });
     return;
   }
-  const [{ id: insertedId }] = await db
-    .insert(watchlistTable)
-    .values({ userId: req.user!.id, symbol: upper })
-    .$returningId();
-  const [inserted] = await db.select().from(watchlistTable).where(eq(watchlistTable.id, insertedId));
+  const inserted = {
+    id: await nextId("watchlist"),
+    userId: req.user!.id,
+    symbol: upper,
+    addedAt: new Date(),
+  };
+  await collections.watchlist().insertOne(inserted);
   res.json({ id: inserted.id, symbol: inserted.symbol, addedAt: inserted.addedAt.toISOString() });
 });
 
 router.delete("/watchlist/:symbol", requireAuth, async (req, res) => {
   const symbol = String(req.params.symbol).toUpperCase();
-  await db
-    .delete(watchlistTable)
-    .where(and(eq(watchlistTable.userId, req.user!.id), eq(watchlistTable.symbol, symbol)));
+  await collections.watchlist().deleteOne({ userId: req.user!.id, symbol });
   res.json({ success: true });
 });
 

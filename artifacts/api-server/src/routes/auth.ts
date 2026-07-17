@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, usersTable, rolesTable, loginHistoryTable } from "@workspace/db";
+import { collections, nextId } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
@@ -43,23 +42,34 @@ router.post("/auth/register", async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
+    const existing = await collections.users().findOne({ email: normalizedEmail });
     if (existing) {
       res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
 
-    const [userRole] = await db.select().from(rolesTable).where(eq(rolesTable.name, "user"));
+    const userRole = await collections.roles().findOne({ name: "user" });
     if (!userRole) {
       res.status(500).json({ error: "Server is not configured correctly (missing default role)" });
       return;
     }
 
     const passwordHash = await hashPassword(password);
-    const [{ id: newId }] = await db
-      .insert(usersTable)
-      .values({ name: name.trim(), email: normalizedEmail, passwordHash, roleId: userRole.id, plan: "free" })
-      .$returningId();
+    const newId = await nextId("users");
+    const now = new Date();
+    await collections.users().insertOne({
+      id: newId,
+      name: name.trim(),
+      email: normalizedEmail,
+      passwordHash,
+      roleId: userRole.id,
+      plan: "free",
+      status: "active",
+      emailVerifiedAt: null,
+      lastLoginAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     const authedUser = await loadAuthedUser(newId);
     if (!authedUser) {
@@ -87,27 +97,41 @@ router.post("/auth/login", async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
+    const user = await collections.users().findOne({ email: normalizedEmail });
 
     const ipAddress = clientIp(req);
     const userAgent = clientUserAgent(req);
 
+    const recordLogin = async (userId: number, status: "success" | "failed") => {
+      await collections.loginHistory().insertOne({
+        id: await nextId("login_history"),
+        userId,
+        ipAddress,
+        userAgent,
+        status,
+        createdAt: new Date(),
+      });
+    };
+
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
       if (user) {
-        await db.insert(loginHistoryTable).values({ userId: user.id, ipAddress, userAgent, status: "failed" });
+        await recordLogin(user.id, "failed");
       }
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
 
     if (user.status !== "active") {
-      await db.insert(loginHistoryTable).values({ userId: user.id, ipAddress, userAgent, status: "failed" });
+      await recordLogin(user.id, "failed");
       res.status(403).json({ error: "This account has been suspended" });
       return;
     }
 
-    await db.insert(loginHistoryTable).values({ userId: user.id, ipAddress, userAgent, status: "success" });
-    await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
+    await recordLogin(user.id, "success");
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { lastLoginAt: new Date(), updatedAt: new Date() } },
+    );
 
     const authedUser = await loadAuthedUser(user.id);
     if (!authedUser) {
