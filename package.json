@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
-    "build:deploy": "pnpm --filter @workspace/stock-dashboard --filter @workspace/api-server run build",
+    "build:deploy": "node artifacts/stock-dashboard/node_modules/vite/bin/vite.js build --config artifacts/stock-dashboard/vite.config.ts && node artifacts/api-server/build.mjs",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
