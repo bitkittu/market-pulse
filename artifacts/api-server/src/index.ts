@@ -12,7 +12,14 @@ if (Number.isNaN(port) || port <= 0) {
 
 connectDb()
   .then(() => seedAuthDefaults())
-  .catch((err) => logger.error({ err }, "Failed to connect to database / seed defaults"))
+  .then(() => console.log("[startup] MongoDB connected and auth defaults seeded"))
+  .catch((err) => {
+    logger.error({ err }, "Failed to connect to database / seed defaults");
+    console.error(
+      "[startup] Database connection/seed FAILED:",
+      err instanceof Error ? err.message : err,
+    );
+  })
   .finally(() => {
     app.listen(port, (err) => {
       if (err) {
