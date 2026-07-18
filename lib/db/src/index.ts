@@ -1,17 +1,24 @@
 import { MongoClient, type Db, type Collection } from "mongodb";
 
 // ── Connection ──────────────────────────────────────────────────────────────
-const uri = process.env.MONGODB_URI;
+// Accept the common env-var names various hosts inject for the connection
+// string (Hostinger's managed MongoDB connector adds one automatically).
+const uri =
+  process.env.MONGODB_URI ??
+  process.env.MONGODB_URL ??
+  process.env.MONGO_URL ??
+  process.env.MONGO_URI ??
+  process.env.DATABASE_URL;
 
 if (!uri) {
   throw new Error(
-    "MONGODB_URI must be set. Did you forget to configure the database?",
+    "MongoDB connection string missing. Set MONGODB_URI (or MONGODB_URL / MONGO_URL).",
   );
 }
 
 // The connection string may not include a database name, so it is configurable
 // separately. Defaults to "nse_pulse".
-const dbName = process.env.MONGODB_DB ?? "nse_pulse";
+const dbName = process.env.MONGODB_DB ?? process.env.MONGODB_DATABASE ?? "nse_pulse";
 
 export const client = new MongoClient(uri);
 
