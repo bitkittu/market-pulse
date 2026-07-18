@@ -171,7 +171,7 @@ export async function seedAuthDefaults(): Promise<void> {
   const existingAdmin = await collections.users().findOne({ roleId: adminRole.id });
   if (existingAdmin) return;
 
-  const email = (process.env["ADMIN_EMAIL"] ?? "admin@marketpulse.ai").trim().toLowerCase();
+  const email = (process.env["ADMIN_EMAIL"] ?? "team@trading.brandmars.com").trim().toLowerCase();
   const password = process.env["ADMIN_PASSWORD"] ?? "Admin@123";
   const passwordHash = await hashPassword(password);
   const now = new Date();

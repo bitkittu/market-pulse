@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import crypto from "node:crypto";
 import { collections, nextId } from "@workspace/db";
 import {
   hashPassword,
@@ -10,10 +11,35 @@ import {
   loadAuthedUser,
   requireAuth,
 } from "../lib/auth.js";
+import { sendPasswordResetEmail } from "../lib/email.js";
 
 const router: IRouter = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// ── Password reset helpers ──────────────────────────────────────────────────
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+// Simple in-memory rate limiter for reset requests (per instance). Keyed by
+// ip+email; allows RESET_MAX requests per RESET_WINDOW_MS window.
+const RESET_WINDOW_MS = 15 * 60 * 1000;
+const RESET_MAX = 5;
+const resetAttempts = new Map<string, { count: number; windowStart: number }>();
+
+function isResetRateLimited(key: string): boolean {
+  const now = Date.now();
+  const entry = resetAttempts.get(key);
+  if (!entry || now - entry.windowStart > RESET_WINDOW_MS) {
+    resetAttempts.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > RESET_MAX;
+}
 
 function clientIp(req: { ip?: string }): string | null {
   return req.ip ?? null;
@@ -146,6 +172,113 @@ router.post("/auth/login", async (req, res) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[auth] login error:", msg);
     res.status(500).json({ error: "Failed to sign in" });
+  }
+});
+
+// Generic response used regardless of whether the email exists, to avoid
+// leaking which addresses are registered.
+const RESET_GENERIC_MESSAGE =
+  "If an account exists for that email, a password reset link has been sent.";
+
+router.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body ?? {};
+    if (typeof email !== "string" || !EMAIL_RE.test(email)) {
+      res.status(400).json({ error: "Enter a valid email address" });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const ip = clientIp(req) ?? "unknown";
+    if (isResetRateLimited(`${ip}:${normalizedEmail}`)) {
+      res.status(429).json({ error: "Too many reset requests. Please try again later." });
+      return;
+    }
+
+    const user = await collections.users().findOne({ email: normalizedEmail });
+    if (!user) {
+      res.json({ message: RESET_GENERIC_MESSAGE });
+      return;
+    }
+
+    // Invalidate any previous outstanding tokens for this user.
+    await collections.passwordResets().deleteMany({ userId: user.id, usedAt: null });
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const now = new Date();
+    await collections.passwordResets().insertOne({
+      id: await nextId("password_resets"),
+      userId: user.id,
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(now.getTime() + RESET_TOKEN_TTL_MS),
+      usedAt: null,
+      createdAt: now,
+    });
+
+    const baseUrl = (
+      process.env["APP_BASE_URL"] ?? `${req.protocol}://${req.get("host")}`
+    ).replace(/\/$/, "");
+    const resetUrl = `${baseUrl}/?reset_token=${rawToken}`;
+
+    const emailed = await sendPasswordResetEmail(normalizedEmail, resetUrl);
+
+    // When email isn't configured, optionally surface the link for testing.
+    // Off in production unless SHOW_RESET_LINK=true is explicitly set.
+    const exposeLink =
+      !emailed &&
+      (process.env["NODE_ENV"] !== "production" || process.env["SHOW_RESET_LINK"] === "true");
+
+    res.json({
+      message: RESET_GENERIC_MESSAGE,
+      ...(exposeLink ? { devResetUrl: resetUrl } : {}),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[auth] forgot-password error:", msg);
+    res.status(500).json({ error: "Failed to process reset request" });
+  }
+});
+
+router.post("/auth/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body ?? {};
+
+    if (typeof token !== "string" || token.length < 20) {
+      res.status(400).json({ error: "Invalid or expired reset link" });
+      return;
+    }
+    if (typeof password !== "string" || password.length < 8) {
+      res.status(400).json({ error: "Password must be at least 8 characters" });
+      return;
+    }
+
+    const record = await collections.passwordResets().findOne({
+      tokenHash: hashToken(token),
+      usedAt: null,
+    });
+    if (!record || record.expiresAt.getTime() < Date.now()) {
+      res.status(400).json({ error: "Invalid or expired reset link" });
+      return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    await collections.users().updateOne(
+      { id: record.userId },
+      { $set: { passwordHash, updatedAt: new Date() } },
+    );
+
+    // Mark this token used and clear any other outstanding tokens for the user.
+    await collections.passwordResets().updateOne(
+      { id: record.id },
+      { $set: { usedAt: new Date() } },
+    );
+    await collections.passwordResets().deleteMany({ userId: record.userId, usedAt: null });
+
+    res.json({ message: "Your password has been reset. You can now sign in." });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[auth] reset-password error:", msg);
+    res.status(500).json({ error: "Failed to reset password" });
   }
 });
 

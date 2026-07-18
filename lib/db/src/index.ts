@@ -126,6 +126,15 @@ export interface LoginHistoryDoc {
   createdAt: Date;
 }
 
+export interface PasswordResetDoc {
+  id: number;
+  userId: number;
+  tokenHash: string; // sha256 of the raw token — the raw token is never stored
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+}
+
 interface CounterDoc {
   _id: string;
   seq: number;
@@ -141,6 +150,8 @@ export const collections = {
     getDb().collection<UpstoxSettingsDoc>("upstox_settings"),
   loginHistory: (): Collection<LoginHistoryDoc> =>
     getDb().collection<LoginHistoryDoc>("login_history"),
+  passwordResets: (): Collection<PasswordResetDoc> =>
+    getDb().collection<PasswordResetDoc>("password_resets"),
   counters: (): Collection<CounterDoc> => getDb().collection<CounterDoc>("counters"),
 };
 
@@ -167,5 +178,9 @@ async function ensureIndexes(db: Db): Promise<void> {
     db.collection("portfolio").createIndex({ userId: 1, symbol: 1 }, { unique: true }),
     db.collection("upstox_settings").createIndex({ userId: 1 }, { unique: true }),
     db.collection("login_history").createIndex({ userId: 1 }),
+    db.collection("password_resets").createIndex({ tokenHash: 1 }, { unique: true }),
+    db.collection("password_resets").createIndex({ userId: 1 }),
+    // TTL index: MongoDB auto-removes reset docs once expiresAt passes.
+    db.collection("password_resets").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
 }

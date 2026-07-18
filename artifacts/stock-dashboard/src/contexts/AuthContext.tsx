@@ -15,6 +15,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string; message?: string; devResetUrl?: string }>;
+  resetPassword: (token: string, password: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   logout: () => void;
   allUsers: () => User[];
   deleteUser: (id: number) => void;
@@ -82,6 +84,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
+  const requestPasswordReset = async (email: string) => {
+    const res = await api<{ message: string; devResetUrl?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    const data = res.data as { message: string; devResetUrl?: string };
+    return { success: true, message: data.message, devResetUrl: data.devResetUrl };
+  };
+
+  const resetPassword = async (token: string, password: string) => {
+    const res = await api<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    return { success: true, message: (res.data as { message: string }).message };
+  };
+
   const logout = () => {
     setUser(null);
     setUsers([]);
@@ -101,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, allUsers, deleteUser, updateUserPlan }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, requestPasswordReset, resetPassword, logout, allUsers, deleteUser, updateUserPlan }}>
       {children}
     </AuthContext.Provider>
   );

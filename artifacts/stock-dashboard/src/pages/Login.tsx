@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { TrendingUp, Eye, EyeOff, ArrowLeft, Loader2, ShieldCheck } from "lucide-react";
+import { TrendingUp, Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   onRegister: () => void;
   onBack: () => void;
+  onForgot: () => void;
 }
 
-export function Login({ onRegister, onBack }: Props) {
+export function Login({ onRegister, onBack, onForgot }: Props) {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,19 +56,6 @@ export function Login({ onRegister, onBack }: Props) {
           <h1 className="text-2xl font-bold text-white text-center mb-1">Welcome back</h1>
           <p className="text-slate-400 text-sm text-center mb-8">Sign in to your account to continue</p>
 
-          {/* Demo hint */}
-          <div className="mb-6 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-            <div className="flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-              <div className="text-xs text-slate-300">
-                <span className="text-blue-400 font-semibold">Demo Admin:</span>{" "}
-                admin@marketpulse.ai / Admin@123
-                <br />
-                <span className="text-slate-400">Or register a new account below.</span>
-              </div>
-            </div>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">Email address</label>
@@ -81,6 +69,10 @@ export function Login({ onRegister, onBack }: Props) {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-medium text-slate-300">Password</label>
+                <button type="button" onClick={onForgot}
+                  className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">
+                  Forgot password?
+                </button>
               </div>
               <div className="relative">
                 <input

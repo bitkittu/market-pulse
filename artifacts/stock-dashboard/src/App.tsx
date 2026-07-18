@@ -14,6 +14,8 @@ const Commodities      = lazy(() => import("@/pages/Commodities").then(m => ({ d
 const LandingPage      = lazy(() => import("@/pages/LandingPage").then(m => ({ default: m.LandingPage })));
 const Login            = lazy(() => import("@/pages/Login").then(m => ({ default: m.Login })));
 const Register         = lazy(() => import("@/pages/Register").then(m => ({ default: m.Register })));
+const ForgotPassword   = lazy(() => import("@/pages/ForgotPassword").then(m => ({ default: m.ForgotPassword })));
+const ResetPassword    = lazy(() => import("@/pages/ResetPassword").then(m => ({ default: m.ResetPassword })));
 const AdminPanel       = lazy(() => import("@/pages/AdminPanel").then(m => ({ default: m.AdminPanel })));
 
 // Lightweight fallback shown while a lazy chunk loads
@@ -394,11 +396,20 @@ function LoadingScreen() {
 }
 
 // ── App Router ────────────────────────────────────────────────────────────
-type AuthView = "landing" | "login" | "register";
+type AuthView = "landing" | "login" | "register" | "forgot" | "reset";
+
+function readResetTokenFromUrl(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("reset_token");
+  } catch {
+    return null;
+  }
+}
 
 function AppRouter() {
   const { user, isLoading } = useAuth();
-  const [view, setView] = useState<AuthView>("landing");
+  const [resetToken, setResetToken] = useState<string | null>(() => readResetTokenFromUrl());
+  const [view, setView] = useState<AuthView>(() => (readResetTokenFromUrl() ? "reset" : "landing"));
 
   // Ensure landing page uses dark mode
   useEffect(() => {
@@ -409,7 +420,29 @@ function AppRouter() {
     }
   }, [user]);
 
+  const finishReset = () => {
+    // Strip the token from the URL so it can't be reused/shared, then return
+    // to the sign-in screen.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("reset_token");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    } catch { /* ignore */ }
+    setResetToken(null);
+    setView("login");
+  };
+
   if (isLoading) return <LoadingScreen />;
+
+  // A reset link takes precedence over everything, even a stale session, so a
+  // user who clicked their email link always lands on the reset screen.
+  if (resetToken || view === "reset") {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <ResetPassword token={resetToken ?? ""} onDone={finishReset} />
+      </Suspense>
+    );
+  }
 
   // Authenticated — route based on role
   if (user) {
@@ -423,8 +456,9 @@ function AppRouter() {
   // Unauthenticated — show auth views
   return (
     <Suspense fallback={<PageLoader />}>
-      {view === "login"    && <Login onRegister={() => setView("register")} onBack={() => setView("landing")} />}
+      {view === "login"    && <Login onRegister={() => setView("register")} onBack={() => setView("landing")} onForgot={() => setView("forgot")} />}
       {view === "register" && <Register onLogin={() => setView("login")} onBack={() => setView("landing")} />}
+      {view === "forgot"   && <ForgotPassword onBack={() => setView("login")} />}
       {view === "landing"  && <LandingPage onLogin={() => setView("login")} onRegister={() => setView("register")} />}
     </Suspense>
   );
