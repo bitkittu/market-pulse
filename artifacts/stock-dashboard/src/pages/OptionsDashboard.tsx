@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useGetOptionsSuggestions, OptionsSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { LockedValue, LockedHint } from "@/components/LockedValue";
+import { UpgradeGate } from "@/components/UpgradeGate";
+import { useFeatureAccess } from "@/lib/plan";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
@@ -212,8 +214,9 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
 }
 
 export function OptionsDashboard() {
+  const canView = useFeatureAccess("options");
   const [activeTab, setActiveTab] = useState<TabId>("all");
-  const { data: rawData, isLoading, refetch, isFetching } = useGetOptionsSuggestions({ query: { refetchInterval: 60000 } });
+  const { data: rawData, isLoading, refetch, isFetching } = useGetOptionsSuggestions({ query: { refetchInterval: 60000, enabled: canView } });
 
   const counts = useMemo(() => ({
     all: rawData?.length ?? 0,
@@ -241,19 +244,18 @@ export function OptionsDashboard() {
     { id: "strong" as TabId, label: "Strong Signals", count: counts.strong, activeLine: "bg-violet-500" },
   ];
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
-            <Activity className="w-4 h-4 text-violet-400" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black text-white">Options Trading Picks</h1>
-            <p className="text-xs text-muted-foreground">CE & PE · IV & OI analysis · Hover columns for explanations</p>
-          </div>
+  const Header = (
+    <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
+          <Activity className="w-4 h-4 text-violet-400" />
         </div>
+        <div>
+          <h1 className="text-lg font-black text-white">Options Trading Picks</h1>
+          <p className="text-xs text-muted-foreground">CE & PE · IV & OI analysis · Hover columns for explanations</p>
+        </div>
+      </div>
+      {canView && (
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground font-mono">{now} IST</span>
           <button onClick={() => refetch()} disabled={isFetching}
@@ -261,7 +263,26 @@ export function OptionsDashboard() {
             <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} /> Refresh
           </button>
         </div>
+      )}
+    </div>
+  );
+
+  if (!canView) {
+    return (
+      <div>
+        {Header}
+        <UpgradeGate
+          title="Options Predictions is a Pro feature"
+          description="Unlock CE/PE option picks with implied-volatility and open-interest analysis, buy/sell triggers, stop-loss and confidence."
+        />
       </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      {Header}
 
       {/* Tab bar with underline animation */}
       <div className="flex items-center gap-0 mb-5 border-b border-border">

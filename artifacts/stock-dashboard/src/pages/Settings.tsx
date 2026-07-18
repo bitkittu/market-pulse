@@ -9,10 +9,27 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Settings2, Link2, Unlink, CheckCircle2, AlertCircle, ExternalLink,
   Eye, EyeOff, Zap, Clock, Wifi, WifiOff, RefreshCw, TriangleAlert,
+  User, Crown, Check, Lock, Sparkles, Mail, CalendarDays,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { UpgradeGate } from "@/components/UpgradeGate";
+import {
+  PLANS, PLAN_ORDER, FEATURE_ROWS, hasAccess,
+  type PlanId,
+} from "@/lib/plan";
 
 function cn(...c: (string | false | undefined | null)[]) {
   return c.filter(Boolean).join(" ");
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 type TestResult = { ok: boolean; source: string; message: string; samplePrice?: number; sampleSymbol?: string } | null;
@@ -287,15 +304,177 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-export function Settings() {
-  const { data, isLoading, refetch } = useGetUpstoxSettings({ query: {} });
+// ── Profile card ────────────────────────────────────────────────────────────
+function ProfileCard() {
+  const { user } = useAuth();
+  if (!user) return null;
+  const plan = PLANS[user.plan];
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-5">
+        <User className="w-4 h-4 text-primary" /> Profile
+      </h2>
+      <div className="flex items-center gap-4 mb-5">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white text-2xl font-black shrink-0">
+          {user.name.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-lg font-bold text-foreground truncate">{user.name}</span>
+            <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-bold capitalize", plan.badge)}>
+              <Crown className="w-3 h-3" /> {plan.name}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+            <Mail className="w-3 h-3" /> {user.email}
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-background/50 border border-border rounded-lg px-4 py-3">
+          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5"><CalendarDays className="w-3 h-3" /> Member since</p>
+          <p className="text-sm font-semibold text-foreground">{fmtDate(user.joinedAt)}</p>
+        </div>
+        <div className="bg-background/50 border border-border rounded-lg px-4 py-3">
+          <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Last login</p>
+          <p className="text-sm font-semibold text-foreground">{fmtDate(user.lastLogin)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Upgrade / plan cards ────────────────────────────────────────────────────
+function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
+        <Sparkles className="w-4 h-4 text-primary" /> Your Plan
+      </h2>
+      <p className="text-xs text-muted-foreground mb-5">
+        You're on the <span className="font-semibold capitalize text-foreground">{PLANS[currentPlan].name}</span> plan. Upgrade to unlock predictions, live levels and broker integration.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {PLAN_ORDER.map((pid) => {
+          const p = PLANS[pid];
+          const isCurrent = pid === currentPlan;
+          const included = FEATURE_ROWS.filter((f) => hasAccess(pid, f.feature));
+          return (
+            <div key={pid} className={cn("relative rounded-xl border bg-background/40 p-4 flex flex-col", isCurrent ? "border-primary/50 ring-1 ring-primary/30" : p.card)}>
+              {isCurrent && (
+                <span className="absolute -top-2.5 left-4 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary text-white">
+                  Current
+                </span>
+              )}
+              <div className="flex items-baseline justify-between mb-1">
+                <span className={cn("text-base font-black", p.accent)}>{p.name}</span>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-foreground">{p.price}</span>
+                  {p.priceNote && <span className="text-[10px] text-muted-foreground ml-1">{p.priceNote}</span>}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">{p.tagline}</p>
+
+              <ul className="space-y-1.5 mb-4 flex-1">
+                {included.map((f) => (
+                  <li key={f.feature} className="flex items-start gap-1.5 text-xs text-foreground">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /> {f.label}
+                  </li>
+                ))}
+                {pid !== "free" && (
+                  <li className="flex items-start gap-1.5 text-xs text-muted-foreground italic">
+                    <Sparkles className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> More benefits announced soon
+                  </li>
+                )}
+              </ul>
+
+              {isCurrent ? (
+                <button disabled className="w-full text-xs font-bold py-2 rounded-lg border border-border bg-muted/30 text-muted-foreground cursor-default">
+                  Your current plan
+                </button>
+              ) : pid === "free" ? (
+                <button disabled className="w-full text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-default">
+                  Included
+                </button>
+              ) : (
+                <button disabled className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary cursor-default">
+                  <Sparkles className="w-3.5 h-3.5" /> Upgrade — coming soon
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Plan benefits comparison ────────────────────────────────────────────────
+function BenefitsTable({ currentPlan }: { currentPlan: PlanId }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
+        <Settings2 className="w-4 h-4 text-primary" /> Plan Benefits
+      </h2>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="text-left font-semibold text-muted-foreground py-2 pr-4">Feature</th>
+              {PLAN_ORDER.map((pid) => (
+                <th key={pid} className={cn("text-center font-bold py-2 px-3 w-24", PLANS[pid].accent, pid === currentPlan && "underline underline-offset-4")}>
+                  {PLANS[pid].name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {FEATURE_ROWS.map((f) => (
+              <tr key={f.feature} className="border-b border-border/40 last:border-0">
+                <td className="py-2.5 pr-4">
+                  <p className="text-xs font-semibold text-foreground">{f.label}</p>
+                  <p className="text-[11px] text-muted-foreground">{f.desc}</p>
+                </td>
+                {PLAN_ORDER.map((pid) => (
+                  <td key={pid} className="text-center py-2.5 px-3">
+                    {hasAccess(pid, f.feature) ? (
+                      <Check className="w-4 h-4 text-emerald-400 mx-auto" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5 text-muted-foreground/60 mx-auto" />
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Upstox API section (gated for free) ─────────────────────────────────────
+function ApiSection() {
+  const canApi = hasAccess(useAuth().user?.plan, "apiSettings");
+  const { data, isLoading, refetch } = useGetUpstoxSettings({ query: { enabled: canApi } });
   const qc = useQueryClient();
   const disconnectMut = useDisconnectUpstox({
     mutation: { onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/settings/upstox"] }) },
   });
 
+  if (!canApi) {
+    return (
+      <UpgradeGate
+        title="API Settings is a Pro feature"
+        description="Connect your Upstox broker account for real-time NSE tick data across the whole app. Available once you upgrade to Pro."
+      />
+    );
+  }
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <>
       {/* Upstox API Section */}
       <div className="bg-card border border-border rounded-xl p-6">
         <div className="flex items-center gap-3 mb-6">
@@ -321,6 +500,34 @@ export function Settings() {
         )}
       </div>
 
+      {/* Data Note */}
+      {!data?.connected && (
+        <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl text-xs text-muted-foreground">
+          <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold text-blue-400">Using Yahoo Finance:</span> Without an Upstox API connection, NSE prices are fetched via Yahoo Finance (free, 15-minute delayed during market hours). Connect Upstox to get real-time tick data directly from NSE.
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function Settings() {
+  const { user } = useAuth();
+  const plan = user?.plan ?? "free";
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <h1 className="text-xl font-black text-foreground flex items-center gap-2">
+        <Settings2 className="w-5 h-5 text-primary" /> Settings
+      </h1>
+
+      <ProfileCard />
+      <PlanSection currentPlan={plan} />
+      <BenefitsTable currentPlan={plan} />
+      <ApiSection />
+
       {/* General Settings */}
       <div className="bg-card border border-border rounded-xl p-6">
         <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
@@ -343,16 +550,6 @@ export function Settings() {
           ))}
         </div>
       </div>
-
-      {/* Data Note */}
-      {!data?.connected && (
-        <div className="flex items-start gap-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl text-xs text-muted-foreground">
-          <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold text-blue-400">Using Yahoo Finance:</span> Without an Upstox API connection, NSE prices are fetched via Yahoo Finance (free, 15-minute delayed during market hours). Connect Upstox to get real-time tick data directly from NSE.
-          </div>
-        </div>
-      )}
     </div>
   );
 }

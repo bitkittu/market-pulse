@@ -34,8 +34,9 @@ function PageLoader() {
 import {
   LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock,
   Zap, Activity, BarChart2, Newspaper, Wheat, ChevronDown,
-  Sun, Moon, Link2, LogOut, User, Crown,
+  Sun, Moon, Link2, LogOut, User, Crown, Lock,
 } from "lucide-react";
+import { hasAccess } from "@/lib/plan";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -152,12 +153,13 @@ function NavDropdown({
 }
 
 function DropdownItem({
-  icon: Icon, label, active, accent, onClick,
+  icon: Icon, label, active, accent, locked, onClick,
 }: {
   icon: typeof LayoutDashboard;
   label: string;
   active: boolean;
   accent?: string;
+  locked?: boolean;
   onClick: () => void;
 }) {
   const accentText: Record<string, string> = {
@@ -180,6 +182,7 @@ function DropdownItem({
     >
       <Icon className="w-3.5 h-3.5 shrink-0" />
       {label}
+      {locked && <Lock className="w-3 h-3 ml-auto text-muted-foreground shrink-0" />}
     </button>
   );
 }
@@ -250,8 +253,12 @@ function UserMenu() {
 
 // ── App Shell ─────────────────────────────────────────────────────────────
 function AppShell() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useState<"dark" | "light">(getInitialTheme);
+
+  const intradayLocked = !hasAccess(user?.plan, "intraday");
+  const optionsLocked = !hasAccess(user?.plan, "options");
 
   useEffect(() => { applyTheme(theme); }, [theme]);
 
@@ -304,8 +311,8 @@ function AppShell() {
 
             {/* Trading ▼ */}
             <NavDropdown label="Trading" icon={Zap} active={tradingActive}>
-              <DropdownItem icon={Zap}      label="Intraday"    active={tab === "intraday"}    accent="emerald" onClick={() => { goTab("intraday");    }} />
-              <DropdownItem icon={Activity} label="Options"     active={tab === "options"}     accent="violet"  onClick={() => { goTab("options");     }} />
+              <DropdownItem icon={Zap}      label="Intraday"    active={tab === "intraday"}    accent="emerald" locked={intradayLocked} onClick={() => { goTab("intraday");    }} />
+              <DropdownItem icon={Activity} label="Options"     active={tab === "options"}     accent="violet"  locked={optionsLocked}  onClick={() => { goTab("options");     }} />
               <DropdownItem icon={Wheat}    label="Commodities" active={tab === "commodities"} accent="orange"  onClick={() => { goTab("commodities"); }} />
             </NavDropdown>
 

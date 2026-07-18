@@ -21,6 +21,8 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { LockedValue, LockedHint } from "@/components/LockedValue";
+import { LockOverlay } from "@/components/UpgradeGate";
+import { useFeatureAccess } from "@/lib/plan";
 import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Clock, RefreshCw, Bell, BellOff, ChevronUp, ChevronDown,
@@ -211,6 +213,7 @@ function LevelPill({ label, value, accent, tip }: { label: string; value: number
 }
 
 function KeyLevelsPanel({ panel, mode }: { panel: DecisionPanel | undefined; mode: Mode }) {
+  const canView = useFeatureAccess("keyLevels");
   if (!panel) return (
     <div className="bg-card border border-border rounded-xl p-4">
       <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
@@ -220,6 +223,22 @@ function KeyLevelsPanel({ panel, mode }: { panel: DecisionPanel | undefined; mod
   );
 
   const kl = panel.keyLevels;
+  const grid = (
+    <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-11 gap-2">
+      <LevelPill label="R3"        value={kl.r3}        accent="border-emerald-700/40"  tip={mode === "learning" ? "Strong resistance" : undefined} />
+      <LevelPill label="R2"        value={kl.r2}        accent="border-emerald-600/40" />
+      <LevelPill label="R1"        value={kl.r1}        accent="border-emerald-500/50" />
+      <LevelPill label="PIVOT"     value={kl.pivot}     accent="border-primary/50" />
+      <LevelPill label="VWAP"      value={kl.vwap}      accent="border-blue-500/40"     tip={mode === "learning" ? "Fair value" : undefined} />
+      <LevelPill label="S1"        value={kl.s1}        accent="border-red-500/50" />
+      <LevelPill label="S2"        value={kl.s2}        accent="border-red-600/40" />
+      <LevelPill label="S3"        value={kl.s3}        accent="border-red-700/40"      tip={mode === "learning" ? "Strong support" : undefined} />
+      <LevelPill label="PREV HIGH" value={kl.prevHigh}  accent="border-emerald-400/30" />
+      <LevelPill label="PREV LOW"  value={kl.prevLow}   accent="border-red-400/30" />
+      <LevelPill label="PREV CLOSE" value={kl.prevClose} />
+    </div>
+  );
+
   return (
     <div className="bg-card border border-border rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
@@ -230,19 +249,7 @@ function KeyLevelsPanel({ panel, mode }: { panel: DecisionPanel | undefined; mod
           <span className="text-[10px] text-muted-foreground">Pivot points based on previous session OHLC</span>
         )}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-11 gap-2">
-        <LevelPill label="R3"        value={kl.r3}        accent="border-emerald-700/40"  tip={mode === "learning" ? "Strong resistance" : undefined} />
-        <LevelPill label="R2"        value={kl.r2}        accent="border-emerald-600/40" />
-        <LevelPill label="R1"        value={kl.r1}        accent="border-emerald-500/50" />
-        <LevelPill label="PIVOT"     value={kl.pivot}     accent="border-primary/50" />
-        <LevelPill label="VWAP"      value={kl.vwap}      accent="border-blue-500/40"     tip={mode === "learning" ? "Fair value" : undefined} />
-        <LevelPill label="S1"        value={kl.s1}        accent="border-red-500/50" />
-        <LevelPill label="S2"        value={kl.s2}        accent="border-red-600/40" />
-        <LevelPill label="S3"        value={kl.s3}        accent="border-red-700/40"      tip={mode === "learning" ? "Strong support" : undefined} />
-        <LevelPill label="PREV HIGH" value={kl.prevHigh}  accent="border-emerald-400/30" />
-        <LevelPill label="PREV LOW"  value={kl.prevLow}   accent="border-red-400/30" />
-        <LevelPill label="PREV CLOSE" value={kl.prevClose} />
-      </div>
+      {canView ? grid : <LockOverlay label="Resistance & Support Levels">{grid}</LockOverlay>}
     </div>
   );
 }

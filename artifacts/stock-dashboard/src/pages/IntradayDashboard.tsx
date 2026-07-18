@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useGetIntradaySuggestions, StockSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Zap, TrendingUp, TrendingDown, Minus, ShieldAlert } from "lucide-react";
 import { LockedValue, LockedHint } from "@/components/LockedValue";
+import { UpgradeGate } from "@/components/UpgradeGate";
+import { useFeatureAccess } from "@/lib/plan";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
@@ -193,8 +195,9 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
 }
 
 export function IntradayDashboard() {
+  const canView = useFeatureAccess("intraday");
   const [selected, setSelected] = useState<Set<Signal>>(new Set());
-  const { data: rawData, isLoading, refetch, isFetching } = useGetIntradaySuggestions({ query: { refetchInterval: 60000 } });
+  const { data: rawData, isLoading, refetch, isFetching } = useGetIntradaySuggestions({ query: { refetchInterval: 60000, enabled: canView } });
 
   // Sort by confidence descending
   const data = useMemo(() =>
@@ -224,19 +227,18 @@ export function IntradayDashboard() {
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
   const COLS = ["Rank", "Symbol", "Current", "Buy Below", "Sell Above", "Stop Loss", "Signal", "Confidence", "Risk", "RSI", "Volume"];
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <h1 className="text-lg font-black text-white">Intraday Stock Picks</h1>
-            <p className="text-xs text-muted-foreground">Sorted by confidence · Top 3 highlighted · AI-screened</p>
-          </div>
+  const Header = (
+    <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+          <Zap className="w-4 h-4 text-emerald-400" />
         </div>
+        <div>
+          <h1 className="text-lg font-black text-white">Intraday Stock Picks</h1>
+          <p className="text-xs text-muted-foreground">Sorted by confidence · Top 3 highlighted · AI-screened</p>
+        </div>
+      </div>
+      {canView && (
         <div className="flex items-center gap-3">
           <span className="text-xs text-muted-foreground font-mono">{now} IST</span>
           <button onClick={() => refetch()} disabled={isFetching}
@@ -244,7 +246,26 @@ export function IntradayDashboard() {
             <RefreshCw className={cn("w-3 h-3", isFetching && "animate-spin")} /> Refresh
           </button>
         </div>
+      )}
+    </div>
+  );
+
+  if (!canView) {
+    return (
+      <div>
+        {Header}
+        <UpgradeGate
+          title="Intraday Predictions is a Pro feature"
+          description="Unlock AI-screened intraday buy/sell levels, stop-loss, confidence and risk for the top NSE stocks — updated live through the session."
+        />
       </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      {Header}
 
       {/* Filter Chips */}
       <div className="flex flex-wrap items-center gap-2.5 mb-5">
