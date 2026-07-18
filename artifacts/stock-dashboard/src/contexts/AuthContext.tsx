@@ -17,6 +17,8 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string; message?: string; devResetUrl?: string }>;
   resetPassword: (token: string, password: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  updateProfile: (name: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   logout: () => void;
   allUsers: () => User[];
   deleteUser: (id: number) => void;
@@ -103,6 +105,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true, message: (res.data as { message: string }).message };
   };
 
+  const updateProfile = async (name: string) => {
+    const res = await api<{ user: User }>("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    setUser((res.data as { user: User }).user);
+    return { success: true };
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    const res = await api<{ message: string }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    return { success: true, message: (res.data as { message: string }).message };
+  };
+
   const logout = () => {
     setUser(null);
     setUsers([]);
@@ -122,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, requestPasswordReset, resetPassword, logout, allUsers, deleteUser, updateUserPlan }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, requestPasswordReset, resetPassword, updateProfile, changePassword, logout, allUsers, deleteUser, updateUserPlan }}>
       {children}
     </AuthContext.Provider>
   );

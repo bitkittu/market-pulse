@@ -10,6 +10,7 @@ import {
   Settings2, Link2, Unlink, CheckCircle2, AlertCircle, ExternalLink,
   Eye, EyeOff, Zap, Clock, Wifi, WifiOff, RefreshCw, TriangleAlert,
   User, Crown, Check, Lock, Sparkles, Mail, CalendarDays,
+  Save, KeyRound, Pencil, X, Loader2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UpgradeGate } from "@/components/UpgradeGate";
@@ -304,33 +305,87 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-// ── Profile card ────────────────────────────────────────────────────────────
+// ── Profile card (editable name) ────────────────────────────────────────────
 function ProfileCard() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(user?.name ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
   if (!user) return null;
   const plan = PLANS[user.plan];
 
+  const save = async () => {
+    if (name.trim().length < 2) { setError("Name must be at least 2 characters"); return; }
+    setSaving(true); setError("");
+    const res = await updateProfile(name.trim());
+    setSaving(false);
+    if (!res.success) { setError(res.error ?? "Failed to update profile"); return; }
+    setEditing(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const cancel = () => { setName(user.name); setEditing(false); setError(""); };
+
   return (
     <div className="bg-card border border-border rounded-xl p-6">
-      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-5">
-        <User className="w-4 h-4 text-primary" /> Profile
-      </h2>
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+          <User className="w-4 h-4 text-primary" /> Profile
+        </h2>
+        {!editing && (
+          <button onClick={() => { setName(user.name); setEditing(true); }}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 border border-primary/30 rounded-lg px-2.5 py-1 transition-colors">
+            <Pencil className="w-3 h-3" /> Edit
+          </button>
+        )}
+      </div>
+
       <div className="flex items-center gap-4 mb-5">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center text-white text-2xl font-black shrink-0">
-          {user.name.charAt(0).toUpperCase()}
+          {(editing ? name : user.name).charAt(0).toUpperCase() || "?"}
         </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-lg font-bold text-foreground truncate">{user.name}</span>
-            <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-bold capitalize", plan.badge)}>
-              <Crown className="w-3 h-3" /> {plan.name}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-            <Mail className="w-3 h-3" /> {user.email}
-          </div>
+        <div className="min-w-0 flex-1">
+          {editing ? (
+            <div className="space-y-2">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                placeholder="Your name"
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <div className="flex items-center gap-2">
+                <button onClick={save} disabled={saving}
+                  className="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50">
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
+                </button>
+                <button onClick={cancel} disabled={saving}
+                  className="inline-flex items-center gap-1.5 border border-border text-muted-foreground hover:text-foreground text-xs font-bold px-3 py-1.5 rounded-lg transition-all">
+                  <X className="w-3.5 h-3.5" /> Cancel
+                </button>
+              </div>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-lg font-bold text-foreground truncate">{user.name}</span>
+                <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-bold capitalize", plan.badge)}>
+                  <Crown className="w-3 h-3" /> {plan.name}
+                </span>
+                {saved && <span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check className="w-3 h-3" /> Saved</span>}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                <Mail className="w-3 h-3" /> {user.email}
+              </div>
+            </>
+          )}
         </div>
       </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="bg-background/50 border border-border rounded-lg px-4 py-3">
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5"><CalendarDays className="w-3 h-3" /> Member since</p>
@@ -341,6 +396,82 @@ function ProfileCard() {
           <p className="text-sm font-semibold text-foreground">{fmtDate(user.lastLogin)}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Change password ─────────────────────────────────────────────────────────
+function ChangePassword() {
+  const { changePassword } = useAuth();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(""); setMsg("");
+    if (!current) { setError("Enter your current password"); return; }
+    if (next.length < 8) { setError("New password must be at least 8 characters"); return; }
+    if (next !== confirm) { setError("New passwords do not match"); return; }
+    setSaving(true);
+    const res = await changePassword(current, next);
+    setSaving(false);
+    if (!res.success) { setError(res.error ?? "Failed to change password"); return; }
+    setMsg(res.message ?? "Your password has been changed.");
+    setCurrent(""); setNext(""); setConfirm("");
+  };
+
+  const inputCls = "w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50";
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
+        <KeyRound className="w-4 h-4 text-primary" /> Password
+      </h2>
+      <form onSubmit={submit} className="space-y-3 max-w-md">
+        <div>
+          <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Current password</label>
+          <input type={show ? "text" : "password"} value={current} onChange={(e) => setCurrent(e.target.value)}
+            placeholder="••••••••" className={inputCls} autoComplete="current-password" />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">New password</label>
+          <div className="relative">
+            <input type={show ? "text" : "password"} value={next} onChange={(e) => setNext(e.target.value)}
+              placeholder="At least 8 characters" className={cn(inputCls, "pr-10")} autoComplete="new-password" />
+            <button type="button" onClick={() => setShow((s) => !s)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Confirm new password</label>
+          <input type={show ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Re-enter new password" className={inputCls} autoComplete="new-password" />
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 rounded-lg px-3 py-2">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+          </div>
+        )}
+        {msg && (
+          <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 rounded-lg px-3 py-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" /> {msg}
+          </div>
+        )}
+
+        <button type="submit" disabled={saving}
+          className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white font-bold py-2.5 px-5 rounded-lg transition-all disabled:opacity-50 text-sm">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+          {saving ? "Updating…" : "Update Password"}
+        </button>
+      </form>
     </div>
   );
 }
@@ -513,6 +644,7 @@ function ApiSection() {
   );
 }
 
+// ── Account Settings page (profile, password, plan, benefits) ───────────────
 export function Settings() {
   const { user } = useAuth();
   const plan = user?.plan ?? "free";
@@ -520,15 +652,28 @@ export function Settings() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-xl font-black text-foreground flex items-center gap-2">
-        <Settings2 className="w-5 h-5 text-primary" /> Settings
+        <User className="w-5 h-5 text-primary" /> Account Settings
       </h1>
 
       <ProfileCard />
+      <ChangePassword />
       <PlanSection currentPlan={plan} />
       <BenefitsTable currentPlan={plan} />
+    </div>
+  );
+}
+
+// ── API Settings page (Upstox integration only) ─────────────────────────────
+export function ApiSettings() {
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <h1 className="text-xl font-black text-foreground flex items-center gap-2">
+        <Link2 className="w-5 h-5 text-primary" /> API Settings
+      </h1>
+
       <ApiSection />
 
-      {/* General Settings */}
+      {/* Market / data reference */}
       <div className="bg-card border border-border rounded-xl p-6">
         <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
           <Settings2 className="w-4 h-4 text-primary" />

@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 const Home             = lazy(() => import("@/pages/Home").then(m => ({ default: m.Home })));
 const Portfolio        = lazy(() => import("@/pages/Portfolio").then(m => ({ default: m.Portfolio })));
 const Settings         = lazy(() => import("@/pages/Settings").then(m => ({ default: m.Settings })));
+const ApiSettings      = lazy(() => import("@/pages/Settings").then(m => ({ default: m.ApiSettings })));
 const IntradayDashboard = lazy(() => import("@/pages/IntradayDashboard").then(m => ({ default: m.IntradayDashboard })));
 const OptionsDashboard = lazy(() => import("@/pages/OptionsDashboard").then(m => ({ default: m.OptionsDashboard })));
 const Performance      = lazy(() => import("@/pages/Performance").then(m => ({ default: m.Performance })));
@@ -32,7 +33,7 @@ function PageLoader() {
   );
 }
 import {
-  LayoutDashboard, Briefcase, Settings2, TrendingUp, Clock,
+  LayoutDashboard, Briefcase, TrendingUp, Clock,
   Zap, Activity, BarChart2, Newspaper, Wheat, ChevronDown,
   Sun, Moon, Link2, LogOut, User, Crown, Lock,
 } from "lucide-react";
@@ -44,7 +45,7 @@ const queryClient = new QueryClient({
   },
 });
 
-type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "insights" | "commodities" | "settings";
+type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "insights" | "commodities" | "api" | "account";
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 function getInitialTheme(): "dark" | "light" {
@@ -188,7 +189,13 @@ function DropdownItem({
 }
 
 // ── User Menu ─────────────────────────────────────────────────────────────
-function UserMenu() {
+function UserMenu({
+  theme, setTheme, onAccountSettings,
+}: {
+  theme: "dark" | "light";
+  setTheme: (t: "dark" | "light") => void;
+  onAccountSettings: () => void;
+}) {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -236,10 +243,29 @@ function UserMenu() {
               {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)} Plan
             </div>
           </div>
-          <button onClick={() => { setOpen(false); }}
+          <button onClick={() => { setOpen(false); onAccountSettings(); }}
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-accent transition-colors text-left">
             <User className="w-3.5 h-3.5" /> Account Settings
           </button>
+
+          {/* Day / Night toggle */}
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+              {theme === "dark" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+              {theme === "dark" ? "Night Mode" : "Day Mode"}
+            </div>
+            <button
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={`relative w-10 h-5 rounded-full transition-colors ${
+                theme === "dark" ? "bg-primary" : "bg-muted-foreground/30"
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                theme === "dark" ? "translate-x-5" : "translate-x-0"
+              }`} />
+            </button>
+          </div>
+
           <div className="my-1 border-t border-border" />
           <button onClick={() => { setOpen(false); logout(); }}
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-500/10 transition-colors text-left">
@@ -265,7 +291,6 @@ function AppShell() {
   const goTab = useCallback((t: Tab) => setTab(t), []);
 
   const tradingActive  = ["intraday", "options", "commodities"].includes(tab);
-  const settingsActive = tab === "settings";
 
   const navBtnCls = (id: Tab, accent?: string) => {
     const isActive = tab === id;
@@ -337,37 +362,22 @@ function AppShell() {
               <span className="hidden lg:inline">Performance</span>
             </button>
 
-            {/* Settings ▼ */}
-            <NavDropdown label="Settings" icon={Settings2} active={settingsActive}>
-              <DropdownItem icon={Link2} label="Upstox API" active={tab === "settings"} onClick={() => goTab("settings")} />
-
-              {/* Divider */}
-              <div className="my-1 border-t border-border" />
-
-              {/* Day / Night toggle */}
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                  {theme === "dark" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                  {theme === "dark" ? "Night Mode" : "Day Mode"}
-                </div>
-                <button
-                  onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${
-                    theme === "dark" ? "bg-primary" : "bg-muted-foreground/30"
-                  }`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
-                    theme === "dark" ? "translate-x-5" : "translate-x-0"
-                  }`} />
-                </button>
-              </div>
-            </NavDropdown>
+            {/* API */}
+            <button onClick={() => goTab("api")}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${navBtnCls("api")}`}>
+              <Link2 className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">API</span>
+            </button>
 
           </nav>
 
           <div className="flex items-center gap-3">
             <ISTClock />
-            <UserMenu />
+            <UserMenu
+              theme={theme}
+              setTheme={(t) => setTheme(t)}
+              onAccountSettings={() => goTab("account")}
+            />
           </div>
         </div>
       </header>
@@ -381,7 +391,8 @@ function AppShell() {
           {tab === "commodities" && <Commodities />}
           {tab === "portfolio"   && <Portfolio />}
           {tab === "insights"    && <Insights />}
-          {tab === "settings"    && <Settings />}
+          {tab === "api"         && <ApiSettings />}
+          {tab === "account"     && <Settings />}
         </Suspense>
       </main>
     </div>

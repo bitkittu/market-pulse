@@ -282,6 +282,73 @@ router.post("/auth/reset-password", async (req, res) => {
   }
 });
 
+// Update own profile (currently just the display name). Email changes are
+// intentionally excluded — they'd need a re-verification flow.
+router.patch("/auth/profile", requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body ?? {};
+    if (typeof name !== "string" || name.trim().length < 2) {
+      res.status(400).json({ error: "Name must be at least 2 characters" });
+      return;
+    }
+
+    const user = req.user!;
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { name: name.trim(), updatedAt: new Date() } },
+    );
+
+    const reloaded = await loadAuthedUser(user.id);
+    if (!reloaded) {
+      res.status(500).json({ error: "Failed to update profile" });
+      return;
+    }
+    res.json({ user: sanitizeUser(reloaded) });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[auth] update-profile error:", msg);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+// Change own password (requires the current password).
+router.post("/auth/change-password", requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      res.status(400).json({ error: "Current and new password are required" });
+      return;
+    }
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: "New password must be at least 8 characters" });
+      return;
+    }
+
+    const user = req.user!;
+    if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+      res.status(400).json({ error: "Current password is incorrect" });
+      return;
+    }
+    if (await verifyPassword(newPassword, user.passwordHash)) {
+      res.status(400).json({ error: "New password must be different from the current one" });
+      return;
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await collections.users().updateOne(
+      { id: user.id },
+      { $set: { passwordHash, updatedAt: new Date() } },
+    );
+
+    res.json({ message: "Your password has been changed." });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[auth] change-password error:", msg);
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
 router.post("/auth/logout", (_req, res) => {
   clearSessionCookie(res);
   res.json({ ok: true });
