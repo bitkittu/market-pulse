@@ -10,7 +10,7 @@ module.exports = {
       autorestart:  true,
       max_restarts: 10,
       restart_delay: 3000,
-      // Loads DATABASE_URL, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, etc.
+      // Loads MONGODB_URI, MONGODB_DB, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, etc.
       // from a .env file next to this config (copy .env.example -> .env
       // and fill in real values; .env is gitignored, never commit it).
       env_file: "./.env",
