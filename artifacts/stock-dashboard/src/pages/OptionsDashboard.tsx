@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useGetOptionsSuggestions, OptionsSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { LockedValue, LockedHint } from "@/components/LockedValue";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
@@ -159,17 +160,17 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
 
         {/* Buy Below */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <p className="text-sm font-mono font-bold text-emerald-400">₹{fmt(s.buyBelow)}</p>
+          <p className="text-sm font-mono font-bold text-emerald-400"><LockedValue>{`₹${fmt(s.buyBelow)}`}</LockedValue></p>
         </td>
 
         {/* Sell Above */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <p className="text-sm font-mono font-bold text-red-400">₹{fmt(s.sellAbove)}</p>
+          <p className="text-sm font-mono font-bold text-red-400"><LockedValue>{`₹${fmt(s.sellAbove)}`}</LockedValue></p>
         </td>
 
         {/* Stop Loss */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <p className="text-xs font-mono text-orange-400">₹{fmt(s.stopLoss)}</p>
+          <p className="text-xs font-mono text-orange-400"><LockedValue>{`₹${fmt(s.stopLoss)}`}</LockedValue></p>
         </td>
 
         {/* Signal */}
@@ -289,6 +290,9 @@ export function OptionsDashboard() {
         <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-emerald-400" /><span className="text-muted-foreground">STRONG OI = high liquidity</span></div>
         <div className="ml-auto text-muted-foreground">ⓘ = hover for explanation</div>
       </div>
+
+      {/* Free-plan notice */}
+      <LockedHint fields="Buy Below, Sell Above & Stop Loss" />
 
       {/* Table */}
       {isLoading ? (

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useGetIntradaySuggestions, StockSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Zap, TrendingUp, TrendingDown, Minus, ShieldAlert } from "lucide-react";
+import { LockedValue, LockedHint } from "@/components/LockedValue";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
@@ -132,17 +133,17 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
 
         {/* Buy Below */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <p className="text-sm font-mono font-bold text-emerald-400">₹{fmt(s.buyBelow)}</p>
+          <p className="text-sm font-mono font-bold text-emerald-400"><LockedValue>{`₹${fmt(s.buyBelow)}`}</LockedValue></p>
         </td>
 
         {/* Sell Above */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <p className="text-sm font-mono font-bold text-red-400">₹{fmt(s.sellAbove)}</p>
+          <p className="text-sm font-mono font-bold text-red-400"><LockedValue>{`₹${fmt(s.sellAbove)}`}</LockedValue></p>
         </td>
 
         {/* Stop Loss */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <p className="text-xs font-mono text-orange-400">₹{fmt(s.stopLoss)}</p>
+          <p className="text-xs font-mono text-orange-400"><LockedValue>{`₹${fmt(s.stopLoss)}`}</LockedValue></p>
         </td>
 
         {/* Signal */}
@@ -289,6 +290,9 @@ export function IntradayDashboard() {
         <ShieldAlert className="w-3 h-3 ml-2" />
         <span>Risk: Low/Medium/High based on stop-loss distance</span>
       </div>
+
+      {/* Free-plan notice */}
+      <LockedHint fields="Buy Below, Sell Above & Stop Loss" />
 
       {/* Table */}
       {isLoading ? (

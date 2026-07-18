@@ -20,6 +20,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format } from "date-fns";
+import { LockedValue, LockedHint } from "@/components/LockedValue";
 import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Clock, RefreshCw, Bell, BellOff, ChevronUp, ChevronDown,
@@ -352,6 +353,9 @@ function SignalsTable({ panel, mode }: { panel: DecisionPanel | undefined; mode:
           <span className="text-[10px] text-muted-foreground">Signals based on RSI + VWAP + price action</span>
         )}
       </div>
+      <div className="px-4 pt-3">
+        <LockedHint fields="Entry, Stop Loss & Target" />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
@@ -381,9 +385,9 @@ function SignalsTable({ panel, mode }: { panel: DecisionPanel | undefined; mode:
                       {row.signal}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono font-semibold">{fmtINR(row.entry)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-red-400">{fmtINR(row.stopLoss)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-emerald-400">{fmtINR(row.target)}</td>
+                  <td className="px-3 py-2.5 text-right font-mono font-semibold"><LockedValue>{fmtINR(row.entry)}</LockedValue></td>
+                  <td className="px-3 py-2.5 text-right font-mono text-red-400"><LockedValue>{fmtINR(row.stopLoss)}</LockedValue></td>
+                  <td className="px-3 py-2.5 text-right font-mono text-emerald-400"><LockedValue>{fmtINR(row.target)}</LockedValue></td>
                   <td className="px-3 py-2.5 text-right font-mono text-primary font-bold">1:{row.riskReward}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2 justify-end">
