@@ -90,7 +90,7 @@ function StatCard({ label, value, sub, icon: Icon, cls, bgCls }: {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className={cn("text-2xl font-black font-mono mt-0.5", cls)}>{value}</p>
+        <p className={cn("text-lg sm:text-xl md:text-2xl font-black font-mono mt-0.5", cls)}>{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
       </div>
     </div>
@@ -236,17 +236,17 @@ function HistoricalTradeRow({ t, i }: { t: typeof MOCK_TRADES[number]; i: number
   const isHit = t.status === "hit";
   return (
     <tr className={cn("border-b border-border/50 text-xs", i % 2 === 0 ? "bg-card" : "bg-background/40")}>
-      <td className="px-3 py-2.5 text-muted-foreground font-mono">{t.date}</td>
-      <td className="px-3 py-2.5 font-mono font-bold text-white">{t.symbol}</td>
-      <td className="px-3 py-2.5 font-mono text-muted-foreground">₹{fmt(t.buy)}</td>
-      <td className="px-3 py-2.5 font-mono text-muted-foreground">₹{fmt(t.exit)}</td>
-      <td className="px-3 py-2.5 font-mono text-blue-400">₹{fmt(t.target)}</td>
-      <td className="px-3 py-2.5">
+      <td className="px-2 sm:px-3 py-2.5 text-muted-foreground font-mono">{t.date}</td>
+      <td className="px-2 sm:px-3 py-2.5 font-mono font-bold text-white">{t.symbol}</td>
+      <td className="px-2 sm:px-3 py-2.5 font-mono text-muted-foreground">₹{fmt(t.buy)}</td>
+      <td className="px-2 sm:px-3 py-2.5 font-mono text-muted-foreground">₹{fmt(t.exit)}</td>
+      <td className="px-2 sm:px-3 py-2.5 font-mono text-blue-400">₹{fmt(t.target)}</td>
+      <td className="px-2 sm:px-3 py-2.5">
         <span className={cn("font-mono font-black", ret >= 0 ? "text-emerald-400" : "text-red-400")}>
           {ret >= 0 ? "+" : ""}{ret.toFixed(2)}%
         </span>
       </td>
-      <td className="px-3 py-2.5">
+      <td className="px-2 sm:px-3 py-2.5">
         <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold",
           isHit ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
                 : "bg-red-500/15 text-red-300 border-red-500/30")}>
@@ -393,7 +393,7 @@ export function Performance() {
               <thead>
                 <tr className="bg-[#0d1526] border-b border-border">
                   {["Date", "Symbol", "Buy", "Exit", "Target", "Return", "Status"].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-bold text-muted-foreground uppercase tracking-wide">{h}</th>
+                    <th key={h} className="px-2 sm:px-3 py-2.5 text-left text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>

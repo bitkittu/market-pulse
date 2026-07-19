@@ -138,7 +138,7 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
                   {s.optionType}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground truncate max-w-[90px]">{s.name}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[90px] sm:max-w-[130px] md:max-w-[160px]">{s.name}</p>
             </div>
           </div>
         </td>
@@ -285,12 +285,12 @@ export function OptionsDashboard() {
       {Header}
 
       {/* Tab bar with underline animation */}
-      <div className="flex items-center gap-0 mb-5 border-b border-border">
+      <div className="flex items-center gap-0 mb-5 border-b border-border overflow-x-auto">
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={cn("relative px-4 py-3 text-sm font-bold transition-all flex items-center gap-2",
+              className={cn("relative shrink-0 whitespace-nowrap px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-bold transition-all flex items-center gap-2",
                 isActive ? "text-white" : "text-muted-foreground hover:text-foreground")}>
               {tab.label}
               <span className={cn("text-xs px-1.5 py-0.5 rounded-full font-black transition-all",

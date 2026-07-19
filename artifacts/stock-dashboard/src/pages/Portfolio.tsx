@@ -70,36 +70,36 @@ function PortfolioTotalCard({ portfolio }: { portfolio: PortfolioStock[] }) {
   const isPos = totalPL >= 0;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
       {/* Total Invested */}
-      <div className="bg-card border border-border rounded-xl px-4 py-4">
+      <div className="bg-card border border-border rounded-xl px-3 sm:px-4 py-3 sm:py-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           <Wallet className="w-3.5 h-3.5" /> Total Invested
         </div>
-        <p className="text-xl font-black font-mono text-white">
+        <p className="text-lg sm:text-xl font-black font-mono text-white">
           {totalInvested > 0 ? `₹${fmt(totalInvested, 0)}` : "—"}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">{portfolio.filter(s => s.buyPrice).length} positions tracked</p>
       </div>
 
       {/* Current Value */}
-      <div className="bg-card border border-border rounded-xl px-4 py-4">
+      <div className="bg-card border border-border rounded-xl px-3 sm:px-4 py-3 sm:py-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           <BarChart2 className="w-3.5 h-3.5" /> Current Value
         </div>
-        <p className={cn("text-xl font-black font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
+        <p className={cn("text-lg sm:text-xl font-black font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
           {totalCurrent > 0 ? `₹${fmt(totalCurrent, 0)}` : "—"}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">Live market price</p>
       </div>
 
       {/* Total P&L */}
-      <div className={cn("border rounded-xl px-4 py-4", isPos ? "bg-emerald-500/8 border-emerald-500/25" : "bg-red-500/8 border-red-500/25")}>
+      <div className={cn("border rounded-xl px-3 sm:px-4 py-3 sm:py-4", isPos ? "bg-emerald-500/8 border-emerald-500/25" : "bg-red-500/8 border-red-500/25")}>
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           {isPos ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" /> : <ArrowDownRight className="w-3.5 h-3.5 text-red-400" />}
           Total P&L
         </div>
-        <p className={cn("text-xl font-black font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
+        <p className={cn("text-lg sm:text-xl font-black font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
           {totalInvested > 0 ? fmtInr(totalPL) : "—"}
         </p>
         <p className={cn("text-xs font-mono font-bold mt-0.5", isPos ? "text-emerald-400/70" : "text-red-400/70")}>
@@ -108,14 +108,14 @@ function PortfolioTotalCard({ portfolio }: { portfolio: PortfolioStock[] }) {
       </div>
 
       {/* Winners / Losers */}
-      <div className="bg-card border border-border rounded-xl px-4 py-4">
+      <div className="bg-card border border-border rounded-xl px-3 sm:px-4 py-3 sm:py-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
           <Target className="w-3.5 h-3.5" /> Win / Loss
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xl font-black font-mono text-emerald-400">{winners}W</span>
+          <span className="text-lg sm:text-xl font-black font-mono text-emerald-400">{winners}W</span>
           <span className="text-muted-foreground">·</span>
-          <span className="text-xl font-black font-mono text-red-400">{losers}L</span>
+          <span className="text-lg sm:text-xl font-black font-mono text-red-400">{losers}L</span>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
           {winners + losers > 0 ? `${((winners / (winners + losers)) * 100).toFixed(0)}% win rate` : "No data"}
@@ -256,7 +256,7 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         onClick={() => setExpanded(e => !e)}
       >
         {/* Stock Name */}
-        <td className="px-4 py-3 whitespace-nowrap sticky left-0 bg-inherit z-10">
+        <td className="px-2 sm:px-3 md:px-4 py-3 whitespace-nowrap sticky left-0 bg-inherit z-10">
           <div className="flex items-center gap-2">
             <div>
               <div className="flex items-center gap-1.5">
@@ -273,7 +273,7 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         </td>
 
         {/* Current Price */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <p className="text-sm font-mono font-bold text-white">₹{fmt(current)}</p>
           <p className={cn("text-xs font-mono", isPos ? "text-emerald-400" : "text-red-400")}>
             {isPos ? "▲" : "▼"}{Math.abs(quote?.changePercent ?? 0).toFixed(2)}%
@@ -281,33 +281,33 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         </td>
 
         {/* My Buy Price */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           {stock.buyPrice
             ? <p className="text-sm font-mono font-bold text-muted-foreground">₹{fmt(stock.buyPrice)}</p>
             : <p className="text-xs text-muted-foreground">—</p>}
         </td>
 
         {/* Target Price */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <p className="text-sm font-mono font-bold text-emerald-400">₹{fmt(target)}</p>
           <p className="text-xs text-muted-foreground">AI Target</p>
         </td>
 
         {/* Stop Loss */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <p className="text-sm font-mono font-bold text-red-400">₹{fmt(sl)}</p>
           <p className={cn("text-xs font-mono font-bold", slDistCls)}>{slDist.toFixed(1)}% away</p>
         </td>
 
         {/* Signal */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <span className={cn("inline-block px-2.5 py-1 rounded-lg border text-xs font-black", sigCfg.cls)}>
             {sigCfg.label}
           </span>
         </td>
 
         {/* RSI */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <p className={cn("text-sm font-mono font-bold",
             rsi >= 70 ? "text-red-400" : rsi <= 30 ? "text-emerald-400" : "text-yellow-400"
           )}>{rsi.toFixed(1)}</p>
@@ -318,7 +318,7 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         </td>
 
         {/* VWAP */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <p className="text-sm font-mono font-bold text-blue-400">₹{fmt(vwap)}</p>
           <p className={cn("text-xs font-semibold",
             current > vwap ? "text-emerald-400" : current < vwap ? "text-red-400" : "text-yellow-400")}>
@@ -327,7 +327,7 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         </td>
 
         {/* News Sentiment */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           <span className={cn("inline-flex items-center gap-1 text-xs font-semibold", sentCfg.cls)}>
             <span className={cn("w-1.5 h-1.5 rounded-full", sentCfg.dot)} />
             {sentCfg.label}
@@ -335,7 +335,7 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         </td>
 
         {/* P/L % */}
-        <td className="px-4 py-3 text-center whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-center whitespace-nowrap">
           {plPct !== null ? (
             <div>
               <p className={cn("text-sm font-mono font-black", plPct >= 0 ? "text-emerald-400" : "text-red-400")}>
@@ -351,7 +351,7 @@ function PortfolioRow({ stock }: { stock: PortfolioStock }) {
         </td>
 
         {/* Expand / Remove */}
-        <td className="px-4 py-3 text-right whitespace-nowrap">
+        <td className="px-2 sm:px-3 md:px-4 py-3 text-right whitespace-nowrap">
           <div className="flex items-center justify-end gap-2">
             <button onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
               className="text-muted-foreground hover:text-foreground transition-colors">
@@ -463,9 +463,9 @@ export function Portfolio() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-lg sm:text-xl font-bold text-foreground flex items-center gap-2">
             <Briefcase className="w-5 h-5 text-primary" /> My Portfolio
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">AI signals · VWAP & RSI · Live P&L · Stop loss distance</p>
@@ -502,7 +502,7 @@ export function Portfolio() {
               <thead>
                 <tr className="bg-[#0d1526] border-b border-border sticky top-0 z-10">
                   {COLS.map((col) => (
-                    <th key={col} className={cn("px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap",
+                    <th key={col} className={cn("px-2 sm:px-3 md:px-4 py-3 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wide whitespace-nowrap",
                       col === "Stock Name" ? "text-left sticky left-0 bg-[#0d1526] z-20" : "text-center")}>
                       {col === "Stop Loss" ? <span className="text-red-400">{col}</span> :
                        col === "AI Target" ? <span className="text-emerald-400">{col}</span> :

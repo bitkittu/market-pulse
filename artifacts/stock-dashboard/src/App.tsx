@@ -35,7 +35,7 @@ function PageLoader() {
 import {
   LayoutDashboard, Briefcase, TrendingUp, Clock,
   Zap, Activity, BarChart2, Newspaper, Wheat, ChevronDown,
-  Sun, Moon, Link2, LogOut, User, Crown, Lock,
+  Sun, Moon, Link2, LogOut, User, Crown, Lock, Menu, X,
 } from "lucide-react";
 import { hasAccess } from "@/lib/plan";
 
@@ -282,6 +282,7 @@ function AppShell() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useState<"dark" | "light">(getInitialTheme);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const intradayLocked = !hasAccess(user?.plan, "intraday");
   const optionsLocked = !hasAccess(user?.plan, "options");
@@ -289,6 +290,7 @@ function AppShell() {
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   const goTab = useCallback((t: Tab) => setTab(t), []);
+  const goTabMobile = useCallback((t: Tab) => { setTab(t); setMobileMenuOpen(false); }, []);
 
   const tradingActive  = ["intraday", "options", "commodities"].includes(tab);
 
@@ -311,11 +313,11 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-visible">
-        <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center justify-between gap-2 overflow-visible">
+        <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between gap-2 overflow-visible">
 
           {/* Logo */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center">
+            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center shrink-0">
               <TrendingUp className="w-4 h-4 text-white" />
             </div>
             <div className="hidden sm:block">
@@ -324,8 +326,8 @@ function AppShell() {
             </div>
           </div>
 
-          {/* Nav */}
-          <nav className="flex items-center gap-0.5 overflow-visible flex-1 justify-center">
+          {/* Nav (desktop/tablet) */}
+          <nav className="hidden md:flex items-center gap-0.5 overflow-visible flex-1 justify-center">
 
             {/* Dashboard */}
             <button onClick={() => goTab("home")}
@@ -371,18 +373,42 @@ function AppShell() {
 
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <ISTClock />
+            <button
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="md:hidden h-9 w-9 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
             <UserMenu
               theme={theme}
               setTheme={(t) => setTheme(t)}
-              onAccountSettings={() => goTab("account")}
+              onAccountSettings={() => { goTab("account"); setMobileMenuOpen(false); }}
             />
           </div>
         </div>
+
+        {/* Nav (mobile) */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-card max-h-[calc(100vh-3.5rem)] overflow-y-auto px-2 py-2">
+            <DropdownItem icon={LayoutDashboard} label="Dashboard" active={tab === "home"} onClick={() => goTabMobile("home")} />
+            <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Trading</div>
+            <DropdownItem icon={Zap} label="Intraday" active={tab === "intraday"} accent="emerald" locked={intradayLocked} onClick={() => goTabMobile("intraday")} />
+            <DropdownItem icon={Activity} label="Options" active={tab === "options"} accent="violet" locked={optionsLocked} onClick={() => goTabMobile("options")} />
+            <DropdownItem icon={Wheat} label="Commodities" active={tab === "commodities"} accent="orange" onClick={() => goTabMobile("commodities")} />
+            <div className="my-2 border-t border-border" />
+            <DropdownItem icon={Newspaper} label="Insights" active={tab === "insights"} accent="amber" onClick={() => goTabMobile("insights")} />
+            <DropdownItem icon={Briefcase} label="Portfolio" active={tab === "portfolio"} onClick={() => goTabMobile("portfolio")} />
+            <DropdownItem icon={BarChart2} label="Performance" active={tab === "performance"} accent="blue" onClick={() => goTabMobile("performance")} />
+            <DropdownItem icon={Link2} label="API" active={tab === "api"} onClick={() => goTabMobile("api")} />
+          </div>
+        )}
       </header>
 
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 py-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-3 sm:px-4 md:px-6 py-4 sm:py-6">
         <Suspense fallback={<PageLoader />}>
           {tab === "home"        && <Home />}
           {tab === "intraday"    && <IntradayDashboard />}

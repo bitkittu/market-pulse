@@ -526,11 +526,11 @@ function StatsSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map(s => (
-            <div key={s.label} className="bg-slate-800/40 backdrop-blur border border-slate-700/40 rounded-xl p-6 text-center">
+            <div key={s.label} className="bg-slate-800/40 backdrop-blur border border-slate-700/40 rounded-xl p-4 sm:p-6 text-center">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-emerald-500/20 border border-slate-700 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <s.icon className="w-5 h-5 text-blue-400" />
               </div>
-              <div className="text-3xl font-bold text-white mb-1 font-mono">
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1 font-mono">
                 <Counter end={s.end} suffix={s.suffix} />
               </div>
               <div className="text-sm text-slate-400">{s.label}</div>
@@ -654,7 +654,7 @@ function IndicatorsSection() {
                     <ind.icon className="w-7 h-7 text-white" />
                   </div>
                   <div>
-                    <div className="text-5xl font-black text-slate-700 leading-none">{ind.num}</div>
+                    <div className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-700 leading-none">{ind.num}</div>
                   </div>
                 </div>
 

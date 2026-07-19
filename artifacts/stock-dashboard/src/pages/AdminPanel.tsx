@@ -29,14 +29,14 @@ function StatCard({ label, value, sub, icon: Icon, trend, color }: {
   icon: typeof LayoutDashboard; trend?: "up" | "down"; color: string;
 }) {
   return (
-    <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+    <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-4 sm:p-5">
       <div className="flex items-center justify-between mb-3">
         <span className="text-slate-400 text-xs font-medium">{label}</span>
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color}`}>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${color} shrink-0`}>
           <Icon className="w-4 h-4 text-white" />
         </div>
       </div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
+      <div className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-1">{value}</div>
       <div className={`flex items-center gap-1 text-xs ${trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-slate-400"}`}>
         {trend === "up" && <ArrowUp className="w-3 h-3" />}
         {trend === "down" && <ArrowDown className="w-3 h-3" />}
@@ -140,21 +140,22 @@ function UsersView({ users, onDelete, onPlanChange }: {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-white mb-1">User Management</h2>
           <p className="text-slate-400 text-sm">{users.length} total accounts</p>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search users..."
-            className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 w-56" />
+            className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500 w-full sm:w-56" />
         </div>
       </div>
 
       <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px]">
           <thead>
             <tr className="border-b border-slate-700/50">
               {["User", "Role", "Plan", "Joined", "Last Login", "Actions"].map(h => (
@@ -209,6 +210,7 @@ function UsersView({ users, onDelete, onPlanChange }: {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
@@ -247,12 +249,12 @@ function SystemView() {
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map(m => (
-          <div key={m.label} className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+          <div key={m.label} className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-slate-400 text-xs">{m.label}</span>
-              <m.icon className={`w-4 h-4 ${m.color}`} />
+              <m.icon className={`w-4 h-4 ${m.color} shrink-0`} />
             </div>
-            <div className={`text-2xl font-bold font-mono ${m.color}`}>
+            <div className={`text-lg sm:text-xl md:text-2xl font-bold font-mono ${m.color}`}>
               {m.value}{m.unit}
             </div>
           </div>
@@ -295,7 +297,7 @@ export function AdminPanel() {
   return (
     <div className="min-h-screen bg-[#080d1a] flex text-white">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? "w-60" : "w-16"} shrink-0 bg-slate-900/80 border-r border-slate-800 flex flex-col transition-all duration-200`}>
+      <aside className={`${sidebarOpen ? "w-48 sm:w-60" : "w-16"} shrink-0 bg-slate-900/80 border-r border-slate-800 flex flex-col transition-all duration-200`}>
         {/* Brand */}
         <div className="h-14 flex items-center gap-3 px-4 border-b border-slate-800">
           <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg flex items-center justify-center shrink-0">
@@ -348,32 +350,32 @@ export function AdminPanel() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="h-14 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-14 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between px-3 sm:px-4 md:px-6 shrink-0 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => setSidebarOpen(v => !v)}
-              className="text-slate-400 hover:text-white transition-colors p-1">
+              className="text-slate-400 hover:text-white transition-colors p-1 shrink-0">
               <LayoutDashboard className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-1.5 text-sm text-slate-400">
-              <span>Admin</span>
-              <ChevronRight className="w-3 h-3" />
-              <span className="text-white font-medium">{activeSection?.label}</span>
+            <div className="flex items-center gap-1.5 text-sm text-slate-400 min-w-0">
+              <span className="hidden sm:inline">Admin</span>
+              <ChevronRight className="w-3 h-3 hidden sm:block shrink-0" />
+              <span className="text-white font-medium truncate">{activeSection?.label}</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
               className="p-1.5 text-slate-400 hover:text-white transition-colors">
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-medium text-emerald-400">System Online</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="text-xs font-medium text-emerald-400 hidden sm:inline">System Online</span>
             </div>
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto">
           {view === "dashboard" && <DashboardView users={users} />}
           {view === "users" && (
             <UsersView users={users} onDelete={deleteUser}

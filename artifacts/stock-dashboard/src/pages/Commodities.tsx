@@ -162,15 +162,15 @@ function DetailPanel({ commodity, usdToInr }: { commodity: CommodityItem; usdToI
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-2xl">{commodity.emoji}</span>
-            <h2 className="text-lg font-bold">{commodity.name}</h2>
+            <h2 className="text-base sm:text-lg font-bold">{commodity.name}</h2>
             <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", CAT_COLORS[commodity.category])}>
               {commodity.category}
             </span>
           </div>
           <div className="flex items-baseline gap-3 flex-wrap">
-            <span className="text-3xl font-black font-mono">
+            <span className="text-2xl sm:text-3xl font-black font-mono">
               {fmtInr(commodity.price, usdToInr)}
               <span className="text-sm text-muted-foreground font-normal ml-1">{commodity.unit}</span>
             </span>
@@ -425,17 +425,17 @@ function MoneyFlowChart({ items }: { items: CommodityItem[] }) {
           const bp = c.prediction.buyPressure;
           const barColor = bp > 55 ? "bg-emerald-500" : bp < 45 ? "bg-red-500" : "bg-yellow-500";
           return (
-            <div key={c.symbol} className="flex items-center gap-3">
-              <span className="text-base w-6">{c.emoji}</span>
-              <span className="text-xs font-medium text-muted-foreground w-28 truncate">{c.name}</span>
-              <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
+            <div key={c.symbol} className="flex items-center gap-2 sm:gap-3">
+              <span className="text-base w-5 sm:w-6 shrink-0">{c.emoji}</span>
+              <span className="text-xs font-medium text-muted-foreground w-16 sm:w-28 truncate shrink-0">{c.name}</span>
+              <div className="flex-1 min-w-0 h-2 bg-muted/30 rounded-full overflow-hidden">
                 <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${bp}%` }} />
               </div>
-              <span className={cn("text-[10px] font-mono font-bold w-8 text-right",
+              <span className={cn("text-[10px] font-mono font-bold w-8 text-right shrink-0",
                 bp > 55 ? "text-emerald-400" : bp < 45 ? "text-red-400" : "text-yellow-400")}>
                 {bp}%
               </span>
-              <span className={cn("text-[10px] font-mono w-14 text-right",
+              <span className={cn("text-[10px] font-mono w-14 text-right shrink-0 hidden sm:inline-block",
                 c.changePercent >= 0 ? "text-emerald-400" : "text-red-400")}>
                 {c.changePercent >= 0 ? "+" : ""}{c.changePercent.toFixed(2)}%
               </span>

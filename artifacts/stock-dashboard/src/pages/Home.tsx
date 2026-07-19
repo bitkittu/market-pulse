@@ -102,7 +102,7 @@ function DecisionHero({ panel, mode }: { panel: DecisionPanel | undefined; mode:
   if (!panel) {
     return (
       <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[1,2,3,4].map(i => <Skeleton key={i} className="h-20" />)}
         </div>
       </div>
@@ -141,15 +141,15 @@ function DecisionHero({ panel, mode }: { panel: DecisionPanel | undefined; mode:
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Buy/Sell Level */}
         {td.action === "BUY" && (
-          <div className={cn("bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-center")}>
+          <div className={cn("bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-center overflow-hidden")}>
             <p className="text-[10px] text-emerald-400 font-bold tracking-widest mb-1">BUY ABOVE</p>
-            <p className="text-2xl font-black font-mono text-emerald-300">{fmt(td.buyAbove ?? td.entry, 2)}</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black font-mono text-emerald-300 truncate">{fmt(td.buyAbove ?? td.entry, 2)}</p>
           </div>
         )}
         {td.action === "SELL" && (
-          <div className={cn("bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-center")}>
+          <div className={cn("bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-center overflow-hidden")}>
             <p className="text-[10px] text-red-400 font-bold tracking-widest mb-1">SELL BELOW</p>
-            <p className="text-2xl font-black font-mono text-red-300">{fmt(td.sellBelow ?? td.entry, 2)}</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black font-mono text-red-300 truncate">{fmt(td.sellBelow ?? td.entry, 2)}</p>
           </div>
         )}
         {td.action === "WAIT" && (
@@ -171,16 +171,16 @@ function DecisionHero({ panel, mode }: { panel: DecisionPanel | undefined; mode:
         )}
 
         {/* Stop Loss */}
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center overflow-hidden">
           <p className="text-[10px] text-red-400 font-bold tracking-widest mb-1">STOP LOSS</p>
-          <p className="text-2xl font-black font-mono text-red-300">{fmt(td.stopLoss, 2)}</p>
+          <p className="text-lg sm:text-xl md:text-2xl font-black font-mono text-red-300 truncate">{fmt(td.stopLoss, 2)}</p>
           {mode === "learning" && <p className="text-[9px] text-muted-foreground mt-0.5">Exit if hit</p>}
         </div>
 
         {/* Target */}
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center overflow-hidden">
           <p className="text-[10px] text-emerald-400 font-bold tracking-widest mb-1">TARGET</p>
-          <p className="text-2xl font-black font-mono text-emerald-300">{fmt(td.target, 2)}</p>
+          <p className="text-lg sm:text-xl md:text-2xl font-black font-mono text-emerald-300 truncate">{fmt(td.target, 2)}</p>
           {mode === "learning" && <p className="text-[9px] text-muted-foreground mt-0.5">Profit level</p>}
         </div>
 
@@ -204,9 +204,9 @@ function DecisionHero({ panel, mode }: { panel: DecisionPanel | undefined; mode:
 // ── Key Levels Panel ──────────────────────────────────────────────────────
 function LevelPill({ label, value, accent, tip }: { label: string; value: number; accent?: string; tip?: string }) {
   return (
-    <div className={cn("bg-background/50 border rounded-xl px-3 py-2.5 text-center hover:border-primary/30 transition-colors", accent ?? "border-border")}>
+    <div className={cn("bg-background/50 border rounded-xl px-2 sm:px-3 py-2.5 text-center hover:border-primary/30 transition-colors overflow-hidden", accent ?? "border-border")}>
       <p className="text-[9px] font-bold tracking-widest text-muted-foreground mb-1">{label}</p>
-      <p className={cn("text-base font-black font-mono", accent ? "text-foreground" : "text-foreground")}>{fmt(value, 2)}</p>
+      <p className={cn("text-sm sm:text-base font-black font-mono truncate", accent ? "text-foreground" : "text-foreground")}>{fmt(value, 2)}</p>
       {tip && <p className="text-[9px] text-muted-foreground mt-0.5">{tip}</p>}
     </div>
   );
@@ -364,16 +364,16 @@ function SignalsTable({ panel, mode }: { panel: DecisionPanel | undefined; mode:
         <LockedHint fields="Entry, Stop Loss & Target" />
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full min-w-[640px] text-[10px] sm:text-xs">
           <thead>
             <tr className="text-muted-foreground border-b border-border/60">
-              <th className="text-left px-4 py-2 font-semibold">Stock</th>
-              <th className="text-center px-3 py-2 font-semibold">Signal</th>
-              <th className="text-right px-3 py-2 font-semibold">Entry</th>
-              <th className="text-right px-3 py-2 font-semibold">Stop Loss</th>
-              <th className="text-right px-3 py-2 font-semibold">Target</th>
-              <th className="text-right px-3 py-2 font-semibold">R:R</th>
-              <th className="text-right px-4 py-2 font-semibold">Confidence</th>
+              <th className="text-left px-2 sm:px-4 py-2 font-semibold">Stock</th>
+              <th className="text-center px-2 sm:px-3 py-2 font-semibold">Signal</th>
+              <th className="text-right px-2 sm:px-3 py-2 font-semibold">Entry</th>
+              <th className="text-right px-2 sm:px-3 py-2 font-semibold">Stop Loss</th>
+              <th className="text-right px-2 sm:px-3 py-2 font-semibold">Target</th>
+              <th className="text-right px-2 sm:px-3 py-2 font-semibold">R:R</th>
+              <th className="text-right px-2 sm:px-4 py-2 font-semibold">Confidence</th>
             </tr>
           </thead>
           <tbody>
@@ -567,8 +567,8 @@ function GiftNiftyCard() {
 
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-y-2 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full tracking-wider uppercase">Nifty 50</span>
           <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", badge.cls)}>{badge.label}</span>
           {quote && <ChangeChip v={quote.changePercent} />}
@@ -659,7 +659,7 @@ function GlobalIndexCard({ ticker }: { ticker: string }) {
 
   return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between flex-wrap gap-y-2 mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", cfg?.badge ?? "bg-muted/30 text-muted-foreground border-border")}>
             {cfg?.exchange ?? ticker}

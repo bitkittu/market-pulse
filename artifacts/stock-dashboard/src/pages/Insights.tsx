@@ -358,11 +358,11 @@ function StockInsights() {
                   </span>
                 </div>
                 <p className="text-muted-foreground text-sm mb-3">{data.name}</p>
-                <div className="flex items-end gap-3">
-                  <span className="text-4xl font-black tracking-tight">
+                <div className="flex items-end gap-3 flex-wrap">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">
                     {data.currency === "INR" ? "₹" : "$"}{fmt(price)}
                   </span>
-                  <span className={`text-base font-bold mb-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
+                  <span className={`text-sm sm:text-base font-bold mb-1 ${isUp ? "text-emerald-400" : "text-red-400"}`}>
                     {isUp ? "+" : ""}{fmt(Math.abs(change))}
                   </span>
                 </div>
@@ -418,7 +418,7 @@ function StockInsights() {
                   </div>
                 </div>
               </div>
-              <div className="text-2xl font-black mb-2">
+              <div className="text-xl sm:text-2xl font-black mb-2 truncate">
                 {data.currency === "INR" ? "₹" : "$"}{fmt(data.vwap)}
               </div>
               <div className={`flex items-center gap-1.5 text-xs font-bold ${price >= data.vwap ? "text-emerald-400" : "text-red-400"}`}>
@@ -509,19 +509,19 @@ export function Insights() {
   return (
     <div className="space-y-5">
       {/* Sub-tab bar */}
-      <div className="flex gap-1 p-1 bg-card border border-border rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-card border border-border rounded-xl w-fit max-w-full overflow-x-auto scrollbar-hide">
         {SUB_TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setSubTab(id)}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all",
+              "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0",
               subTab === id
                 ? "bg-primary text-white shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent"
             )}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="w-4 h-4 shrink-0" />
             {label}
           </button>
         ))}

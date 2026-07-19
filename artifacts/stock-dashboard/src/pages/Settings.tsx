@@ -688,9 +688,9 @@ export function ApiSettings() {
             { label: "Cache Duration", value: "90 seconds for stocks · 2 minutes for indices" },
             { label: "Indicators", value: "VWAP (14-day) · RSI (14-period)" },
           ].map((row) => (
-            <div key={row.label} className="flex items-start justify-between gap-4 py-2 border-b border-border/50 last:border-0">
-              <span className="text-xs text-muted-foreground font-medium shrink-0">{row.label}</span>
-              <span className="text-xs text-foreground font-medium text-right">{row.value}</span>
+            <div key={row.label} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-0.5 sm:gap-4 py-2 border-b border-border/50 last:border-0">
+              <span className="text-xs text-muted-foreground font-medium sm:shrink-0">{row.label}</span>
+              <span className="text-xs text-foreground font-medium sm:text-right">{row.value}</span>
             </div>
           ))}
         </div>

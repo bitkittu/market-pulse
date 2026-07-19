@@ -124,7 +124,7 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
                 {isPos ? "▲" : "▼"}{Math.abs(s.changePercent).toFixed(2)}%
               </span>
             </div>
-            <p className="text-xs text-muted-foreground truncate max-w-[110px]">{s.name}</p>
+            <p className="text-xs text-muted-foreground truncate max-w-[110px] sm:max-w-[150px] md:max-w-[180px]">{s.name}</p>
           </div>
         </td>
 

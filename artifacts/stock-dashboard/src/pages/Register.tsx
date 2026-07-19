@@ -79,13 +79,13 @@ export function Register({ onLogin, onBack }: Props) {
         </div>
 
         {/* Right - Form */}
-        <div>
+        <div className="w-full max-w-md mx-auto lg:max-w-none">
           <button onClick={onBack}
             className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
             <ArrowLeft className="w-4 h-4" /> Back to Home
           </button>
 
-          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 shadow-2xl">
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 sm:p-8 shadow-2xl">
             <h1 className="text-2xl font-bold text-white mb-1">Create your account</h1>
             <p className="text-slate-400 text-sm mb-6">Free forever — no credit card required</p>
 

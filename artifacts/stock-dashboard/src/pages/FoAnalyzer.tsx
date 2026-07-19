@@ -100,7 +100,7 @@ function IntradayChart({ data, livePrice, vwap }: {
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between flex-wrap gap-y-1 mb-3">
         <div className="flex items-center gap-2">
           <BarChart2 className="w-4 h-4 text-primary" />
           <span className="font-bold text-sm">Intraday Trend</span>
@@ -195,15 +195,15 @@ function AnalysisResults({ data, formInput }: {
       <div className="bg-card border border-border rounded-2xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-xl font-black tracking-tight">{data.symbol}</span>
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+              <span className="text-lg sm:text-xl font-black tracking-tight">{data.symbol}</span>
               <span className="text-sm text-muted-foreground font-medium">{data.strikePrice} {data.optionType}</span>
               <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full border", dir.cls)}>
                 <DirIcon className="w-3 h-3 inline mr-0.5" />{data.direction}
               </span>
             </div>
-            <div className="flex items-end gap-2">
-              <span className="text-3xl font-black">₹{inr(data.livePrice)}</span>
+            <div className="flex items-end gap-2 flex-wrap">
+              <span className="text-2xl sm:text-3xl font-black">₹{inr(data.livePrice)}</span>
               <span className={cn("text-sm font-bold mb-0.5 flex items-center gap-0.5", livePriceUp ? "text-emerald-400" : "text-red-400")}>
                 {livePriceUp ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
                 {livePriceUp ? "+" : ""}{inr(data.liveChange)} ({livePriceUp ? "+" : ""}{data.liveChangePct.toFixed(2)}%)
@@ -223,20 +223,20 @@ function AnalysisResults({ data, formInput }: {
 
       {/* AI Decision */}
       <div className={cn("border rounded-2xl p-5 shadow-lg", dec.cls, dec.glow)}>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-current/10 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-current/10 flex items-center justify-center shrink-0">
               <DecIcon className="w-7 h-7" />
             </div>
             <div>
               <div className="text-[10px] uppercase tracking-widest opacity-70 mb-0.5">AI Decision Engine</div>
-              <div className="text-2xl font-black tracking-wide">{dec.label}</div>
+              <div className="text-lg sm:text-xl md:text-2xl font-black tracking-wide">{dec.label}</div>
               <div className="text-xs opacity-80 font-medium mt-0.5">{dec.desc}</div>
             </div>
           </div>
           <div className="text-right shrink-0">
             <div className="text-[10px] uppercase tracking-widest opacity-70 mb-1">AI Confidence</div>
-            <div className="text-3xl font-black">{data.confidence}%</div>
+            <div className="text-2xl sm:text-3xl font-black">{data.confidence}%</div>
           </div>
         </div>
         <div className="mt-4">
