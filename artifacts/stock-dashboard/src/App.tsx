@@ -19,6 +19,7 @@ const ForgotPassword   = lazy(() => import("@/pages/ForgotPassword").then(m => (
 const ResetPassword    = lazy(() => import("@/pages/ResetPassword").then(m => ({ default: m.ResetPassword })));
 const AdminPanel       = lazy(() => import("@/pages/AdminPanel").then(m => ({ default: m.AdminPanel })));
 const ComingSoonPage   = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.ComingSoonPage })));
+const CommodityAIDecisionEngine = lazy(() => import("@/pages/CommodityAIDecisionEngine").then(m => ({ default: m.CommodityAIDecisionEngine })));
 
 // Lightweight fallback shown while a lazy chunk loads
 function PageLoader() {
@@ -275,6 +276,18 @@ function AppShell() {
                       {mkt.id === "intraday"    && <IntradayDashboard />}
                       {mkt.id === "options"     && <OptionsDashboard />}
                       {mkt.id === "commodities" && <Commodities />}
+                    </div>
+                  );
+                }
+
+                if (mkt.id === "commodities" && sec.id === "ai") {
+                  return (
+                    <div key={t}>
+                      <div className="text-xs text-muted-foreground mb-3">
+                        Market Hub <span className="mx-1">/</span> Commodities <span className="mx-1">/</span>
+                        <span className="font-semibold text-foreground">AI Decision</span>
+                      </div>
+                      <CommodityAIDecisionEngine />
                     </div>
                   );
                 }
