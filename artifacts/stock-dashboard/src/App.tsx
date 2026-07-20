@@ -18,6 +18,7 @@ const Register         = lazy(() => import("@/pages/Register").then(m => ({ defa
 const ForgotPassword   = lazy(() => import("@/pages/ForgotPassword").then(m => ({ default: m.ForgotPassword })));
 const ResetPassword    = lazy(() => import("@/pages/ResetPassword").then(m => ({ default: m.ResetPassword })));
 const AdminPanel       = lazy(() => import("@/pages/AdminPanel").then(m => ({ default: m.AdminPanel })));
+const ComingSoonPage   = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.ComingSoonPage })));
 
 // Lightweight fallback shown while a lazy chunk loads
 function PageLoader() {
@@ -33,19 +34,23 @@ function PageLoader() {
   );
 }
 import {
-  LayoutDashboard, Briefcase, TrendingUp, Clock,
-  Zap, Activity, BarChart2, Newspaper, Wheat, ChevronDown,
-  Sun, Moon, Link2, LogOut, User, Crown, Lock, Menu, X,
+  TrendingUp, Clock,
+  Sun, Moon, LogOut, User, Crown, ChevronDown,
 } from "lucide-react";
 import { hasAccess } from "@/lib/plan";
+import {
+  MARKETS, SECTIONS, LIVE_DASHBOARD_MARKETS, marketTab,
+  type MarketId, type Tab,
+} from "@/lib/marketHub";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/AppSidebar";
+import { BottomNav } from "@/components/BottomNav";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 15000 },
   },
 });
-
-type Tab = "home" | "portfolio" | "intraday" | "options" | "performance" | "insights" | "commodities" | "api" | "account";
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 function getInitialTheme(): "dark" | "light" {
@@ -106,85 +111,6 @@ function ISTClock() {
         <span>{time} IST</span>
       </div>
     </div>
-  );
-}
-
-// ── Dropdown Menu ─────────────────────────────────────────────────────────
-function NavDropdown({
-  label, icon: Icon, active, children,
-}: {
-  label: string;
-  icon: typeof LayoutDashboard;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${
-          active
-            ? "bg-primary text-white shadow-sm"
-            : "text-muted-foreground hover:text-foreground hover:bg-accent"
-        }`}
-      >
-        <Icon className="w-3.5 h-3.5" />
-        <span className="hidden lg:inline">{label}</span>
-        <ChevronDown className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-[200] min-w-[11rem] bg-card border border-border rounded-xl shadow-2xl py-1 overflow-hidden">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DropdownItem({
-  icon: Icon, label, active, accent, locked, onClick,
-}: {
-  icon: typeof LayoutDashboard;
-  label: string;
-  active: boolean;
-  accent?: string;
-  locked?: boolean;
-  onClick: () => void;
-}) {
-  const accentText: Record<string, string> = {
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    violet:  "text-violet-600  dark:text-violet-400",
-    orange:  "text-orange-600  dark:text-orange-400",
-    amber:   "text-amber-600   dark:text-amber-400",
-    blue:    "text-blue-600    dark:text-blue-400",
-  };
-  const colorCls = accent ? accentText[accent] ?? "text-foreground" : "text-foreground";
-
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold transition-colors text-left ${
-        active
-          ? "bg-primary/10 text-primary"
-          : `${colorCls} hover:bg-accent`
-      }`}
-    >
-      <Icon className="w-3.5 h-3.5 shrink-0" />
-      {label}
-      {locked && <Lock className="w-3 h-3 ml-auto text-muted-foreground shrink-0" />}
-    </button>
   );
 }
 
@@ -282,146 +208,101 @@ function AppShell() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useState<"dark" | "light">(getInitialTheme);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const intradayLocked = !hasAccess(user?.plan, "intraday");
-  const optionsLocked = !hasAccess(user?.plan, "options");
+  const moduleLocked: Record<MarketId, boolean> = {
+    intraday: !hasAccess(user?.plan, "intraday"),
+    options: !hasAccess(user?.plan, "options"),
+    commodities: false,
+    forex: false,
+    crypto: false,
+  };
 
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   const goTab = useCallback((t: Tab) => setTab(t), []);
-  const goTabMobile = useCallback((t: Tab) => { setTab(t); setMobileMenuOpen(false); }, []);
-
-  const tradingActive  = ["intraday", "options", "commodities"].includes(tab);
-
-  const navBtnCls = (id: Tab, accent?: string) => {
-    const isActive = tab === id;
-    const accentActive: Record<string, string> = {
-      amber: "bg-amber-500 text-white",
-      blue:  "bg-blue-500 text-white",
-    };
-    const accentIdle: Record<string, string> = {
-      amber: "text-amber-600 dark:text-amber-400/80 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-500/10",
-      blue:  "text-blue-600  dark:text-blue-400/80  hover:text-blue-700  dark:hover:text-blue-300  hover:bg-blue-500/10",
-    };
-    if (accent) return isActive ? accentActive[accent] : accentIdle[accent];
-    return isActive
-      ? "bg-primary text-white shadow-sm"
-      : "text-muted-foreground hover:text-foreground hover:bg-accent";
-  };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-visible">
-        <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between gap-2 overflow-visible">
+    <SidebarProvider>
+      <AppSidebar tab={tab} goTab={goTab} moduleLocked={moduleLocked} />
+      <SidebarInset>
+        <div className="min-h-screen bg-background flex flex-col">
+          <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="px-3 sm:px-4 h-14 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger className="hidden md:flex" />
+                <div className="flex md:hidden items-center gap-2">
+                  <div className="w-7 h-7 rounded bg-primary flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-foreground font-bold text-sm tracking-wide">Market</span>
+                    <span className="text-primary font-bold text-sm tracking-wide ml-0.5">Pulse AI</span>
+                  </div>
+                </div>
+              </div>
 
-          {/* Logo */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4 h-4 text-white" />
+              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                <ISTClock />
+                <UserMenu
+                  theme={theme}
+                  setTheme={(t) => setTheme(t)}
+                  onAccountSettings={() => goTab("account")}
+                />
+              </div>
             </div>
-            <div className="hidden sm:block">
-              <span className="text-foreground font-bold text-sm tracking-wide">Market</span>
-              <span className="text-primary font-bold text-sm tracking-wide ml-0.5">Pulse AI</span>
-            </div>
-          </div>
+          </header>
 
-          {/* Nav (desktop/tablet) */}
-          <nav className="hidden md:flex items-center gap-0.5 overflow-visible flex-1 justify-center">
+          <main className="flex-1 w-full max-w-screen-2xl mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 pb-20 md:pb-6">
+            <Suspense fallback={<PageLoader />}>
+              {tab === "home"        && <Home />}
+              {tab === "performance" && <Performance />}
+              {tab === "portfolio"   && <Portfolio />}
+              {tab === "insights"    && <Insights />}
+              {tab === "api"         && <ApiSettings />}
+              {tab === "account"     && <Settings />}
 
-            {/* Dashboard */}
-            <button onClick={() => goTab("home")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${navBtnCls("home")}`}>
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Dashboard</span>
-            </button>
+              {MARKETS.map((mkt) => SECTIONS.map((sec) => {
+                const t = marketTab(mkt.id, sec.id);
+                if (tab !== t) return null;
 
-            {/* Trading ▼ */}
-            <NavDropdown label="Trading" icon={Zap} active={tradingActive}>
-              <DropdownItem icon={Zap}      label="Intraday"    active={tab === "intraday"}    accent="emerald" locked={intradayLocked} onClick={() => { goTab("intraday");    }} />
-              <DropdownItem icon={Activity} label="Options"     active={tab === "options"}     accent="violet"  locked={optionsLocked}  onClick={() => { goTab("options");     }} />
-              <DropdownItem icon={Wheat}    label="Commodities" active={tab === "commodities"} accent="orange"  onClick={() => { goTab("commodities"); }} />
-            </NavDropdown>
+                if (sec.id === "dashboard" && LIVE_DASHBOARD_MARKETS.includes(mkt.id)) {
+                  return (
+                    <div key={t}>
+                      <div className="text-xs text-muted-foreground mb-3">
+                        Market Hub <span className="mx-1">/</span>
+                        <span className="font-semibold text-foreground">{mkt.label}</span>
+                      </div>
+                      {mkt.id === "intraday"    && <IntradayDashboard />}
+                      {mkt.id === "options"     && <OptionsDashboard />}
+                      {mkt.id === "commodities" && <Commodities />}
+                    </div>
+                  );
+                }
 
-            {/* Insights */}
-            <button onClick={() => goTab("insights")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${navBtnCls("insights", "amber")}`}>
-              <Newspaper className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Insights</span>
-            </button>
+                return (
+                  <ComingSoonPage
+                    key={t}
+                    marketId={mkt.id}
+                    section={sec.id}
+                    onHome={() => goTab("home")}
+                    onMarket={() => goTab(marketTab(mkt.id, "dashboard"))}
+                  />
+                );
+              }))}
+            </Suspense>
+          </main>
 
-            {/* Portfolio */}
-            <button onClick={() => goTab("portfolio")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${navBtnCls("portfolio")}`}>
-              <Briefcase className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Portfolio</span>
-            </button>
-
-            {/* Performance */}
-            <button onClick={() => goTab("performance")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${navBtnCls("performance", "blue")}`}>
-              <BarChart2 className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Performance</span>
-            </button>
-
-            {/* API */}
-            <button onClick={() => goTab("api")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${navBtnCls("api")}`}>
-              <Link2 className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">API</span>
-            </button>
-
-          </nav>
-
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            <ISTClock />
-            <button
-              onClick={() => setMobileMenuOpen((v) => !v)}
-              className="md:hidden h-9 w-9 flex items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileMenuOpen}
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-            <UserMenu
-              theme={theme}
-              setTheme={(t) => setTheme(t)}
-              onAccountSettings={() => { goTab("account"); setMobileMenuOpen(false); }}
-            />
-          </div>
+          <BottomNav
+            tab={tab}
+            goTab={goTab}
+            moduleLocked={moduleLocked}
+            theme={theme}
+            setTheme={(t) => setTheme(t)}
+            onAccountSettings={() => goTab("account")}
+          />
         </div>
-
-        {/* Nav (mobile) */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border bg-card max-h-[calc(100vh-3.5rem)] overflow-y-auto px-2 py-2">
-            <DropdownItem icon={LayoutDashboard} label="Dashboard" active={tab === "home"} onClick={() => goTabMobile("home")} />
-            <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Trading</div>
-            <DropdownItem icon={Zap} label="Intraday" active={tab === "intraday"} accent="emerald" locked={intradayLocked} onClick={() => goTabMobile("intraday")} />
-            <DropdownItem icon={Activity} label="Options" active={tab === "options"} accent="violet" locked={optionsLocked} onClick={() => goTabMobile("options")} />
-            <DropdownItem icon={Wheat} label="Commodities" active={tab === "commodities"} accent="orange" onClick={() => goTabMobile("commodities")} />
-            <div className="my-2 border-t border-border" />
-            <DropdownItem icon={Newspaper} label="Insights" active={tab === "insights"} accent="amber" onClick={() => goTabMobile("insights")} />
-            <DropdownItem icon={Briefcase} label="Portfolio" active={tab === "portfolio"} onClick={() => goTabMobile("portfolio")} />
-            <DropdownItem icon={BarChart2} label="Performance" active={tab === "performance"} accent="blue" onClick={() => goTabMobile("performance")} />
-            <DropdownItem icon={Link2} label="API" active={tab === "api"} onClick={() => goTabMobile("api")} />
-          </div>
-        )}
-      </header>
-
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-3 sm:px-4 md:px-6 py-4 sm:py-6">
-        <Suspense fallback={<PageLoader />}>
-          {tab === "home"        && <Home />}
-          {tab === "intraday"    && <IntradayDashboard />}
-          {tab === "options"     && <OptionsDashboard />}
-          {tab === "performance" && <Performance />}
-          {tab === "commodities" && <Commodities />}
-          {tab === "portfolio"   && <Portfolio />}
-          {tab === "insights"    && <Insights />}
-          {tab === "api"         && <ApiSettings />}
-          {tab === "account"     && <Settings />}
-        </Suspense>
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 

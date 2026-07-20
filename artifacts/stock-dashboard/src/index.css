@@ -28,6 +28,9 @@
   --color-sidebar: hsl(var(--sidebar));
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
   --font-sans: var(--app-font-sans);
   --font-mono: var(--app-font-mono);
   --radius-sm: calc(var(--radius) - 4px);
@@ -72,6 +75,9 @@
   --sidebar: 220 18% 95%;
   --sidebar-foreground: 224 47% 10%;
   --sidebar-border: 220 18% 86%;
+  --sidebar-accent: 220 18% 90%;
+  --sidebar-accent-foreground: 224 47% 10%;
+  --sidebar-ring: 24 95% 53%;
 
   --app-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --app-font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -115,6 +121,9 @@
   --sidebar: 224 47% 7%;
   --sidebar-foreground: 210 40% 85%;
   --sidebar-border: 220 30% 14%;
+  --sidebar-accent: 220 30% 16%;
+  --sidebar-accent-foreground: 210 40% 90%;
+  --sidebar-ring: 24 95% 53%;
 }
 
 @layer base {
