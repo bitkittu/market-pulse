@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetDecisionPanel,
@@ -23,10 +23,15 @@ import { format } from "date-fns";
 import { LockedValue, LockedHint } from "@/components/LockedValue";
 import { LockOverlay } from "@/components/UpgradeGate";
 import { useFeatureAccess } from "@/lib/plan";
+import { useDashboardLayouts, type WidgetId } from "@/lib/dashboardLayout";
+import { DashboardGrid } from "@/components/dashboard-customize/DashboardGrid";
+import { WidgetPicker } from "@/components/dashboard-customize/WidgetPicker";
+import { LayoutSwitcher } from "@/components/dashboard-customize/LayoutSwitcher";
 import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
   Clock, RefreshCw, Bell, BellOff, ChevronUp, ChevronDown,
   Zap, BookOpen, Target, ShieldAlert, BarChart2, Activity,
+  Settings2, RotateCcw, Check,
 } from "lucide-react";
 
 // ── Utilities ─────────────────────────────────────────────────────────────
@@ -791,6 +796,11 @@ export function Home() {
   const [mode, setMode] = useState<Mode>("trader");
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [spinning, setSpinning] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const {
+    layouts, activeLayout, setActiveLayoutId, reorderWidgets, toggleWidgetVisibility,
+    createLayout, duplicateLayout, renameLayout, deleteLayout, resetActiveToDefault,
+  } = useDashboardLayouts();
   const { data: upstoxSettings } = useGetUpstoxSettings({ query: {} });
 
   const { data: panel, isLoading: panelLoading } = useGetDecisionPanel({
@@ -835,44 +845,80 @@ export function Home() {
         </div>
       </div>
 
-      {/* ── 1. Decision Engine ── */}
-      <DecisionHero panel={panel} mode={mode} />
-
-      {/* ── 2. Key Levels ── */}
-      <KeyLevelsPanel panel={panel} mode={mode} />
-
-      {/* ── 3. Market Pressure + Money Flow ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <MarketPressureCard panel={panel} mode={mode} />
-        <MoneyFlowCard panel={panel} mode={mode} />
-      </div>
-
-      {/* ── 4. Signals Table ── */}
-      <SignalsTable panel={panel} mode={mode} />
-
-      {/* ── 5. Alert System ── */}
-      <AlertSystem mode={mode} />
-
-      {/* ── 6. Nifty Chart + Movers + Sectors ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <GiftNiftyCard />
-        <div className="space-y-4">
-          <MoversCompact />
-          <SectorsCompact />
+      {/* ── Dashboard customization toolbar ── */}
+      <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <LayoutSwitcher
+            layouts={layouts}
+            activeLayout={activeLayout}
+            onSelect={setActiveLayoutId}
+            onCreate={createLayout}
+            onRename={renameLayout}
+            onDuplicate={duplicateLayout}
+            onDelete={deleteLayout}
+          />
+          {editMode && (
+            <>
+              <WidgetPicker layout={activeLayout} onToggle={toggleWidgetVisibility} />
+              <button onClick={resetActiveToDefault}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                <RotateCcw className="w-3.5 h-3.5" /> Reset
+              </button>
+            </>
+          )}
         </div>
+        <button
+          onClick={() => setEditMode((v) => !v)}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+            editMode ? "bg-primary text-white" : "border border-border text-foreground hover:bg-accent",
+          )}
+        >
+          {editMode ? <><Check className="w-3.5 h-3.5" /> Done</> : <><Settings2 className="w-3.5 h-3.5" /> Customize</>}
+        </button>
       </div>
 
-      {/* ── 7. Global Index Charts ── */}
-      <div className="flex items-center gap-2 px-1 pt-2">
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Global Markets</span>
-        <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", DATA_SOURCE_BADGE.yahoo.cls)}>Yahoo ~15m</span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <GlobalIndexCard ticker="^NSEI" />
-        <GlobalIndexCard ticker="^NYA" />
-        <GlobalIndexCard ticker="000001.SS" />
-        <GlobalIndexCard ticker="^HSI" />
-      </div>
+      <DashboardGrid
+        layout={activeLayout}
+        editMode={editMode}
+        onReorder={reorderWidgets}
+        onToggleVisibility={toggleWidgetVisibility}
+        content={{
+          "ai-decision": (
+            <div className="space-y-4">
+              <DecisionHero panel={panel} mode={mode} />
+              <KeyLevelsPanel panel={panel} mode={mode} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <MarketPressureCard panel={panel} mode={mode} />
+                <MoneyFlowCard panel={panel} mode={mode} />
+              </div>
+              <SignalsTable panel={panel} mode={mode} />
+            </div>
+          ),
+          "alerts": <AlertSystem mode={mode} />,
+          "gift-nifty": <GiftNiftyCard />,
+          "movers-sectors": (
+            <div className="space-y-4">
+              <MoversCompact />
+              <SectorsCompact />
+            </div>
+          ),
+          "global-markets": (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-1 pt-2">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Global Markets</span>
+                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border", DATA_SOURCE_BADGE.yahoo.cls)}>Yahoo ~15m</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <GlobalIndexCard ticker="^NSEI" />
+                <GlobalIndexCard ticker="^NYA" />
+                <GlobalIndexCard ticker="000001.SS" />
+                <GlobalIndexCard ticker="^HSI" />
+              </div>
+            </div>
+          ),
+        } satisfies Record<WidgetId, ReactNode>}
+      />
     </div>
   );
 }

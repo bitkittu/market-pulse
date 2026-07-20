@@ -26,6 +26,10 @@ export function formatPercent(value: number) {
   return `${prefix}${value.toFixed(2)}%`;
 }
 
+export function generateId() {
+  return crypto.randomUUID();
+}
+
 export function formatCompactNumber(number: number) {
   return new Intl.NumberFormat('en-IN', {
     notation: "compact",
