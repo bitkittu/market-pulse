@@ -10,17 +10,14 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// The server only starts once the database is reachable. Serving without it
+// would produce a site that loads but fails every data request with a 500,
+// which is far harder to diagnose than a process that refuses to boot.
 connectDb()
   .then(() => seedAuthDefaults())
-  .then(() => console.log("[startup] MongoDB connected and auth defaults seeded"))
-  .catch((err) => {
-    logger.error({ err }, "Failed to connect to database / seed defaults");
-    console.error(
-      "[startup] Database connection/seed FAILED:",
-      err instanceof Error ? err.message : err,
-    );
-  })
-  .finally(() => {
+  .then(() => {
+    logger.info("MySQL connected and auth defaults seeded");
+
     app.listen(port, (err) => {
       if (err) {
         logger.error({ err }, "Error listening on port");
@@ -29,4 +26,12 @@ connectDb()
 
       logger.info({ port }, "Server listening");
     });
+  })
+  .catch((err) => {
+    logger.error({ err }, "Failed to connect to database / seed defaults");
+    console.error(
+      "[startup] Database connection/seed FAILED:",
+      err instanceof Error ? err.message : err,
+    );
+    process.exit(1);
   });

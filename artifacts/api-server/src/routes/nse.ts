@@ -22,7 +22,7 @@ import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestion
 import { getDecisionPanel } from "../lib/decisionEngine.js";
 import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
 import { analyzeFoTrade } from "../lib/foAnalyzer.js";
-import { collections, nextId } from "@workspace/db";
+import { db } from "@workspace/db";
 import { requireAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -148,11 +148,7 @@ router.get("/nse/history/:symbol", (req, res) => {
 // ── Portfolio ────────────────────────────────────────────────────────────
 router.get("/portfolio", requireAuth, async (req, res) => {
   try {
-    const items = await collections
-      .portfolio()
-      .find({ userId: req.user!.id })
-      .sort({ addedAt: 1 })
-      .toArray();
+    const items = await db.portfolio.findByUser(req.user!.id);
     res.json(
       items.map((i) => ({
         id: i.id,
@@ -177,7 +173,7 @@ router.post("/portfolio", requireAuth, async (req, res) => {
       return;
     }
     const upper = symbol.toUpperCase();
-    const existing = await collections.portfolio().findOne({ userId: req.user!.id, symbol: upper });
+    const existing = await db.portfolio.findOne(req.user!.id, upper);
     if (existing) {
       res.json({
         id: existing.id,
@@ -189,16 +185,13 @@ router.post("/portfolio", requireAuth, async (req, res) => {
       });
       return;
     }
-    const inserted = {
-      id: await nextId("portfolio"),
+    const inserted = await db.portfolio.insert({
       userId: req.user!.id,
       symbol: upper,
       exchange: String(exchange).toUpperCase(),
       buyPrice: buyPrice ? Number(buyPrice) : null,
       quantity: quantity ? Number(quantity) : null,
-      addedAt: new Date(),
-    };
-    await collections.portfolio().insertOne(inserted);
+    });
     res.json({
       id: inserted.id,
       symbol: inserted.symbol,
@@ -216,7 +209,7 @@ router.post("/portfolio", requireAuth, async (req, res) => {
 router.delete("/portfolio/:symbol", requireAuth, async (req, res) => {
   try {
     const symbol = String(req.params.symbol).toUpperCase();
-    await collections.portfolio().deleteOne({ userId: req.user!.id, symbol });
+    await db.portfolio.remove(req.user!.id, symbol);
     res.json({ success: true });
   } catch (err) {
     req.log.error({ err }, "Failed to delete portfolio item");
@@ -237,7 +230,7 @@ router.get("/portfolio/:symbol/indicators", (req, res) => {
 // ── Upstox Settings ──────────────────────────────────────────────────────
 router.get("/settings/upstox", requireAuth, async (req, res) => {
   try {
-    const settings = await collections.upstoxSettings().findOne({ userId: req.user!.id });
+    const settings = await db.upstoxSettings.findByUser(req.user!.id);
     if (!settings) {
       res.json({ connected: false, liveDataEnabled: false });
       return;
@@ -263,18 +256,13 @@ router.post("/settings/upstox", requireAuth, async (req, res) => {
       res.status(400).json({ error: "API Key is required" });
       return;
     }
-    await collections.upstoxSettings().deleteMany({ userId: req.user!.id });
-    const inserted = {
-      id: await nextId("upstox_settings"),
+    const inserted = await db.upstoxSettings.replace({
       userId: req.user!.id,
       apiKey,
       apiSecret: apiSecret || null,
       clientId: clientId || null,
       accessToken: accessToken || null,
-      liveDataEnabled: true,
-      connectedAt: new Date(),
-    };
-    await collections.upstoxSettings().insertOne(inserted);
+    });
     invalidateTokenCache();
     invalidateAllCache();
     res.json({
@@ -293,7 +281,7 @@ router.post("/settings/upstox", requireAuth, async (req, res) => {
 
 router.post("/settings/upstox/disconnect", requireAuth, async (req, res) => {
   try {
-    await collections.upstoxSettings().deleteMany({ userId: req.user!.id });
+    await db.upstoxSettings.removeForUser(req.user!.id);
     invalidateTokenCache();
     invalidateAllCache();
     res.json({ success: true });

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { collections } from "@workspace/db";
+import { db } from "@workspace/db";
 import { requireAuth, requirePermission, toPublicUser } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -8,10 +8,7 @@ router.use(requireAuth);
 
 router.get("/admin/users", requirePermission("users.view"), async (_req, res) => {
   try {
-    const [users, roles] = await Promise.all([
-      collections.users().find().toArray(),
-      collections.roles().find().toArray(),
-    ]);
+    const [users, roles] = await Promise.all([db.users.all(), db.roles.all()]);
     const roleName = (roleId: number) => roles.find((r) => r.id === roleId)?.name ?? "user";
     res.json(users.map((user) => toPublicUser(user, roleName(user.roleId))));
   } catch (err) {
@@ -29,18 +26,18 @@ router.delete("/admin/users/:id", requirePermission("users.manage"), async (req,
   }
 
   try {
-    const user = await collections.users().findOne({ id });
+    const user = await db.users.findById(id);
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
     }
-    const role = await collections.roles().findOne({ id: user.roleId });
+    const role = await db.roles.findById(user.roleId);
     if (role?.name === "admin") {
       res.status(403).json({ error: "Cannot delete an admin account" });
       return;
     }
 
-    await collections.users().deleteOne({ id });
+    await db.users.deleteById(id);
     res.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -63,15 +60,15 @@ router.post("/admin/users/:id/plan", requirePermission("users.manage"), async (r
   }
 
   try {
-    const user = await collections.users().findOne({ id });
+    const user = await db.users.findById(id);
     if (!user) {
       res.status(404).json({ error: "User not found" });
       return;
     }
-    const role = await collections.roles().findOne({ id: user.roleId });
+    const role = await db.roles.findById(user.roleId);
 
-    await collections.users().updateOne({ id }, { $set: { plan, updatedAt: new Date() } });
-    const updated = await collections.users().findOne({ id });
+    await db.users.updatePlan(id, plan);
+    const updated = await db.users.findById(id);
     res.json({ user: toPublicUser(updated!, role?.name ?? "user") });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

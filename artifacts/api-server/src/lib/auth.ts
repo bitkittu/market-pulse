@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { collections, nextId, type UserRow } from "@workspace/db";
+import { db, type UserRow } from "@workspace/db";
 import type { Request, Response, NextFunction } from "express";
 
 export const SESSION_COOKIE = "mp_session";
@@ -83,10 +83,10 @@ export interface AuthedUser extends UserRow {
 }
 
 export async function loadAuthedUser(userId: number): Promise<AuthedUser | null> {
-  const user = await collections.users().findOne({ id: userId });
+  const user = await db.users.findById(userId);
   if (!user) return null;
 
-  const role = await collections.roles().findOne({ id: user.roleId });
+  const role = await db.roles.findById(user.roleId);
 
   return {
     ...user,
@@ -145,47 +145,30 @@ export function requirePermission(permission: string) {
 // database, and creates the first admin account if none exists yet. Every
 // step is idempotent, so this is safe to run on every boot.
 export async function seedAuthDefaults(): Promise<void> {
-  for (const role of DEFAULT_ROLES) {
-    const permissions = ROLE_PERMISSIONS[role.name] ?? [];
-    const existing = await collections.roles().findOne({ name: role.name });
-    if (existing) {
-      // Keep the permission list in sync as the app's defaults evolve.
-      await collections.roles().updateOne(
-        { name: role.name },
-        { $set: { description: role.description, permissions: [...permissions] } },
-      );
-    } else {
-      await collections.roles().insertOne({
-        id: await nextId("roles"),
-        name: role.name,
-        description: role.description,
-        permissions: [...permissions],
-        createdAt: new Date(),
-      });
-    }
+  // Keep the permission descriptions in sync as the app's defaults evolve.
+  for (const permission of DEFAULT_PERMISSIONS) {
+    await db.roles.describePermission(permission.name, permission.description);
   }
 
-  const adminRole = await collections.roles().findOne({ name: "admin" });
+  for (const role of DEFAULT_ROLES) {
+    const roleId = await db.roles.upsert(role.name, role.description);
+    await db.roles.setPermissions(roleId, ROLE_PERMISSIONS[role.name] ?? []);
+  }
+
+  const adminRole = await db.roles.findByName("admin");
   if (!adminRole) return;
 
-  const existingAdmin = await collections.users().findOne({ roleId: adminRole.id });
+  const existingAdmin = await db.users.findByRoleId(adminRole.id);
   if (existingAdmin) return;
 
   const email = (process.env["ADMIN_EMAIL"] ?? "team@trading.brandmars.com").trim().toLowerCase();
   const password = process.env["ADMIN_PASSWORD"] ?? "Admin@123";
-  const passwordHash = await hashPassword(password);
-  const now = new Date();
-  await collections.users().insertOne({
-    id: await nextId("users"),
+  await db.users.insert({
     name: "Admin",
     email,
-    passwordHash,
+    passwordHash: await hashPassword(password),
     roleId: adminRole.id,
     plan: "premium",
     status: "active",
-    emailVerifiedAt: null,
-    lastLoginAt: null,
-    createdAt: now,
-    updatedAt: now,
   });
 }

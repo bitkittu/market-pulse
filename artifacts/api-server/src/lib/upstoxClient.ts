@@ -1,4 +1,4 @@
-import { collections } from "@workspace/db";
+import { db } from "@workspace/db";
 
 const UPSTOX_BASE = "https://api.upstox.com/v2";
 
@@ -60,7 +60,7 @@ export async function getUpstoxToken(): Promise<string | null> {
   if (tokenCache && tokenCache.expiry > Date.now()) return tokenCache.token;
 
   try {
-    const settings = await collections.upstoxSettings().findOne({}, { sort: { connectedAt: -1 } });
+    const settings = await db.upstoxSettings.findLatest();
     if (!settings?.accessToken) return null;
     tokenCache = { token: settings.accessToken, expiry: Date.now() + 5 * 60_000 };
     return settings.accessToken;

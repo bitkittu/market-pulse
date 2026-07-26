@@ -9,7 +9,7 @@ import {
   getAiAnalysis,
   getAiMarketSummary,
 } from "../lib/stockData.js";
-import { collections, nextId } from "@workspace/db";
+import { db } from "@workspace/db";
 import { requireAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -106,11 +106,7 @@ router.get("/stocks/sectors", (_req, res) => {
 });
 
 router.get("/watchlist", requireAuth, async (req, res) => {
-  const items = await collections
-    .watchlist()
-    .find({ userId: req.user!.id })
-    .sort({ addedAt: 1 })
-    .toArray();
+  const items = await db.watchlist.findByUser(req.user!.id);
   res.json(items.map((i) => ({ id: i.id, symbol: i.symbol, addedAt: i.addedAt.toISOString() })));
 });
 
@@ -121,24 +117,18 @@ router.post("/watchlist", requireAuth, async (req, res) => {
     return;
   }
   const upper = symbol.toUpperCase();
-  const existing = await collections.watchlist().findOne({ userId: req.user!.id, symbol: upper });
+  const existing = await db.watchlist.findOne(req.user!.id, upper);
   if (existing) {
     res.json({ id: existing.id, symbol: existing.symbol, addedAt: existing.addedAt.toISOString() });
     return;
   }
-  const inserted = {
-    id: await nextId("watchlist"),
-    userId: req.user!.id,
-    symbol: upper,
-    addedAt: new Date(),
-  };
-  await collections.watchlist().insertOne(inserted);
+  const inserted = await db.watchlist.insert(req.user!.id, upper);
   res.json({ id: inserted.id, symbol: inserted.symbol, addedAt: inserted.addedAt.toISOString() });
 });
 
 router.delete("/watchlist/:symbol", requireAuth, async (req, res) => {
   const symbol = String(req.params.symbol).toUpperCase();
-  await collections.watchlist().deleteOne({ userId: req.user!.id, symbol });
+  await db.watchlist.remove(req.user!.id, symbol);
   res.json({ success: true });
 });
 

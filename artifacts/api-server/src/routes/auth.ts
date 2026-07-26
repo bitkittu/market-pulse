@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
-import { collections, nextId } from "@workspace/db";
+import { db } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
@@ -68,33 +68,25 @@ router.post("/auth/register", async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const existing = await collections.users().findOne({ email: normalizedEmail });
+    const existing = await db.users.findByEmail(normalizedEmail);
     if (existing) {
       res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
 
-    const userRole = await collections.roles().findOne({ name: "user" });
+    const userRole = await db.roles.findByName("user");
     if (!userRole) {
       res.status(500).json({ error: "Server is not configured correctly (missing default role)" });
       return;
     }
 
-    const passwordHash = await hashPassword(password);
-    const newId = await nextId("users");
-    const now = new Date();
-    await collections.users().insertOne({
-      id: newId,
+    const newId = await db.users.insert({
       name: name.trim(),
       email: normalizedEmail,
-      passwordHash,
+      passwordHash: await hashPassword(password),
       roleId: userRole.id,
       plan: "free",
       status: "active",
-      emailVerifiedAt: null,
-      lastLoginAt: null,
-      createdAt: now,
-      updatedAt: now,
     });
 
     const authedUser = await loadAuthedUser(newId);
@@ -123,21 +115,13 @@ router.post("/auth/login", async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await collections.users().findOne({ email: normalizedEmail });
+    const user = await db.users.findByEmail(normalizedEmail);
 
     const ipAddress = clientIp(req);
     const userAgent = clientUserAgent(req);
 
-    const recordLogin = async (userId: number, status: "success" | "failed") => {
-      await collections.loginHistory().insertOne({
-        id: await nextId("login_history"),
-        userId,
-        ipAddress,
-        userAgent,
-        status,
-        createdAt: new Date(),
-      });
-    };
+    const recordLogin = (userId: number, status: "success" | "failed") =>
+      db.loginHistory.record({ userId, ipAddress, userAgent, status });
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
       if (user) {
@@ -154,10 +138,7 @@ router.post("/auth/login", async (req, res) => {
     }
 
     await recordLogin(user.id, "success");
-    await collections.users().updateOne(
-      { id: user.id },
-      { $set: { lastLoginAt: new Date(), updatedAt: new Date() } },
-    );
+    await db.users.touchLastLogin(user.id);
 
     const authedUser = await loadAuthedUser(user.id);
     if (!authedUser) {
@@ -195,24 +176,22 @@ router.post("/auth/forgot-password", async (req, res) => {
       return;
     }
 
-    const user = await collections.users().findOne({ email: normalizedEmail });
+    const user = await db.users.findByEmail(normalizedEmail);
     if (!user) {
       res.json({ message: RESET_GENERIC_MESSAGE });
       return;
     }
 
-    // Invalidate any previous outstanding tokens for this user.
-    await collections.passwordResets().deleteMany({ userId: user.id, usedAt: null });
+    // Invalidate any previous outstanding tokens for this user, and sweep any
+    // expired rows while we're here (MySQL has no TTL index).
+    await db.passwordResets.clearOutstanding(user.id);
+    await db.passwordResets.purgeExpired();
 
     const rawToken = crypto.randomBytes(32).toString("hex");
-    const now = new Date();
-    await collections.passwordResets().insertOne({
-      id: await nextId("password_resets"),
+    await db.passwordResets.insert({
       userId: user.id,
       tokenHash: hashToken(rawToken),
-      expiresAt: new Date(now.getTime() + RESET_TOKEN_TTL_MS),
-      usedAt: null,
-      createdAt: now,
+      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
     });
 
     const baseUrl = (
@@ -252,27 +231,17 @@ router.post("/auth/reset-password", async (req, res) => {
       return;
     }
 
-    const record = await collections.passwordResets().findOne({
-      tokenHash: hashToken(token),
-      usedAt: null,
-    });
+    const record = await db.passwordResets.findUnusedByTokenHash(hashToken(token));
     if (!record || record.expiresAt.getTime() < Date.now()) {
       res.status(400).json({ error: "Invalid or expired reset link" });
       return;
     }
 
-    const passwordHash = await hashPassword(password);
-    await collections.users().updateOne(
-      { id: record.userId },
-      { $set: { passwordHash, updatedAt: new Date() } },
-    );
+    await db.users.updatePasswordHash(record.userId, await hashPassword(password));
 
     // Mark this token used and clear any other outstanding tokens for the user.
-    await collections.passwordResets().updateOne(
-      { id: record.id },
-      { $set: { usedAt: new Date() } },
-    );
-    await collections.passwordResets().deleteMany({ userId: record.userId, usedAt: null });
+    await db.passwordResets.markUsed(record.id);
+    await db.passwordResets.clearOutstanding(record.userId);
 
     res.json({ message: "Your password has been reset. You can now sign in." });
   } catch (err) {
@@ -293,10 +262,7 @@ router.patch("/auth/profile", requireAuth, async (req, res) => {
     }
 
     const user = req.user!;
-    await collections.users().updateOne(
-      { id: user.id },
-      { $set: { name: name.trim(), updatedAt: new Date() } },
-    );
+    await db.users.updateName(user.id, name.trim());
 
     const reloaded = await loadAuthedUser(user.id);
     if (!reloaded) {
@@ -335,11 +301,7 @@ router.post("/auth/change-password", requireAuth, async (req, res) => {
       return;
     }
 
-    const passwordHash = await hashPassword(newPassword);
-    await collections.users().updateOne(
-      { id: user.id },
-      { $set: { passwordHash, updatedAt: new Date() } },
-    );
+    await db.users.updatePasswordHash(user.id, await hashPassword(newPassword));
 
     res.json({ message: "Your password has been changed." });
   } catch (err) {

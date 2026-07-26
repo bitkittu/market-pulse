@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "mongodb": "^7.5.0"
+    "mysql2": "^3.22.5"
   },
   "devDependencies": {
     "@types/node": "catalog:"
