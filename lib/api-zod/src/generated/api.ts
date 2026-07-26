@@ -368,6 +368,102 @@ export const GetNseHistoryResponse = zod.object({
 });
 
 /**
+ * @summary Get quotes for a comma-separated list of symbols
+ */
+export const GetStockQuotesQueryParams = zod.object({
+  symbols: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Comma-separated symbols. Defaults to a built-in list when omitted.",
+    ),
+});
+
+export const GetStockQuotesResponseItem = zod.object({
+  symbol: zod.string(),
+  name: zod.string(),
+  price: zod.number(),
+  change: zod.number(),
+  changePercent: zod.number(),
+  volume: zod.number(),
+  marketCap: zod.number(),
+  high52w: zod.number(),
+  low52w: zod.number(),
+  pe: zod.number(),
+  open: zod.number(),
+  previousClose: zod.number(),
+  high: zod.number(),
+  low: zod.number(),
+  avgVolume: zod.number(),
+  sector: zod.string(),
+});
+export const GetStockQuotesResponse = zod.array(GetStockQuotesResponseItem);
+
+/**
+ * @summary Get price history for a stock
+ */
+export const GetStockHistoryParams = zod.object({
+  symbol: zod.coerce.string(),
+});
+
+export const getStockHistoryQueryPeriodDefault = `1M`;
+
+export const GetStockHistoryQueryParams = zod.object({
+  period: zod
+    .enum(["1D", "1W", "1M", "3M", "6M", "1Y"])
+    .default(getStockHistoryQueryPeriodDefault),
+});
+
+export const GetStockHistoryResponse = zod.object({
+  symbol: zod.string(),
+  period: zod.string(),
+  data: zod.array(
+    zod.object({
+      timestamp: zod.string(),
+      open: zod.number(),
+      high: zod.number(),
+      low: zod.number(),
+      close: zod.number(),
+      volume: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get the current user's watchlist
+ */
+export const GetWatchlistResponseItem = zod.object({
+  id: zod.number(),
+  symbol: zod.string(),
+  addedAt: zod.string(),
+});
+export const GetWatchlistResponse = zod.array(GetWatchlistResponseItem);
+
+/**
+ * @summary Add a symbol to the watchlist
+ */
+export const AddToWatchlistBody = zod.object({
+  symbol: zod.string(),
+});
+
+export const AddToWatchlistResponse = zod.object({
+  id: zod.number(),
+  symbol: zod.string(),
+  addedAt: zod.string(),
+});
+
+/**
+ * @summary Remove a symbol from the watchlist
+ */
+export const RemoveFromWatchlistParams = zod.object({
+  symbol: zod.coerce.string(),
+});
+
+export const RemoveFromWatchlistResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
  * @summary Get portfolio stocks
  */
 export const GetPortfolioResponseItem = zod.object({

@@ -289,6 +289,110 @@ paths:
               schema:
                 $ref: "#/components/schemas/PriceHistory"
 
+  /stocks/quotes:
+    get:
+      operationId: getStockQuotes
+      tags: [stocks]
+      summary: Get quotes for a comma-separated list of symbols
+      parameters:
+        - name: symbols
+          in: query
+          required: false
+          description: Comma-separated symbols. Defaults to a built-in list when omitted.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Stock quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockQuote"
+
+  /stocks/{symbol}/history:
+    get:
+      operationId: getStockHistory
+      tags: [stocks]
+      summary: Get price history for a stock
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [1D, 1W, 1M, 3M, 6M, 1Y]
+            default: 1M
+      responses:
+        "200":
+          description: Stock history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistory"
+
+  /watchlist:
+    get:
+      operationId: getWatchlist
+      tags: [watchlist]
+      summary: Get the current user's watchlist
+      responses:
+        "200":
+          description: Watchlist items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WatchlistItem"
+    post:
+      operationId: addToWatchlist
+      tags: [watchlist]
+      summary: Add a symbol to the watchlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddWatchlistRequest"
+      responses:
+        "200":
+          description: Added item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WatchlistItem"
+
+  /watchlist/{symbol}:
+    delete:
+      operationId: removeFromWatchlist
+      tags: [watchlist]
+      summary: Remove a symbol from the watchlist
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+
   /portfolio:
     get:
       operationId: getPortfolio
@@ -819,6 +923,81 @@ components:
         - value
         - advancers
         - decliners
+
+    StockQuote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        change:
+          type: number
+        changePercent:
+          type: number
+        volume:
+          type: number
+        marketCap:
+          type: number
+        high52w:
+          type: number
+        low52w:
+          type: number
+        pe:
+          type: number
+        open:
+          type: number
+        previousClose:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        avgVolume:
+          type: number
+        sector:
+          type: string
+      required:
+        - symbol
+        - name
+        - price
+        - change
+        - changePercent
+        - volume
+        - marketCap
+        - high52w
+        - low52w
+        - pe
+        - open
+        - previousClose
+        - high
+        - low
+        - avgVolume
+        - sector
+
+    WatchlistItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        addedAt:
+          type: string
+      required:
+        - id
+        - symbol
+        - addedAt
+
+    AddWatchlistRequest:
+      type: object
+      properties:
+        symbol:
+          type: string
+      required:
+        - symbol
 
     PortfolioStock:
       type: object

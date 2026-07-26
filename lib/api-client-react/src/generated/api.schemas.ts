@@ -132,6 +132,35 @@ export interface SectorPerf {
   decliners: number;
 }
 
+export interface StockQuote {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  marketCap: number;
+  high52w: number;
+  low52w: number;
+  pe: number;
+  open: number;
+  previousClose: number;
+  high: number;
+  low: number;
+  avgVolume: number;
+  sector: string;
+}
+
+export interface WatchlistItem {
+  id: number;
+  symbol: string;
+  addedAt: string;
+}
+
+export interface AddWatchlistRequest {
+  symbol: string;
+}
+
 export interface PortfolioStock {
   id: number;
   symbol: string;
@@ -729,6 +758,33 @@ export const GetNseHistoryPeriod = {
   "6M": "6M",
   "1Y": "1Y",
 } as const;
+
+export type GetStockQuotesParams = {
+  /**
+   * Comma-separated symbols. Defaults to a built-in list when omitted.
+   */
+  symbols?: string;
+};
+
+export type GetStockHistoryParams = {
+  period?: GetStockHistoryPeriod;
+};
+
+export type GetStockHistoryPeriod =
+  (typeof GetStockHistoryPeriod)[keyof typeof GetStockHistoryPeriod];
+
+export const GetStockHistoryPeriod = {
+  "1D": "1D",
+  "1W": "1W",
+  "1M": "1M",
+  "3M": "3M",
+  "6M": "6M",
+  "1Y": "1Y",
+} as const;
+
+export type RemoveFromWatchlist200 = {
+  success: boolean;
+};
 
 export type RemovePortfolioStock200 = {
   success: boolean;

@@ -18,6 +18,7 @@ import type {
 
 import type {
   AddPortfolioStockRequest,
+  AddWatchlistRequest,
   DecisionPanel,
   DisconnectUpstox200,
   FoAnalysisResult,
@@ -31,6 +32,8 @@ import type {
   GetGlobalIndexHistoryParams,
   GetGlobalIndexQuoteParams,
   GetNseHistoryParams,
+  GetStockHistoryParams,
+  GetStockQuotesParams,
   GiftNiftyQuote,
   GlobalIndexQuote,
   HealthStatus,
@@ -40,6 +43,7 @@ import type {
   OptionsSuggestion,
   PortfolioStock,
   PriceHistory,
+  RemoveFromWatchlist200,
   RemovePortfolioStock200,
   SaveUpstoxSettingsRequest,
   SearchInsights404,
@@ -47,9 +51,11 @@ import type {
   SearchInsightsParams,
   SectorPerf,
   StockIndicators,
+  StockQuote,
   StockSuggestion,
   UpstoxSettings,
   UpstoxTestResult,
+  WatchlistItem,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1188,6 +1194,460 @@ export function useGetNseHistory<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get quotes for a comma-separated list of symbols
+ */
+export const getGetStockQuotesUrl = (params?: GetStockQuotesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/quotes?${stringifiedParams}`
+    : `/api/stocks/quotes`;
+};
+
+export const getStockQuotes = async (
+  params?: GetStockQuotesParams,
+  options?: RequestInit,
+): Promise<StockQuote[]> => {
+  return customFetch<StockQuote[]>(getGetStockQuotesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStockQuotesQueryKey = (params?: GetStockQuotesParams) => {
+  return [`/api/stocks/quotes`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetStockQuotesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStockQuotes>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetStockQuotesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockQuotes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStockQuotesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStockQuotes>>> = ({
+    signal,
+  }) => getStockQuotes(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStockQuotes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStockQuotesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStockQuotes>>
+>;
+export type GetStockQuotesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get quotes for a comma-separated list of symbols
+ */
+
+export function useGetStockQuotes<
+  TData = Awaited<ReturnType<typeof getStockQuotes>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetStockQuotesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockQuotes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStockQuotesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get price history for a stock
+ */
+export const getGetStockHistoryUrl = (
+  symbol: string,
+  params?: GetStockHistoryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/${symbol}/history?${stringifiedParams}`
+    : `/api/stocks/${symbol}/history`;
+};
+
+export const getStockHistory = async (
+  symbol: string,
+  params?: GetStockHistoryParams,
+  options?: RequestInit,
+): Promise<PriceHistory> => {
+  return customFetch<PriceHistory>(getGetStockHistoryUrl(symbol, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetStockHistoryQueryKey = (
+  symbol: string,
+  params?: GetStockHistoryParams,
+) => {
+  return [
+    `/api/stocks/${symbol}/history`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetStockHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStockHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  symbol: string,
+  params?: GetStockHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetStockHistoryQueryKey(symbol, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStockHistory>>> = ({
+    signal,
+  }) => getStockHistory(symbol, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!symbol,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStockHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetStockHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStockHistory>>
+>;
+export type GetStockHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get price history for a stock
+ */
+
+export function useGetStockHistory<
+  TData = Awaited<ReturnType<typeof getStockHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  symbol: string,
+  params?: GetStockHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStockHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStockHistoryQueryOptions(symbol, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the current user's watchlist
+ */
+export const getGetWatchlistUrl = () => {
+  return `/api/watchlist`;
+};
+
+export const getWatchlist = async (
+  options?: RequestInit,
+): Promise<WatchlistItem[]> => {
+  return customFetch<WatchlistItem[]>(getGetWatchlistUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetWatchlistQueryKey = () => {
+  return [`/api/watchlist`] as const;
+};
+
+export const getGetWatchlistQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWatchlist>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWatchlist>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWatchlistQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getWatchlist>>> = ({
+    signal,
+  }) => getWatchlist({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWatchlist>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetWatchlistQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWatchlist>>
+>;
+export type GetWatchlistQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the current user's watchlist
+ */
+
+export function useGetWatchlist<
+  TData = Awaited<ReturnType<typeof getWatchlist>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getWatchlist>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetWatchlistQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a symbol to the watchlist
+ */
+export const getAddToWatchlistUrl = () => {
+  return `/api/watchlist`;
+};
+
+export const addToWatchlist = async (
+  addWatchlistRequest: AddWatchlistRequest,
+  options?: RequestInit,
+): Promise<WatchlistItem> => {
+  return customFetch<WatchlistItem>(getAddToWatchlistUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addWatchlistRequest),
+  });
+};
+
+export const getAddToWatchlistMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addToWatchlist>>,
+    TError,
+    { data: BodyType<AddWatchlistRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addToWatchlist>>,
+  TError,
+  { data: BodyType<AddWatchlistRequest> },
+  TContext
+> => {
+  const mutationKey = ["addToWatchlist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addToWatchlist>>,
+    { data: BodyType<AddWatchlistRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return addToWatchlist(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddToWatchlistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addToWatchlist>>
+>;
+export type AddToWatchlistMutationBody = BodyType<AddWatchlistRequest>;
+export type AddToWatchlistMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a symbol to the watchlist
+ */
+export const useAddToWatchlist = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addToWatchlist>>,
+    TError,
+    { data: BodyType<AddWatchlistRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addToWatchlist>>,
+  TError,
+  { data: BodyType<AddWatchlistRequest> },
+  TContext
+> => {
+  return useMutation(getAddToWatchlistMutationOptions(options));
+};
+
+/**
+ * @summary Remove a symbol from the watchlist
+ */
+export const getRemoveFromWatchlistUrl = (symbol: string) => {
+  return `/api/watchlist/${symbol}`;
+};
+
+export const removeFromWatchlist = async (
+  symbol: string,
+  options?: RequestInit,
+): Promise<RemoveFromWatchlist200> => {
+  return customFetch<RemoveFromWatchlist200>(
+    getRemoveFromWatchlistUrl(symbol),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getRemoveFromWatchlistMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeFromWatchlist>>,
+    TError,
+    { symbol: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeFromWatchlist>>,
+  TError,
+  { symbol: string },
+  TContext
+> => {
+  const mutationKey = ["removeFromWatchlist"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeFromWatchlist>>,
+    { symbol: string }
+  > = (props) => {
+    const { symbol } = props ?? {};
+
+    return removeFromWatchlist(symbol, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveFromWatchlistMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeFromWatchlist>>
+>;
+
+export type RemoveFromWatchlistMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a symbol from the watchlist
+ */
+export const useRemoveFromWatchlist = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeFromWatchlist>>,
+    TError,
+    { symbol: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeFromWatchlist>>,
+  TError,
+  { symbol: string },
+  TContext
+> => {
+  return useMutation(getRemoveFromWatchlistMutationOptions(options));
+};
 
 /**
  * @summary Get portfolio stocks
