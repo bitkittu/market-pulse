@@ -9,6 +9,9 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
+  "dependencies": {
+    "mysql2": "^3.22.5"
+  },
   "devDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.62.2",
     "lightningcss": "1.32.0",

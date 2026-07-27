@@ -149,6 +149,10 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      mysql2:
+        specifier: ^3.22.5
+        version: 3.23.1(@types/node@25.9.4)
     devDependencies:
       '@rollup/rollup-win32-x64-msvc':
         specifier: ^4.62.2
