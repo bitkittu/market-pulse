@@ -78,7 +78,6 @@ async function buildAll() {
       "kerberos",
       "leveldown",
       "miniflare",
-      "mysql2",
       "aws4",
       "gcp-metadata",
       "socks",
