@@ -23,9 +23,21 @@ import type { UniverseId } from "./universe.js";
 import { displaySymbolFor } from "./symbols.js";
 import type { ScannedStock } from "./engine.js";
 
-/** Set once we learn the tables are missing, so we stop retrying every request. */
-let schemaAvailable: boolean | null = null;
-/** Keeps the "history disabled" warning to one line per process. */
+/**
+ * When the tables were last found missing, or null if they are present (or we
+ * have not looked yet).
+ *
+ * This used to be a permanent latch, which meant a schema applied while the
+ * process was running could never take effect — the module short-circuited
+ * every subsequent call and kept reporting "not migrated" until a redeploy.
+ * Since applying this schema by hand to a *running* server is exactly the
+ * documented workflow, the check now expires so the module self-heals within a
+ * minute of the tables appearing.
+ */
+let schemaMissingSince: number | null = null;
+/** How long to skip DB work after finding the tables absent, before re-probing. */
+const SCHEMA_RECHECK_MS = 60_000;
+/** Keeps the "history disabled" warning to one line per outage, not per request. */
 let warnedMissingSchema = false;
 
 const MISSING_TABLE_CODES = new Set(["ER_NO_SUCH_TABLE", "ER_BAD_DB_ERROR"]);
@@ -35,23 +47,35 @@ function isMissingSchema(err: unknown): boolean {
   return code != null && MISSING_TABLE_CODES.has(code);
 }
 
+/** True while we are inside the cooldown after a confirmed missing schema. */
+function skipWhileMissing(): boolean {
+  if (schemaMissingSince == null) return false;
+  if (Date.now() - schemaMissingSince < SCHEMA_RECHECK_MS) return true;
+  // Cooldown elapsed — let one call through to re-probe.
+  schemaMissingSince = null;
+  return false;
+}
+
 /** Runs `fn`, swallowing "table/database not there" and connection errors. */
 async function safe<T>(label: string, fallback: T, fn: () => Promise<T>): Promise<T> {
-  if (schemaAvailable === false) return fallback;
+  if (skipWhileMissing()) return fallback;
   try {
     const out = await fn();
-    schemaAvailable = true;
+    // Recovered (or never broken) — re-arm the warning for a future outage.
+    schemaMissingSince = null;
+    warnedMissingSchema = false;
     return out;
   } catch (err) {
     if (isMissingSchema(err)) {
       if (!warnedMissingSchema) {
         warnedMissingSchema = true;
         logger.warn(
-          `[holding] ${label}: holding_scans tables not found — history disabled. ` +
+          `[holding] ${label}: holding_scans tables not found — history disabled, ` +
+            `re-checking in ${SCHEMA_RECHECK_MS / 1000}s. ` +
             `Apply lib/db/holding_stocks.sql to enable pick tracking.`
         );
       }
-      schemaAvailable = false;
+      schemaMissingSince = Date.now();
       return fallback;
     }
     logger.warn(`[holding] ${label} failed: ${(err as Error).message}`);
