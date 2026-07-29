@@ -105,6 +105,11 @@ export async function persistScan(args: PersistArgs): Promise<void> {
       pickCount: args.picks.length,
     });
 
+    // A re-scan of the same boundary can rank a different top ten. Clear out
+    // anything that dropped off first, so the stored list is the scan's list
+    // rather than the union of every list it has ever produced.
+    await db.holdingScans.deleteStalePicks(scanId, args.picks.map((p) => p.symbol));
+
     for (const pick of args.picks) {
       const stock = args.stocks.get(pick.symbol);
       await db.holdingScans.upsertPick({

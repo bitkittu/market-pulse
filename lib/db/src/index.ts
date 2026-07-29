@@ -571,6 +571,25 @@ export const db = {
       );
     },
 
+    /**
+     * Drop any pick still attached to this scan that is no longer in its list.
+     *
+     * A re-scan of the same boundary can produce a different top ten — a stock
+     * that fell out must not linger. Without this the upserts only ever add, so
+     * one scan date accumulates every symbol it has ever picked.
+     */
+    async deleteStalePicks(scanId: number, keepSymbols: string[]): Promise<void> {
+      if (keepSymbols.length === 0) {
+        await execute("DELETE FROM holding_scan_picks WHERE scan_id = ?", [scanId]);
+        return;
+      }
+      const placeholders = keepSymbols.map(() => "?").join(", ");
+      await execute(
+        `DELETE FROM holding_scan_picks WHERE scan_id = ? AND symbol NOT IN (${placeholders})`,
+        [scanId, ...keepSymbols],
+      );
+    },
+
     /** Symbols picked by the most recent scan strictly before `before`. */
     async previousScanSymbols(universe: string, before: Date): Promise<string[]> {
       const rows = await query(

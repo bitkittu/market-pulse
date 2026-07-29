@@ -58,7 +58,7 @@ export const ENGINE = "MarketPulse Holding Engine";
 // Bumped whenever scan/storage behaviour changes. Surfaced in every payload's
 // provenance block, which makes it the one reliable way to tell from outside
 // which build a deployment is actually running.
-export const ENGINE_VERSION = "1.2.0";
+export const ENGINE_VERSION = "1.2.1";
 
 /**
  * How many technically-strongest names get the expensive fundamentals /
