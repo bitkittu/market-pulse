@@ -58,7 +58,7 @@ export const ENGINE = "MarketPulse Holding Engine";
 // Bumped whenever scan/storage behaviour changes. Surfaced in every payload's
 // provenance block, which makes it the one reliable way to tell from outside
 // which build a deployment is actually running.
-export const ENGINE_VERSION = "1.1.1";
+export const ENGINE_VERSION = "1.2.0";
 
 /**
  * How many technically-strongest names get the expensive fundamentals /
@@ -139,7 +139,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 const CLOSE_HOUR_IST = 16;
 
-function lastScanBoundary(now = new Date()): Date {
+export function lastScanBoundary(now = new Date()): Date {
   const ist = new Date(now.getTime() + IST_OFFSET_MS);
   const boundary = new Date(ist);
   boundary.setUTCHours(CLOSE_HOUR_IST, 0, 0, 0);

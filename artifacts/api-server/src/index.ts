@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAuthDefaults } from "./lib/auth.js";
+import { startHoldingScheduler } from "./lib/holding/scheduler.js";
 import { connectDb } from "@workspace/db";
 
 const rawPort = process.env["PORT"] ?? "3001";
@@ -25,6 +26,10 @@ connectDb()
       }
 
       logger.info({ port }, "Server listening");
+
+      // Records the post-close Holding Stocks scan even on days nobody opens
+      // the page — started after listen() so a scan can never delay boot.
+      startHoldingScheduler();
     });
   })
   .catch((err) => {

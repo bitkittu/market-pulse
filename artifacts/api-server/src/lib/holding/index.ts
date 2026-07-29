@@ -28,8 +28,13 @@ export function parseUniverse(raw: unknown): UniverseId {
  */
 export async function getHoldingScan(universe: UniverseId): Promise<HoldingScan> {
   const result = await runScan(universe);
+  void persistCurrentScan(result);
+  return result.scan;
+}
 
-  void persistScan({
+/** Shared persist step, so the request path and the scheduler store identically. */
+function persistCurrentScan(result: Awaited<ReturnType<typeof runScan>>): Promise<void> {
+  return persistScan({
     universe: result.scan.summary.universeResolved,
     scannedAt: result.scannedAt,
     picks: result.scan.picks,
@@ -39,8 +44,26 @@ export async function getHoldingScan(universe: UniverseId): Promise<HoldingScan>
       return stock ? buildReasons(stock).map((r) => r.text) : [];
     },
   });
+}
 
-  return result.scan;
+/**
+ * Scan and persist, awaiting both.
+ *
+ * The request path fires persistence off and returns — a user waiting on a page
+ * render should not also wait on a history write. The scheduler is the opposite:
+ * recording the scan IS its job, so it awaits the write and reports the outcome
+ * so a failed persist can be retried on the next tick rather than silently lost.
+ */
+export async function runScheduledScan(
+  universe: UniverseId = DEFAULT_UNIVERSE
+): Promise<{ scannedAt: string; universe: UniverseId; pickCount: number }> {
+  const result = await runScan(universe);
+  await persistCurrentScan(result);
+  return {
+    scannedAt: result.scannedAt,
+    universe: result.scan.summary.universeResolved,
+    pickCount: result.scan.picks.length,
+  };
 }
 
 /** Full breakdown for one symbol. Null when it was not part of the scan. */
