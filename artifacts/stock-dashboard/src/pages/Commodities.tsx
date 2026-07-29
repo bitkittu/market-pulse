@@ -1,10 +1,13 @@
-import { useState, useCallback } from "react";
+import { Fragment, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetCommodities,
   useGetCommodityHistory,
+  useGetCommodityAnalysis,
+  getGetCommodityAnalysisQueryKey,
 } from "@workspace/api-client-react";
 import type { CommodityItem } from "@workspace/api-client-react";
+import { AiAnalysisPanel, WhyButton } from "@/components/ai-analysis";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
@@ -449,6 +452,20 @@ function MoneyFlowChart({ items }: { items: CommodityItem[] }) {
 
 // ── Prediction Table ───────────────────────────────────────────────────────
 function PredictionTable({ items, usdToInr }: { items: CommodityItem[]; usdToInr: number }) {
+  // Only one commodity's breakdown is expanded at a time.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const {
+    data: analysis,
+    isLoading: analysisLoading,
+    isError: analysisError,
+  } = useGetCommodityAnalysis(expandedId ?? "", {
+    query: {
+      queryKey: getGetCommodityAnalysisQueryKey(expandedId ?? ""),
+      enabled: !!expandedId,
+      staleTime: 60000,
+    },
+  });
+
   if (!items.length) return null;
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -466,6 +483,7 @@ function PredictionTable({ items, usdToInr }: { items: CommodityItem[]; usdToInr
               <th className="text-right px-3 py-2 font-semibold">5d Momentum</th>
               <th className="text-right px-3 py-2 font-semibold">Buy Pressure</th>
               <th className="text-right px-4 py-2 font-semibold">Confidence</th>
+              <th className="text-center px-4 py-2 font-semibold">AI</th>
             </tr>
           </thead>
           <tbody>
@@ -473,8 +491,10 @@ function PredictionTable({ items, usdToInr }: { items: CommodityItem[]; usdToInr
               const pred = PRED[c.prediction.signal];
               const PredIcon = pred.icon;
               const isPos = c.changePercent >= 0;
+              const isExpanded = expandedId === c.symbol;
               return (
-                <tr key={c.symbol} className="border-b border-border/30 hover:bg-muted/10 transition-colors">
+                <Fragment key={c.symbol}>
+                <tr className={cn("border-b border-border/30 transition-colors", isExpanded ? "bg-primary/5" : "hover:bg-muted/10")}>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base">{c.emoji}</span>
@@ -485,9 +505,11 @@ function PredictionTable({ items, usdToInr }: { items: CommodityItem[]; usdToInr
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-center">
-                    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-black", pred.badge)}>
+                    <button type="button" onClick={() => setExpandedId(isExpanded ? null : c.symbol)}
+                      aria-expanded={isExpanded} title="See why this signal was generated"
+                      className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-black transition-shadow hover:ring-2 hover:ring-primary/40", pred.badge)}>
                       <PredIcon className="w-2.5 h-2.5" /> {pred.label}
-                    </span>
+                    </button>
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <p className="font-mono font-bold">{fmtInr(c.price, usdToInr)}<span className="text-muted-foreground text-[9px] ml-1">{c.unit}</span></p>
@@ -511,15 +533,37 @@ function PredictionTable({ items, usdToInr }: { items: CommodityItem[]; usdToInr
                     </div>
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2 justify-end">
+                    <button type="button" onClick={() => setExpandedId(isExpanded ? null : c.symbol)}
+                      aria-expanded={isExpanded} title="See how this score was calculated"
+                      className="flex items-center gap-2 justify-end w-full rounded px-1 py-0.5 transition-colors hover:bg-primary/10">
                       <div className="w-12 h-1.5 bg-muted/40 rounded-full overflow-hidden">
                         <div className={cn("h-full rounded-full", pred.bar)}
                           style={{ width: `${c.prediction.confidence}%` }} />
                       </div>
                       <span className="font-mono font-bold">{c.prediction.confidence}%</span>
-                    </div>
+                    </button>
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <WhyButton active={isExpanded} onClick={() => setExpandedId(isExpanded ? null : c.symbol)} />
                   </td>
                 </tr>
+
+                {isExpanded && (
+                  <tr>
+                    <td colSpan={7} className="p-0">
+                      <div className="p-3">
+                        <AiAnalysisPanel
+                          analysis={analysis}
+                          isLoading={analysisLoading}
+                          isError={analysisError}
+                          onClose={() => setExpandedId(null)}
+                          pendingTitle={c.name}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>

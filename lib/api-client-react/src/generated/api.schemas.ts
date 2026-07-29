@@ -661,6 +661,285 @@ export interface FoAnalysisResult {
   daysToExpiry: number;
 }
 
+/**
+ * Where a displayed value actually came from.
+ */
+export type Provenance = (typeof Provenance)[keyof typeof Provenance];
+
+export const Provenance = {
+  LIVE: "LIVE",
+  API: "API",
+  CALCULATED: "CALCULATED",
+  MOCK: "MOCK",
+  STATIC: "STATIC",
+  GENERATED: "GENERATED",
+  UNAVAILABLE: "UNAVAILABLE",
+} as const;
+
+export type Direction = (typeof Direction)[keyof typeof Direction];
+
+export const Direction = {
+  BULLISH: "BULLISH",
+  BEARISH: "BEARISH",
+  NEUTRAL: "NEUTRAL",
+} as const;
+
+export type Tone = (typeof Tone)[keyof typeof Tone];
+
+export const Tone = {
+  positive: "positive",
+  negative: "negative",
+  neutral: "neutral",
+} as const;
+
+export interface TimeframeIndicator {
+  label: string;
+  value: string;
+  tone: Tone;
+  /** Text marker so the reading stays readable without colour. */
+  marker: string;
+  provenance: Provenance;
+}
+
+export interface TimeframeTrend {
+  timeframe: string;
+  label: string;
+  caption: string;
+  direction: Direction;
+  /** 0-100 decisiveness of this timeframe. */
+  strength: number;
+  /** Signed conviction between -1 and 1. */
+  directionalScore: number;
+  indicators: TimeframeIndicator[];
+  sparkline: number[];
+}
+
+export interface MultiTimeframeRow {
+  label: string;
+  direction: Direction;
+}
+
+export type MultiTimeframeSummaryAlignment =
+  (typeof MultiTimeframeSummaryAlignment)[keyof typeof MultiTimeframeSummaryAlignment];
+
+export const MultiTimeframeSummaryAlignment = {
+  BULLISH: "BULLISH",
+  BEARISH: "BEARISH",
+  NEUTRAL: "NEUTRAL",
+  CONFLICT: "CONFLICT",
+} as const;
+
+export type MultiTimeframeSummaryAlignmentStrength =
+  (typeof MultiTimeframeSummaryAlignmentStrength)[keyof typeof MultiTimeframeSummaryAlignmentStrength];
+
+export const MultiTimeframeSummaryAlignmentStrength = {
+  Strong: "Strong",
+  Moderate: "Moderate",
+  Weak: "Weak",
+} as const;
+
+export type MultiTimeframeSummaryProbability =
+  (typeof MultiTimeframeSummaryProbability)[keyof typeof MultiTimeframeSummaryProbability];
+
+export const MultiTimeframeSummaryProbability = {
+  High: "High",
+  Medium: "Medium",
+  Low: "Low",
+} as const;
+
+export interface MultiTimeframeSummary {
+  aligned: boolean;
+  alignmentLabel: string;
+  alignment: MultiTimeframeSummaryAlignment;
+  alignmentStrength: MultiTimeframeSummaryAlignmentStrength;
+  /** Signed points the alignment added to the score. Negative on conflict. */
+  confidenceBoost: number;
+  probability: MultiTimeframeSummaryProbability;
+  verdict?: string | null;
+  explanation: string;
+  rows: MultiTimeframeRow[];
+}
+
+export interface ScoreCategory {
+  key: string;
+  label: string;
+  weight: number;
+  score: number;
+  contribution: number;
+  note: string;
+}
+
+export type SignalScoreSignal =
+  (typeof SignalScoreSignal)[keyof typeof SignalScoreSignal];
+
+export const SignalScoreSignal = {
+  STRONG_BUY: "STRONG_BUY",
+  BUY: "BUY",
+  WATCH: "WATCH",
+  SELL: "SELL",
+  STRONG_SELL: "STRONG_SELL",
+} as const;
+
+export interface SignalScore {
+  /** 0-100 signal strength. Not a probability of profit. */
+  score: number;
+  band: string;
+  signal: SignalScoreSignal;
+  categories: ScoreCategory[];
+}
+
+export interface AnalysisReason {
+  text: string;
+  /** Score category this reason was derived from. */
+  source: string;
+}
+
+export type AnalysisRiskFactorSeverity =
+  (typeof AnalysisRiskFactorSeverity)[keyof typeof AnalysisRiskFactorSeverity];
+
+export const AnalysisRiskFactorSeverity = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface AnalysisRiskFactor {
+  text: string;
+  severity: AnalysisRiskFactorSeverity;
+}
+
+export interface AnalysisMaxRisk {
+  amount?: number | null;
+  pct?: number | null;
+  lots?: number | null;
+  lotSize?: number | null;
+  note: string;
+  provenance: Provenance;
+}
+
+export interface AnalysisTradePlan {
+  currency: string;
+  entryLow: number;
+  entryHigh: number;
+  target1: number;
+  target2: number;
+  stopLoss: number;
+  riskReward: string;
+  maxRisk: AnalysisMaxRisk;
+}
+
+export interface AnalysisMetric {
+  label: string;
+  value: string;
+  badge?: string | null;
+  tone: Tone;
+  provenance: Provenance;
+}
+
+export interface GreekValue {
+  label: string;
+  value?: string | null;
+  available: boolean;
+}
+
+export interface AnalysisGreeks {
+  available: boolean;
+  note: string;
+  values: GreekValue[];
+}
+
+export interface NearbyStrike {
+  strike: number;
+  callOi: number;
+  putOi: number;
+}
+
+export interface OptionChainContext {
+  available: boolean;
+  note: string;
+  pcr?: number | null;
+  callOi?: number | null;
+  putOi?: number | null;
+  oiBuildup?: string | null;
+  maxPain?: number | null;
+  moneyness?: string | null;
+  nearbyStrikes: NearbyStrike[];
+}
+
+export interface ProvenanceField {
+  name: string;
+  provenance: Provenance;
+}
+
+export type AnalysisProvenanceMode =
+  (typeof AnalysisProvenanceMode)[keyof typeof AnalysisProvenanceMode];
+
+export const AnalysisProvenanceMode = {
+  MOCK: "MOCK",
+  PARTIAL: "PARTIAL",
+  LIVE: "LIVE",
+} as const;
+
+export interface AnalysisProvenance {
+  signalGeneratedAt: string;
+  dataUpdatedAt: string;
+  timeframes: string[];
+  dataSource: string;
+  engine: string;
+  engineVersion: string;
+  mode: AnalysisProvenanceMode;
+  fields: ProvenanceField[];
+}
+
+export interface AnalysisHeadline {
+  primaryLabel: string;
+  primaryValue: string;
+  primaryChangePercent?: number | null;
+  secondaryLabel?: string | null;
+  secondaryValue?: string | null;
+  secondaryChangePercent?: number | null;
+}
+
+export type AiAnalysisMarket =
+  (typeof AiAnalysisMarket)[keyof typeof AiAnalysisMarket];
+
+export const AiAnalysisMarket = {
+  options: "options",
+  intraday: "intraday",
+  commodities: "commodities",
+} as const;
+
+export type AiAnalysisSignal =
+  (typeof AiAnalysisSignal)[keyof typeof AiAnalysisSignal];
+
+export const AiAnalysisSignal = {
+  STRONG_BUY: "STRONG_BUY",
+  BUY: "BUY",
+  WATCH: "WATCH",
+  SELL: "SELL",
+  STRONG_SELL: "STRONG_SELL",
+} as const;
+
+export interface AiAnalysis {
+  id: string;
+  market: AiAnalysisMarket;
+  title: string;
+  subtitle: string;
+  signal: AiAnalysisSignal;
+  signalLabel: string;
+  headline: AnalysisHeadline;
+  score: SignalScore;
+  reasons: AnalysisReason[];
+  timeframes: TimeframeTrend[];
+  multiTimeframe: MultiTimeframeSummary;
+  tradePlan: AnalysisTradePlan;
+  risks: AnalysisRiskFactor[];
+  metrics: AnalysisMetric[];
+  greeks?: AnalysisGreeks | null;
+  optionChain?: OptionChainContext | null;
+  provenance: AnalysisProvenance;
+}
+
 export type GetGiftNiftyHistoryParams = {
   period?: GetGiftNiftyHistoryPeriod;
 };
@@ -788,6 +1067,18 @@ export type RemoveFromWatchlist200 = {
 
 export type RemovePortfolioStock200 = {
   success: boolean;
+};
+
+export type GetOptionsAnalysis404 = {
+  error?: string;
+};
+
+export type GetIntradayAnalysis404 = {
+  error?: string;
+};
+
+export type GetCommodityAnalysis404 = {
+  error?: string;
 };
 
 export type DisconnectUpstox200 = {

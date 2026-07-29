@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
-import { useGetIntradaySuggestions, StockSuggestion } from "@workspace/api-client-react";
+import { Fragment, useState, useMemo } from "react";
+import { useGetIntradaySuggestions, useGetIntradayAnalysis, getGetIntradayAnalysisQueryKey, StockSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Zap, TrendingUp, TrendingDown, Minus, ShieldAlert } from "lucide-react";
 import { LockedValue, LockedHint } from "@/components/LockedValue";
 import { UpgradeGate } from "@/components/UpgradeGate";
+import { AiAnalysisPanel, WhyButton } from "@/components/ai-analysis";
 import { useFeatureAccess } from "@/lib/plan";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
@@ -79,7 +80,7 @@ function ConfidenceBar({ pct }: { pct: number }) {
   );
 }
 
-function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop3: boolean }) {
+function SuggestionRow({ s, rank, isTop3, expanded, onToggle }: { s: Suggestion; rank: number; isTop3: boolean; expanded: boolean; onToggle: () => void }) {
   const [hover, setHover] = useState(false);
   const sig = s.signal as Signal;
   const cfg = SIG_CFG[sig];
@@ -95,8 +96,8 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
         className={cn(
           "border-b border-border/50 transition-all cursor-pointer",
           cfg.rowBorder,
-          isTop3 ? cn("border border-l-4", cfg.glowClass) : (rank % 2 === 0 ? "bg-card" : "bg-background/40"),
-          hover && "brightness-115"
+          expanded ? "bg-primary/5" : isTop3 ? cn("border border-l-4", cfg.glowClass) : (rank % 2 === 0 ? "bg-card" : "bg-background/40"),
+          hover && !expanded && "brightness-115"
         )}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
@@ -148,16 +149,20 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
           <p className="text-xs font-mono text-orange-400"><LockedValue>{`₹${fmt(s.stopLoss)}`}</LockedValue></p>
         </td>
 
-        {/* Signal */}
+        {/* Signal — opens the same analysis as the Why? action */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-black", cfg.badge)}>
+          <button type="button" onClick={onToggle} aria-expanded={expanded} title="See why this signal was generated"
+            className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-black transition-shadow hover:ring-2 hover:ring-primary/40", cfg.badge)}>
             <Icon className="w-3 h-3" />{cfg.label}
-          </span>
+          </button>
         </td>
 
-        {/* Confidence */}
+        {/* Confidence — also opens the analysis */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <ConfidenceBar pct={conf} />
+          <button type="button" onClick={onToggle} aria-expanded={expanded} title="See how this score was calculated"
+            className="mx-auto block rounded px-1 py-0.5 transition-colors hover:bg-primary/10">
+            <ConfidenceBar pct={conf} />
+          </button>
         </td>
 
         {/* Risk Level */}
@@ -177,12 +182,17 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
 
         {/* Volume */}
         <td className="px-4 py-3 text-center whitespace-nowrap text-xs text-muted-foreground">{fmtVol(s.volume)}</td>
+
+        {/* Why? — opens the AI Decision Breakdown */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <WhyButton active={expanded} onClick={onToggle} />
+        </td>
       </tr>
 
       {/* Hover rationale */}
-      {hover && (
+      {hover && !expanded && (
         <tr className="border-b border-border/20">
-          <td colSpan={11} className="px-6 py-2 bg-background/60">
+          <td colSpan={12} className="px-6 py-2 bg-background/60">
             <div className="flex items-start gap-1.5">
               <Info className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">{s.rationale}</p>
@@ -197,7 +207,22 @@ function SuggestionRow({ s, rank, isTop3 }: { s: Suggestion; rank: number; isTop
 export function IntradayDashboard() {
   const canView = useFeatureAccess("intraday");
   const [selected, setSelected] = useState<Set<Signal>>(new Set());
+  // Only one pick is ever expanded, so a single symbol is enough state.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { data: rawData, isLoading, refetch, isFetching } = useGetIntradaySuggestions({ query: { refetchInterval: 60000, enabled: canView } });
+
+  // Fetched only for the pick the user opened, then cached by react-query.
+  const {
+    data: analysis,
+    isLoading: analysisLoading,
+    isError: analysisError,
+  } = useGetIntradayAnalysis(expandedId ?? "", {
+    query: {
+      queryKey: getGetIntradayAnalysisQueryKey(expandedId ?? ""),
+      enabled: canView && !!expandedId,
+      staleTime: 60000,
+    },
+  });
 
   // Sort by confidence descending
   const data = useMemo(() =>
@@ -225,7 +250,7 @@ export function IntradayDashboard() {
   };
 
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
-  const COLS = ["Rank", "Symbol", "Current", "Buy Below", "Sell Above", "Stop Loss", "Signal", "Confidence", "Risk", "RSI", "Volume"];
+  const COLS = ["Rank", "Symbol", "Current", "Buy Below", "Sell Above", "Stop Loss", "Signal", "Confidence", "Risk", "RSI", "Volume", "AI"];
 
   const Header = (
     <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
@@ -335,11 +360,37 @@ export function IntradayDashboard() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center py-12 text-muted-foreground text-sm">No stocks match the selected filters</td></tr>
+                  <tr><td colSpan={12} className="text-center py-12 text-muted-foreground text-sm">No stocks match the selected filters</td></tr>
                 ) : (
-                  filtered.map((s, i) => (
-                    <SuggestionRow key={s.symbol} s={s as Suggestion} rank={i + 1} isTop3={i < 3 && selected.size === 0} />
-                  ))
+                  filtered.map((s, i) => {
+                    const isExpanded = expandedId === s.symbol;
+                    return (
+                      <Fragment key={s.symbol}>
+                        <SuggestionRow
+                          s={s as Suggestion}
+                          rank={i + 1}
+                          isTop3={i < 3 && selected.size === 0}
+                          expanded={isExpanded}
+                          onToggle={() => setExpandedId(isExpanded ? null : s.symbol)}
+                        />
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={12} className="p-0">
+                              <div className="p-3">
+                                <AiAnalysisPanel
+                                  analysis={analysis}
+                                  isLoading={analysisLoading}
+                                  isError={analysisError}
+                                  onClose={() => setExpandedId(null)}
+                                  pendingTitle={s.symbol}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>

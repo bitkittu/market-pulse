@@ -19,6 +19,7 @@ import type {
 import type {
   AddPortfolioStockRequest,
   AddWatchlistRequest,
+  AiAnalysis,
   DecisionPanel,
   DisconnectUpstox200,
   FoAnalysisResult,
@@ -26,12 +27,15 @@ import type {
   FoAnalyzer500,
   FoTradeInput,
   GetCommodities200,
+  GetCommodityAnalysis404,
   GetCommodityHistoryParams,
   GetGiftNiftyHistoryParams,
   GetGiftNiftyIntraday200,
   GetGlobalIndexHistoryParams,
   GetGlobalIndexQuoteParams,
+  GetIntradayAnalysis404,
   GetNseHistoryParams,
+  GetOptionsAnalysis404,
   GetStockHistoryParams,
   GetStockQuotesParams,
   GiftNiftyQuote,
@@ -2292,6 +2296,273 @@ export function useGetOptionsSuggestions<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOptionsSuggestionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Multi-timeframe AI explainability for a single options pick, addressed by SYMBOL-TYPE-STRIKE (e.g. WIPRO-PE-180). Computed on demand.
+
+ * @summary AI Decision Breakdown for one options pick
+ */
+export const getGetOptionsAnalysisUrl = (id: string) => {
+  return `/api/suggestions/options/${id}/analysis`;
+};
+
+export const getOptionsAnalysis = async (
+  id: string,
+  options?: RequestInit,
+): Promise<AiAnalysis> => {
+  return customFetch<AiAnalysis>(getGetOptionsAnalysisUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOptionsAnalysisQueryKey = (id: string) => {
+  return [`/api/suggestions/options/${id}/analysis`] as const;
+};
+
+export const getGetOptionsAnalysisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOptionsAnalysis>>,
+  TError = ErrorType<GetOptionsAnalysis404>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOptionsAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOptionsAnalysisQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOptionsAnalysis>>
+  > = ({ signal }) => getOptionsAnalysis(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOptionsAnalysis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOptionsAnalysisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOptionsAnalysis>>
+>;
+export type GetOptionsAnalysisQueryError = ErrorType<GetOptionsAnalysis404>;
+
+/**
+ * @summary AI Decision Breakdown for one options pick
+ */
+
+export function useGetOptionsAnalysis<
+  TData = Awaited<ReturnType<typeof getOptionsAnalysis>>,
+  TError = ErrorType<GetOptionsAnalysis404>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOptionsAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOptionsAnalysisQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary AI Decision Breakdown for one intraday pick
+ */
+export const getGetIntradayAnalysisUrl = (symbol: string) => {
+  return `/api/suggestions/intraday/${symbol}/analysis`;
+};
+
+export const getIntradayAnalysis = async (
+  symbol: string,
+  options?: RequestInit,
+): Promise<AiAnalysis> => {
+  return customFetch<AiAnalysis>(getGetIntradayAnalysisUrl(symbol), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetIntradayAnalysisQueryKey = (symbol: string) => {
+  return [`/api/suggestions/intraday/${symbol}/analysis`] as const;
+};
+
+export const getGetIntradayAnalysisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getIntradayAnalysis>>,
+  TError = ErrorType<GetIntradayAnalysis404>,
+>(
+  symbol: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIntradayAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetIntradayAnalysisQueryKey(symbol);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getIntradayAnalysis>>
+  > = ({ signal }) =>
+    getIntradayAnalysis(symbol, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!symbol,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getIntradayAnalysis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetIntradayAnalysisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getIntradayAnalysis>>
+>;
+export type GetIntradayAnalysisQueryError = ErrorType<GetIntradayAnalysis404>;
+
+/**
+ * @summary AI Decision Breakdown for one intraday pick
+ */
+
+export function useGetIntradayAnalysis<
+  TData = Awaited<ReturnType<typeof getIntradayAnalysis>>,
+  TError = ErrorType<GetIntradayAnalysis404>,
+>(
+  symbol: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIntradayAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetIntradayAnalysisQueryOptions(symbol, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary AI Decision Breakdown for one commodity
+ */
+export const getGetCommodityAnalysisUrl = (symbol: string) => {
+  return `/api/commodities/${symbol}/analysis`;
+};
+
+export const getCommodityAnalysis = async (
+  symbol: string,
+  options?: RequestInit,
+): Promise<AiAnalysis> => {
+  return customFetch<AiAnalysis>(getGetCommodityAnalysisUrl(symbol), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommodityAnalysisQueryKey = (symbol: string) => {
+  return [`/api/commodities/${symbol}/analysis`] as const;
+};
+
+export const getGetCommodityAnalysisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommodityAnalysis>>,
+  TError = ErrorType<GetCommodityAnalysis404>,
+>(
+  symbol: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommodityAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCommodityAnalysisQueryKey(symbol);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommodityAnalysis>>
+  > = ({ signal }) =>
+    getCommodityAnalysis(symbol, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!symbol,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommodityAnalysis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCommodityAnalysisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommodityAnalysis>>
+>;
+export type GetCommodityAnalysisQueryError = ErrorType<GetCommodityAnalysis404>;
+
+/**
+ * @summary AI Decision Breakdown for one commodity
+ */
+
+export function useGetCommodityAnalysis<
+  TData = Awaited<ReturnType<typeof getCommodityAnalysis>>,
+  TError = ErrorType<GetCommodityAnalysis404>,
+>(
+  symbol: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCommodityAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCommodityAnalysisQueryOptions(symbol, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

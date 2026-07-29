@@ -1,5 +1,7 @@
 import { NSE_STOCKS, getNseQuote, seededRandom, getDailySeed, symbolSeed, calculateIndicators } from "./nseData.js";
 import { getLiveQuote } from "./liveMarketData.js";
+import { buildOptionsAnalysis, computeOptionsSignal, optionAnalysisId, type OptionsAnalysisInput } from "./analysis/options.js";
+import { buildIntradayAnalysis, computeIntradaySignal, type IntradayAnalysisInput } from "./analysis/intraday.js";
 
 // ── Signals ───────────────────────────────────────────────────────────────
 export const SIGNALS = ["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"] as const;
@@ -86,7 +88,14 @@ const INTRADAY_POOL = [
   "TECHM", "DRREDDY", "CIPLA", "POWERGRID", "EICHERMOT", "M_M",
 ];
 
-export async function getIntradaySuggestions() {
+/**
+ * Build the scoring inputs for today's intraday picks.
+ *
+ * Kept separate from `getIntradaySuggestions` so the analysis endpoint can
+ * rebuild the exact same inputs for one symbol without re-deriving them from
+ * the response shape.
+ */
+async function buildIntradayInputs(): Promise<IntradayAnalysisInput[]> {
   const daySeed = getDailySeed();
   const now = new Date().toISOString();
 
@@ -100,14 +109,15 @@ export async function getIntradaySuggestions() {
 
   // Fetch live prices for the selected stocks in parallel
   const liveQuotes = await Promise.all(
-    picked.map(({ sym }) => getLiveQuote(sym).catch(() => getNseQuote(sym)))
+    picked.map(({ sym }) => getLiveQuote(sym).catch(() => null))
   );
 
-  return picked.map(({ sym }, rank) => {
+  return picked.map(({ sym }, i) => {
     const stock = NSE_STOCKS[sym];
     const ss = symbolSeed(sym);
     const seed = daySeed + ss;
-    const quote = (liveQuotes[rank] ?? getNseQuote(sym))!;
+    const liveQ = liveQuotes[i];
+    const quote = (liveQ ?? getNseQuote(sym))!;
     const price = quote.price;
 
     // Generate support/resistance levels
@@ -116,44 +126,70 @@ export async function getIntradaySuggestions() {
     const resistance = parseFloat((price * (1 + 0.012 + seededRandom(seed * 7) * 0.015)).toFixed(2)); // ~1.2-2.7% above
     const stopLoss = parseFloat((support * (1 - 0.004)).toFixed(2)); // tight stop below support
 
-    // Signal based on RSI-like calculation
     const rsiVal = parseFloat((30 + seededRandom(seed * 11) * 60).toFixed(1));
-    const sigIdx = rsiVal > 70 ? 0 : rsiVal > 58 ? 1 : rsiVal > 42 ? 2 : rsiVal > 30 ? 3 : 4;
-    const signal = SIGNALS[sigIdx];
-
     const vwapVariant = seededRandom(seed * 13);
-    const vwapStatus = vwapVariant > 0.6 ? "ABOVE" : vwapVariant > 0.25 ? "BELOW" : "AT";
-
-    // Confidence (signal-weighted + RSI alignment)
-    const confBase = sigIdx === 0 ? 82 : sigIdx === 1 ? 68 : sigIdx === 2 ? 52 : sigIdx === 3 ? 38 : 25;
-    const confRange = sigIdx === 0 ? 13 : sigIdx === 1 ? 14 : sigIdx === 2 ? 16 : 14;
-    const confidence = parseFloat((confBase + seededRandom(seed * 41) * confRange).toFixed(1));
+    const vwapStatus: "ABOVE" | "BELOW" | "AT" = vwapVariant > 0.6 ? "ABOVE" : vwapVariant > 0.25 ? "BELOW" : "AT";
 
     // Risk level based on stop-loss distance from price
     const slDist = ((price - stopLoss) / price) * 100;
     const riskLevel: "Low" | "Medium" | "High" = slDist < 1.8 ? "Low" : slDist < 3.5 ? "Medium" : "High";
 
     return {
-      rank: rank + 1,
+      seed,
       symbol: sym,
       name: stock.name,
+      sector: stock.sector,
       currentPrice: price,
+      changePercent: quote.changePercent,
       buyBelow: support,
       sellAbove: resistance,
       stopLoss,
-      signal,
-      changePercent: quote.changePercent,
-      change: quote.change,
-      volume: quote.volume,
-      sector: stock.sector,
-      rationale: getRationale(signal as keyof typeof INTRADAY_RATIONALES, seed * 17),
       rsi: rsiVal,
-      vwapStatus: vwapStatus as "ABOVE" | "BELOW" | "AT",
-      confidence,
+      vwapStatus,
+      volume: quote.volume,
       riskLevel,
+      underlyingIsLive: liveQ != null,
       updatedAt: now,
+    } satisfies IntradayAnalysisInput;
+  });
+}
+
+export async function getIntradaySuggestions() {
+  const inputs = await buildIntradayInputs();
+
+  return inputs.map((input, rank) => {
+    // Signal and confidence come from the central scoring engine, so the value
+    // in this row is the same number the AI Decision Breakdown explains.
+    const { score } = computeIntradaySignal(input);
+
+    return {
+      rank: rank + 1,
+      symbol: input.symbol,
+      name: input.name,
+      currentPrice: input.currentPrice,
+      buyBelow: input.buyBelow,
+      sellAbove: input.sellAbove,
+      stopLoss: input.stopLoss,
+      signal: score.signal,
+      changePercent: input.changePercent,
+      change: parseFloat((input.currentPrice * (input.changePercent / 100)).toFixed(2)),
+      volume: input.volume,
+      sector: input.sector,
+      rationale: getRationale(score.signal as keyof typeof INTRADAY_RATIONALES, input.seed * 17),
+      rsi: input.rsi,
+      vwapStatus: input.vwapStatus,
+      confidence: score.score,
+      riskLevel: input.riskLevel,
+      updatedAt: input.updatedAt,
     };
   });
+}
+
+/** Full AI Decision Breakdown for one intraday pick. */
+export async function getIntradayAnalysis(symbol: string) {
+  const inputs = await buildIntradayInputs();
+  const match = inputs.find((i) => i.symbol === symbol.toUpperCase());
+  return match ? buildIntradayAnalysis(match) : null;
 }
 
 // ── Options Suggestions ───────────────────────────────────────────────────
@@ -200,7 +236,13 @@ function getMonthlyExpiry(): string {
   return lastThursday.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
 }
 
-export async function getOptionsSuggestions() {
+/**
+ * Build the scoring inputs for today's options picks.
+ *
+ * Shared by the picks list and the analysis endpoint so both describe exactly
+ * the same contract.
+ */
+async function buildOptionsInputs(): Promise<OptionsAnalysisInput[]> {
   const daySeed = getDailySeed();
   const now = new Date().toISOString();
   const weeklyExpiry = getNextExpiry();
@@ -224,7 +266,7 @@ export async function getOptionsSuggestions() {
     )
   );
 
-  return picked.map(({ item }, rank) => {
+  return picked.map(({ item }, idx) => {
     const seed = daySeed + symbolSeed(item.sym) * 3;
     const r = seededRandom(seed);
 
@@ -232,7 +274,7 @@ export async function getOptionsSuggestions() {
     const optionType: "CE" | "PE" = r > 0.5 ? "CE" : "PE";
 
     // Underlying price: use live price for stocks, simulated for indices
-    const liveQ = liveQuotes[rank];
+    const liveQ = liveQuotes[idx];
     const uvariaton = (seededRandom(seed * 5) - 0.5) * 0.025;
     const underlyingPrice = liveQ
       ? liveQ.price
@@ -265,50 +307,79 @@ export async function getOptionsSuggestions() {
     const oi = Math.floor(seededRandom(seed * 31) * 5000000 + 100000);
     const iv = parseFloat((ivPct * 100).toFixed(1));
 
-    // Signal
-    const sigSeed = seededRandom(seed * 37);
-    const sigIdx = optionType === "CE"
-      ? (sigSeed > 0.75 ? 0 : sigSeed > 0.45 ? 1 : 2)
-      : (sigSeed > 0.75 ? 0 : sigSeed > 0.45 ? 1 : 2);
-    const signal = (["STRONG_BUY", "BUY", "WATCH"] as const)[sigIdx];
-
     // Expiry: weekly for NIFTY/BANKNIFTY/FINNIFTY, monthly for stocks
     const isIndex = ["NIFTY", "BANKNIFTY", "FINNIFTY"].includes(item.sym);
     const expiry = isIndex ? weeklyExpiry : monthlyExpiry;
-
-    const rationaleKey = signal as "STRONG_BUY" | "BUY" | "WATCH";
-    const rationale = getOptionsRationale(optionType, rationaleKey, seed * 41);
 
     // OI Trend
     const oiTrendSeed = seededRandom(seed * 47);
     const oiTrend: "Increasing" | "Decreasing" | "Stable" = oiTrendSeed > 0.6 ? "Increasing" : oiTrendSeed > 0.25 ? "Decreasing" : "Stable";
 
-    // Confidence
-    const confBase = sigIdx === 0 ? 82 : sigIdx === 1 ? 68 : 52;
-    const confidence = parseFloat((confBase + seededRandom(seed * 53) * 13).toFixed(1));
-
     return {
-      rank: rank + 1,
+      seed,
       symbol: item.sym,
       name: item.name,
       optionType,
       strikePrice,
       expiry,
-      currentPrice: premium,
+      premium,
+      premiumChangePercent: changePercent,
+      underlyingPrice,
+      underlyingChangePercent: liveQ ? liveQ.changePercent : parseFloat((uvariaton * 100).toFixed(2)),
       buyBelow,
       sellAbove,
       stopLoss,
-      underlyingPrice,
-      signal,
-      changePercent,
-      change,
-      volume: Math.floor(seededRandom(seed * 43) * 2000000 + 50000),
       openInterest: oi,
       oiTrend,
-      confidence,
+      volume: Math.floor(seededRandom(seed * 43) * 2000000 + 50000),
       impliedVolatility: iv,
-      rationale,
+      lotSize: item.lotSize,
+      underlyingIsLive: liveQ != null,
       updatedAt: now,
+    } satisfies OptionsAnalysisInput;
+  });
+}
+
+export async function getOptionsSuggestions() {
+  const inputs = await buildOptionsInputs();
+
+  return inputs.map((input, rank) => {
+    // Signal and confidence come from the central scoring engine, so the value
+    // in this row is the same number the AI Decision Breakdown explains.
+    const { score } = computeOptionsSignal(input);
+    const rationaleKey = score.signal === "STRONG_BUY" || score.signal === "BUY" ? score.signal : "WATCH";
+
+    return {
+      rank: rank + 1,
+      symbol: input.symbol,
+      name: input.name,
+      optionType: input.optionType,
+      strikePrice: input.strikePrice,
+      expiry: input.expiry,
+      currentPrice: input.premium,
+      buyBelow: input.buyBelow,
+      sellAbove: input.sellAbove,
+      stopLoss: input.stopLoss,
+      underlyingPrice: input.underlyingPrice,
+      signal: score.signal,
+      changePercent: input.premiumChangePercent,
+      change: parseFloat((input.premium * (input.premiumChangePercent / 100)).toFixed(2)),
+      volume: input.volume,
+      openInterest: input.openInterest,
+      oiTrend: input.oiTrend,
+      confidence: score.score,
+      impliedVolatility: input.impliedVolatility,
+      rationale: getOptionsRationale(input.optionType, rationaleKey, input.seed * 41),
+      updatedAt: input.updatedAt,
     };
   });
+}
+
+/** Full AI Decision Breakdown for one options pick, addressed by SYMBOL-TYPE-STRIKE. */
+export async function getOptionsAnalysis(id: string) {
+  const inputs = await buildOptionsInputs();
+  const match = inputs.find(
+    (i) => optionAnalysisId(i.symbol, i.optionType, i.strikePrice).toUpperCase() === id.toUpperCase()
+  );
+  return match ? buildOptionsAnalysis(match) : null;
 }

@@ -530,6 +530,92 @@ paths:
                 items:
                   $ref: "#/components/schemas/OptionsSuggestion"
 
+  /suggestions/options/{id}/analysis:
+    get:
+      operationId: getOptionsAnalysis
+      tags: [analysis]
+      summary: AI Decision Breakdown for one options pick
+      description: >
+        Multi-timeframe AI explainability for a single options pick, addressed by
+        SYMBOL-TYPE-STRIKE (e.g. WIPRO-PE-180). Computed on demand.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pick identifier in the form SYMBOL-TYPE-STRIKE
+      responses:
+        "200":
+          description: AI analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAnalysis"
+        "404":
+          description: No analysis available for that pick
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+
+  /suggestions/intraday/{symbol}/analysis:
+    get:
+      operationId: getIntradayAnalysis
+      tags: [analysis]
+      summary: AI Decision Breakdown for one intraday pick
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: AI analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAnalysis"
+        "404":
+          description: No analysis available for that symbol
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+
+  /commodities/{symbol}/analysis:
+    get:
+      operationId: getCommodityAnalysis
+      tags: [analysis]
+      summary: AI Decision Breakdown for one commodity
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Yahoo Finance futures symbol, e.g. GC=F
+      responses:
+        "200":
+          description: AI analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiAnalysis"
+        "404":
+          description: No analysis available for that symbol
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+
   /settings/upstox/disconnect:
     post:
       operationId: disconnectUpstox
@@ -1529,3 +1615,315 @@ components:
           items:
             $ref: "#/components/schemas/FoChartPoint"
         daysToExpiry: { type: number }
+
+    # ── AI Decision Breakdown ────────────────────────────────────────────
+    # One payload shape shared by options, intraday and commodities so the UI
+    # components are written once. Market-specific blocks (greeks, optionChain)
+    # are nullable rather than duplicated into parallel schemas.
+
+    Provenance:
+      type: string
+      description: Where a displayed value actually came from.
+      enum: [LIVE, API, CALCULATED, MOCK, STATIC, GENERATED, UNAVAILABLE]
+
+    Direction:
+      type: string
+      enum: [BULLISH, BEARISH, NEUTRAL]
+
+    Tone:
+      type: string
+      enum: [positive, negative, neutral]
+
+    TimeframeIndicator:
+      type: object
+      required: [label, value, tone, marker, provenance]
+      properties:
+        label:      { type: string }
+        value:      { type: string }
+        tone:       { $ref: "#/components/schemas/Tone" }
+        marker:
+          type: string
+          description: Text marker so the reading stays readable without colour.
+        provenance: { $ref: "#/components/schemas/Provenance" }
+
+    TimeframeTrend:
+      type: object
+      required: [timeframe, label, caption, direction, strength, directionalScore, indicators, sparkline]
+      properties:
+        timeframe:        { type: string }
+        label:            { type: string }
+        caption:          { type: string }
+        direction:        { $ref: "#/components/schemas/Direction" }
+        strength:
+          type: number
+          description: 0-100 decisiveness of this timeframe.
+        directionalScore:
+          type: number
+          description: Signed conviction between -1 and 1.
+        indicators:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeframeIndicator"
+        sparkline:
+          type: array
+          items: { type: number }
+
+    MultiTimeframeRow:
+      type: object
+      required: [label, direction]
+      properties:
+        label:     { type: string }
+        direction: { $ref: "#/components/schemas/Direction" }
+
+    MultiTimeframeSummary:
+      type: object
+      required: [aligned, alignmentLabel, alignment, alignmentStrength, confidenceBoost, probability, explanation, rows]
+      properties:
+        aligned:        { type: boolean }
+        alignmentLabel: { type: string }
+        alignment:
+          type: string
+          enum: [BULLISH, BEARISH, NEUTRAL, CONFLICT]
+        alignmentStrength:
+          type: string
+          enum: [Strong, Moderate, Weak]
+        confidenceBoost:
+          type: number
+          description: Signed points the alignment added to the score. Negative on conflict.
+        probability:
+          type: string
+          enum: [High, Medium, Low]
+        verdict:
+          type: string
+          nullable: true
+        explanation: { type: string }
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiTimeframeRow"
+
+    ScoreCategory:
+      type: object
+      required: [key, label, weight, score, contribution, note]
+      properties:
+        key:          { type: string }
+        label:        { type: string }
+        weight:       { type: number }
+        score:        { type: number }
+        contribution: { type: number }
+        note:         { type: string }
+
+    SignalScore:
+      type: object
+      required: [score, band, signal, categories]
+      properties:
+        score:
+          type: number
+          description: 0-100 signal strength. Not a probability of profit.
+        band: { type: string }
+        signal:
+          type: string
+          enum: [STRONG_BUY, BUY, WATCH, SELL, STRONG_SELL]
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScoreCategory"
+
+    AnalysisReason:
+      type: object
+      required: [text, source]
+      properties:
+        text: { type: string }
+        source:
+          type: string
+          description: Score category this reason was derived from.
+
+    AnalysisRiskFactor:
+      type: object
+      required: [text, severity]
+      properties:
+        text: { type: string }
+        severity:
+          type: string
+          enum: [high, medium, low]
+
+    AnalysisMaxRisk:
+      type: object
+      required: [note, provenance]
+      properties:
+        amount:     { type: number, nullable: true }
+        pct:        { type: number, nullable: true }
+        lots:       { type: number, nullable: true }
+        lotSize:    { type: number, nullable: true }
+        note:       { type: string }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+
+    AnalysisTradePlan:
+      type: object
+      required: [currency, entryLow, entryHigh, target1, target2, stopLoss, riskReward, maxRisk]
+      properties:
+        currency:   { type: string }
+        entryLow:   { type: number }
+        entryHigh:  { type: number }
+        target1:    { type: number }
+        target2:    { type: number }
+        stopLoss:   { type: number }
+        riskReward: { type: string }
+        maxRisk:
+          $ref: "#/components/schemas/AnalysisMaxRisk"
+
+    AnalysisMetric:
+      type: object
+      required: [label, value, tone, provenance]
+      properties:
+        label:      { type: string }
+        value:      { type: string }
+        badge:      { type: string, nullable: true }
+        tone:       { $ref: "#/components/schemas/Tone" }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+
+    GreekValue:
+      type: object
+      required: [label, available]
+      properties:
+        label:     { type: string }
+        value:     { type: string, nullable: true }
+        available: { type: boolean }
+
+    AnalysisGreeks:
+      type: object
+      required: [available, note, values]
+      properties:
+        available: { type: boolean }
+        note:      { type: string }
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/GreekValue"
+
+    NearbyStrike:
+      type: object
+      required: [strike, callOi, putOi]
+      properties:
+        strike: { type: number }
+        callOi: { type: number }
+        putOi:  { type: number }
+
+    OptionChainContext:
+      type: object
+      required: [available, note, nearbyStrikes]
+      properties:
+        available: { type: boolean }
+        note:      { type: string }
+        pcr:       { type: number, nullable: true }
+        callOi:    { type: number, nullable: true }
+        putOi:     { type: number, nullable: true }
+        oiBuildup: { type: string, nullable: true }
+        maxPain:   { type: number, nullable: true }
+        moneyness: { type: string, nullable: true }
+        nearbyStrikes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NearbyStrike"
+
+    ProvenanceField:
+      type: object
+      required: [name, provenance]
+      properties:
+        name:       { type: string }
+        provenance: { $ref: "#/components/schemas/Provenance" }
+
+    AnalysisProvenance:
+      type: object
+      required: [signalGeneratedAt, dataUpdatedAt, timeframes, dataSource, engine, engineVersion, mode, fields]
+      properties:
+        signalGeneratedAt: { type: string }
+        dataUpdatedAt:     { type: string }
+        timeframes:
+          type: array
+          items: { type: string }
+        dataSource:    { type: string }
+        engine:        { type: string }
+        engineVersion: { type: string }
+        mode:
+          type: string
+          enum: [MOCK, PARTIAL, LIVE]
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProvenanceField"
+
+    AnalysisHeadline:
+      type: object
+      required: [primaryLabel, primaryValue]
+      properties:
+        primaryLabel:           { type: string }
+        primaryValue:           { type: string }
+        primaryChangePercent:   { type: number, nullable: true }
+        secondaryLabel:         { type: string, nullable: true }
+        secondaryValue:         { type: string, nullable: true }
+        secondaryChangePercent: { type: number, nullable: true }
+
+    AiAnalysis:
+      type: object
+      required:
+        - id
+        - market
+        - title
+        - subtitle
+        - signal
+        - signalLabel
+        - headline
+        - score
+        - reasons
+        - timeframes
+        - multiTimeframe
+        - tradePlan
+        - risks
+        - metrics
+        - provenance
+      properties:
+        id: { type: string }
+        market:
+          type: string
+          enum: [options, intraday, commodities]
+        title:    { type: string }
+        subtitle: { type: string }
+        signal:
+          type: string
+          enum: [STRONG_BUY, BUY, WATCH, SELL, STRONG_SELL]
+        signalLabel: { type: string }
+        headline:
+          $ref: "#/components/schemas/AnalysisHeadline"
+        score:
+          $ref: "#/components/schemas/SignalScore"
+        reasons:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisReason"
+        timeframes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeframeTrend"
+        multiTimeframe:
+          $ref: "#/components/schemas/MultiTimeframeSummary"
+        tradePlan:
+          $ref: "#/components/schemas/AnalysisTradePlan"
+        risks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisRiskFactor"
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisMetric"
+        greeks:
+          allOf:
+            - $ref: "#/components/schemas/AnalysisGreeks"
+          nullable: true
+        optionChain:
+          allOf:
+            - $ref: "#/components/schemas/OptionChainContext"
+          nullable: true
+        provenance:
+          $ref: "#/components/schemas/AnalysisProvenance"

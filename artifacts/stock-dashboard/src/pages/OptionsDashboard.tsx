@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
-import { useGetOptionsSuggestions, OptionsSuggestion } from "@workspace/api-client-react";
+import { Fragment, useState, useMemo } from "react";
+import { useGetOptionsSuggestions, useGetOptionsAnalysis, getGetOptionsAnalysisQueryKey, OptionsSuggestion } from "@workspace/api-client-react";
 import { Info, RefreshCw, Activity, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { LockedValue, LockedHint } from "@/components/LockedValue";
 import { UpgradeGate } from "@/components/UpgradeGate";
+import { AiAnalysisPanel, WhyButton } from "@/components/ai-analysis";
 import { useFeatureAccess } from "@/lib/plan";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
@@ -106,7 +107,7 @@ function ConfBar({ pct }: { pct: number }) {
   );
 }
 
-function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
+function OptionsRow({ s, i, expanded, onToggle }: { s: Suggestion; i: number; expanded: boolean; onToggle: () => void }) {
   const [hover, setHover] = useState(false);
   const sig = s.signal as Signal;
   const cfg = SIG_CFG[sig];
@@ -120,7 +121,8 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
       <tr
         className={cn("border-b border-border/50 transition-all cursor-pointer",
           isCE ? "border-l-2 border-l-emerald-500" : "border-l-2 border-l-red-500",
-          i % 2 === 0 ? "bg-card" : "bg-background/40", hover && "brightness-110")}
+          expanded ? "bg-primary/5" : i % 2 === 0 ? "bg-card" : "bg-background/40",
+          hover && !expanded && "brightness-110")}
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       >
         {/* Rank */}
@@ -175,15 +177,21 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
           <p className="text-xs font-mono text-orange-400"><LockedValue>{`₹${fmt(s.stopLoss)}`}</LockedValue></p>
         </td>
 
-        {/* Signal */}
+        {/* Signal — opens the same analysis as the Why? action */}
         <td className="px-4 py-3 text-center whitespace-nowrap">
-          <span className={cn("inline-block px-2.5 py-1 rounded-lg border text-xs font-black", cfg.cls, cfg.border)}>
+          <button type="button" onClick={onToggle} aria-expanded={expanded} title="See why this signal was generated"
+            className={cn("inline-block px-2.5 py-1 rounded-lg border text-xs font-black transition-shadow hover:ring-2 hover:ring-primary/40", cfg.cls, cfg.border)}>
             {cfg.label}
-          </span>
+          </button>
         </td>
 
-        {/* Confidence */}
-        <td className="px-4 py-3 text-center whitespace-nowrap"><ConfBar pct={conf} /></td>
+        {/* Confidence — also opens the analysis */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <button type="button" onClick={onToggle} aria-expanded={expanded} title="See how this score was calculated"
+            className="mx-auto block rounded px-1 py-0.5 transition-colors hover:bg-primary/10">
+            <ConfBar pct={conf} />
+          </button>
+        </td>
 
         {/* IV */}
         <td className="px-4 py-3 text-center whitespace-nowrap"><IVBadge iv={s.impliedVolatility} /></td>
@@ -196,12 +204,17 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
           <p className="text-xs text-muted-foreground">Underlying</p>
           <p className="text-xs font-mono font-semibold text-foreground">₹{fmt(s.underlyingPrice)}</p>
         </td>
+
+        {/* Why? — opens the AI Decision Breakdown */}
+        <td className="px-4 py-3 text-center whitespace-nowrap">
+          <WhyButton active={expanded} onClick={onToggle} />
+        </td>
       </tr>
 
       {/* Hover rationale */}
-      {hover && (
+      {hover && !expanded && (
         <tr className="border-b border-border/20">
-          <td colSpan={13} className="px-6 py-2 bg-background/60">
+          <td colSpan={14} className="px-6 py-2 bg-background/60">
             <div className="flex items-start gap-1.5">
               <Info className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">{s.rationale}</p>
@@ -213,10 +226,31 @@ function OptionsRow({ s, i }: { s: Suggestion; i: number }) {
   );
 }
 
+/** Row identity used by the analysis endpoint — must match the server's id. */
+function pickId(s: Suggestion) {
+  return `${s.symbol}-${s.optionType}-${s.strikePrice}`;
+}
+
 export function OptionsDashboard() {
   const canView = useFeatureAccess("options");
   const [activeTab, setActiveTab] = useState<TabId>("all");
+  // Only one pick is ever expanded (§19), so a single id is enough state.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { data: rawData, isLoading, refetch, isFetching } = useGetOptionsSuggestions({ query: { refetchInterval: 60000, enabled: canView } });
+
+  // Analysis is fetched only for the pick the user actually opened, and cached
+  // by react-query so collapsing and re-expanding costs nothing (§22).
+  const {
+    data: analysis,
+    isLoading: analysisLoading,
+    isError: analysisError,
+  } = useGetOptionsAnalysis(expandedId ?? "", {
+    query: {
+      queryKey: getGetOptionsAnalysisQueryKey(expandedId ?? ""),
+      enabled: canView && !!expandedId,
+      staleTime: 60000,
+    },
+  });
 
   const counts = useMemo(() => ({
     all: rawData?.length ?? 0,
@@ -235,7 +269,7 @@ export function OptionsDashboard() {
   }, [rawData, activeTab]);
 
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
-  const COLS = ["#", "Symbol", "Strike", "Expiry", "Premium", "Buy Below", "Sell Above", "Stop Loss", "Signal", "Confidence", "IV ⓘ", "OI Trend ⓘ", "Underlying"];
+  const COLS = ["#", "Symbol", "Strike", "Expiry", "Premium", "Buy Below", "Sell Above", "Stop Loss", "Signal", "Confidence", "IV ⓘ", "OI Trend ⓘ", "Underlying", "AI"];
 
   const TABS = [
     { id: "all" as TabId,    label: "All Picks",      count: counts.all,    activeLine: "bg-primary" },
@@ -335,9 +369,37 @@ export function OptionsDashboard() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={13} className="text-center py-12 text-muted-foreground text-sm">No stocks in this category</td></tr>
+                  <tr><td colSpan={14} className="text-center py-12 text-muted-foreground text-sm">No stocks in this category</td></tr>
                 ) : (
-                  filtered.map((s, i) => <OptionsRow key={`${s.symbol}-${s.optionType}-${s.strikePrice}`} s={s as Suggestion} i={i} />)
+                  filtered.map((s, i) => {
+                    const id = pickId(s as Suggestion);
+                    const isExpanded = expandedId === id;
+                    return (
+                      <Fragment key={id}>
+                        <OptionsRow
+                          s={s as Suggestion}
+                          i={i}
+                          expanded={isExpanded}
+                          onToggle={() => setExpandedId(isExpanded ? null : id)}
+                        />
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={14} className="p-0">
+                              <div className="p-3">
+                                <AiAnalysisPanel
+                                  analysis={analysis}
+                                  isLoading={analysisLoading}
+                                  isError={analysisError}
+                                  onClose={() => setExpandedId(null)}
+                                  pendingTitle={`${s.symbol} ${s.strikePrice} ${s.optionType}`}
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -626,6 +626,654 @@ export const GetOptionsSuggestionsResponse = zod.array(
 );
 
 /**
+ * Multi-timeframe AI explainability for a single options pick, addressed by SYMBOL-TYPE-STRIKE (e.g. WIPRO-PE-180). Computed on demand.
+
+ * @summary AI Decision Breakdown for one options pick
+ */
+export const GetOptionsAnalysisParams = zod.object({
+  id: zod.coerce
+    .string()
+    .describe("Pick identifier in the form SYMBOL-TYPE-STRIKE"),
+});
+
+export const GetOptionsAnalysisResponse = zod.object({
+  id: zod.string(),
+  market: zod.enum(["options", "intraday", "commodities"]),
+  title: zod.string(),
+  subtitle: zod.string(),
+  signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+  signalLabel: zod.string(),
+  headline: zod.object({
+    primaryLabel: zod.string(),
+    primaryValue: zod.string(),
+    primaryChangePercent: zod.number().nullish(),
+    secondaryLabel: zod.string().nullish(),
+    secondaryValue: zod.string().nullish(),
+    secondaryChangePercent: zod.number().nullish(),
+  }),
+  score: zod.object({
+    score: zod
+      .number()
+      .describe("0-100 signal strength. Not a probability of profit."),
+    band: zod.string(),
+    signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+    categories: zod.array(
+      zod.object({
+        key: zod.string(),
+        label: zod.string(),
+        weight: zod.number(),
+        score: zod.number(),
+        contribution: zod.number(),
+        note: zod.string(),
+      }),
+    ),
+  }),
+  reasons: zod.array(
+    zod.object({
+      text: zod.string(),
+      source: zod
+        .string()
+        .describe("Score category this reason was derived from."),
+    }),
+  ),
+  timeframes: zod.array(
+    zod.object({
+      timeframe: zod.string(),
+      label: zod.string(),
+      caption: zod.string(),
+      direction: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      strength: zod.number().describe("0-100 decisiveness of this timeframe."),
+      directionalScore: zod
+        .number()
+        .describe("Signed conviction between -1 and 1."),
+      indicators: zod.array(
+        zod.object({
+          label: zod.string(),
+          value: zod.string(),
+          tone: zod.enum(["positive", "negative", "neutral"]),
+          marker: zod
+            .string()
+            .describe(
+              "Text marker so the reading stays readable without colour.",
+            ),
+          provenance: zod
+            .enum([
+              "LIVE",
+              "API",
+              "CALCULATED",
+              "MOCK",
+              "STATIC",
+              "GENERATED",
+              "UNAVAILABLE",
+            ])
+            .describe("Where a displayed value actually came from."),
+        }),
+      ),
+      sparkline: zod.array(zod.number()),
+    }),
+  ),
+  multiTimeframe: zod.object({
+    aligned: zod.boolean(),
+    alignmentLabel: zod.string(),
+    alignment: zod.enum(["BULLISH", "BEARISH", "NEUTRAL", "CONFLICT"]),
+    alignmentStrength: zod.enum(["Strong", "Moderate", "Weak"]),
+    confidenceBoost: zod
+      .number()
+      .describe(
+        "Signed points the alignment added to the score. Negative on conflict.",
+      ),
+    probability: zod.enum(["High", "Medium", "Low"]),
+    verdict: zod.string().nullish(),
+    explanation: zod.string(),
+    rows: zod.array(
+      zod.object({
+        label: zod.string(),
+        direction: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      }),
+    ),
+  }),
+  tradePlan: zod.object({
+    currency: zod.string(),
+    entryLow: zod.number(),
+    entryHigh: zod.number(),
+    target1: zod.number(),
+    target2: zod.number(),
+    stopLoss: zod.number(),
+    riskReward: zod.string(),
+    maxRisk: zod.object({
+      amount: zod.number().nullish(),
+      pct: zod.number().nullish(),
+      lots: zod.number().nullish(),
+      lotSize: zod.number().nullish(),
+      note: zod.string(),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  }),
+  risks: zod.array(
+    zod.object({
+      text: zod.string(),
+      severity: zod.enum(["high", "medium", "low"]),
+    }),
+  ),
+  metrics: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.string(),
+      badge: zod.string().nullish(),
+      tone: zod.enum(["positive", "negative", "neutral"]),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  greeks: zod
+    .object({
+      available: zod.boolean(),
+      note: zod.string(),
+      values: zod.array(
+        zod.object({
+          label: zod.string(),
+          value: zod.string().nullish(),
+          available: zod.boolean(),
+        }),
+      ),
+    })
+    .nullish(),
+  optionChain: zod
+    .object({
+      available: zod.boolean(),
+      note: zod.string(),
+      pcr: zod.number().nullish(),
+      callOi: zod.number().nullish(),
+      putOi: zod.number().nullish(),
+      oiBuildup: zod.string().nullish(),
+      maxPain: zod.number().nullish(),
+      moneyness: zod.string().nullish(),
+      nearbyStrikes: zod.array(
+        zod.object({
+          strike: zod.number(),
+          callOi: zod.number(),
+          putOi: zod.number(),
+        }),
+      ),
+    })
+    .nullish(),
+  provenance: zod.object({
+    signalGeneratedAt: zod.string(),
+    dataUpdatedAt: zod.string(),
+    timeframes: zod.array(zod.string()),
+    dataSource: zod.string(),
+    engine: zod.string(),
+    engineVersion: zod.string(),
+    mode: zod.enum(["MOCK", "PARTIAL", "LIVE"]),
+    fields: zod.array(
+      zod.object({
+        name: zod.string(),
+        provenance: zod
+          .enum([
+            "LIVE",
+            "API",
+            "CALCULATED",
+            "MOCK",
+            "STATIC",
+            "GENERATED",
+            "UNAVAILABLE",
+          ])
+          .describe("Where a displayed value actually came from."),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary AI Decision Breakdown for one intraday pick
+ */
+export const GetIntradayAnalysisParams = zod.object({
+  symbol: zod.coerce.string(),
+});
+
+export const GetIntradayAnalysisResponse = zod.object({
+  id: zod.string(),
+  market: zod.enum(["options", "intraday", "commodities"]),
+  title: zod.string(),
+  subtitle: zod.string(),
+  signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+  signalLabel: zod.string(),
+  headline: zod.object({
+    primaryLabel: zod.string(),
+    primaryValue: zod.string(),
+    primaryChangePercent: zod.number().nullish(),
+    secondaryLabel: zod.string().nullish(),
+    secondaryValue: zod.string().nullish(),
+    secondaryChangePercent: zod.number().nullish(),
+  }),
+  score: zod.object({
+    score: zod
+      .number()
+      .describe("0-100 signal strength. Not a probability of profit."),
+    band: zod.string(),
+    signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+    categories: zod.array(
+      zod.object({
+        key: zod.string(),
+        label: zod.string(),
+        weight: zod.number(),
+        score: zod.number(),
+        contribution: zod.number(),
+        note: zod.string(),
+      }),
+    ),
+  }),
+  reasons: zod.array(
+    zod.object({
+      text: zod.string(),
+      source: zod
+        .string()
+        .describe("Score category this reason was derived from."),
+    }),
+  ),
+  timeframes: zod.array(
+    zod.object({
+      timeframe: zod.string(),
+      label: zod.string(),
+      caption: zod.string(),
+      direction: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      strength: zod.number().describe("0-100 decisiveness of this timeframe."),
+      directionalScore: zod
+        .number()
+        .describe("Signed conviction between -1 and 1."),
+      indicators: zod.array(
+        zod.object({
+          label: zod.string(),
+          value: zod.string(),
+          tone: zod.enum(["positive", "negative", "neutral"]),
+          marker: zod
+            .string()
+            .describe(
+              "Text marker so the reading stays readable without colour.",
+            ),
+          provenance: zod
+            .enum([
+              "LIVE",
+              "API",
+              "CALCULATED",
+              "MOCK",
+              "STATIC",
+              "GENERATED",
+              "UNAVAILABLE",
+            ])
+            .describe("Where a displayed value actually came from."),
+        }),
+      ),
+      sparkline: zod.array(zod.number()),
+    }),
+  ),
+  multiTimeframe: zod.object({
+    aligned: zod.boolean(),
+    alignmentLabel: zod.string(),
+    alignment: zod.enum(["BULLISH", "BEARISH", "NEUTRAL", "CONFLICT"]),
+    alignmentStrength: zod.enum(["Strong", "Moderate", "Weak"]),
+    confidenceBoost: zod
+      .number()
+      .describe(
+        "Signed points the alignment added to the score. Negative on conflict.",
+      ),
+    probability: zod.enum(["High", "Medium", "Low"]),
+    verdict: zod.string().nullish(),
+    explanation: zod.string(),
+    rows: zod.array(
+      zod.object({
+        label: zod.string(),
+        direction: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      }),
+    ),
+  }),
+  tradePlan: zod.object({
+    currency: zod.string(),
+    entryLow: zod.number(),
+    entryHigh: zod.number(),
+    target1: zod.number(),
+    target2: zod.number(),
+    stopLoss: zod.number(),
+    riskReward: zod.string(),
+    maxRisk: zod.object({
+      amount: zod.number().nullish(),
+      pct: zod.number().nullish(),
+      lots: zod.number().nullish(),
+      lotSize: zod.number().nullish(),
+      note: zod.string(),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  }),
+  risks: zod.array(
+    zod.object({
+      text: zod.string(),
+      severity: zod.enum(["high", "medium", "low"]),
+    }),
+  ),
+  metrics: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.string(),
+      badge: zod.string().nullish(),
+      tone: zod.enum(["positive", "negative", "neutral"]),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  greeks: zod
+    .object({
+      available: zod.boolean(),
+      note: zod.string(),
+      values: zod.array(
+        zod.object({
+          label: zod.string(),
+          value: zod.string().nullish(),
+          available: zod.boolean(),
+        }),
+      ),
+    })
+    .nullish(),
+  optionChain: zod
+    .object({
+      available: zod.boolean(),
+      note: zod.string(),
+      pcr: zod.number().nullish(),
+      callOi: zod.number().nullish(),
+      putOi: zod.number().nullish(),
+      oiBuildup: zod.string().nullish(),
+      maxPain: zod.number().nullish(),
+      moneyness: zod.string().nullish(),
+      nearbyStrikes: zod.array(
+        zod.object({
+          strike: zod.number(),
+          callOi: zod.number(),
+          putOi: zod.number(),
+        }),
+      ),
+    })
+    .nullish(),
+  provenance: zod.object({
+    signalGeneratedAt: zod.string(),
+    dataUpdatedAt: zod.string(),
+    timeframes: zod.array(zod.string()),
+    dataSource: zod.string(),
+    engine: zod.string(),
+    engineVersion: zod.string(),
+    mode: zod.enum(["MOCK", "PARTIAL", "LIVE"]),
+    fields: zod.array(
+      zod.object({
+        name: zod.string(),
+        provenance: zod
+          .enum([
+            "LIVE",
+            "API",
+            "CALCULATED",
+            "MOCK",
+            "STATIC",
+            "GENERATED",
+            "UNAVAILABLE",
+          ])
+          .describe("Where a displayed value actually came from."),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary AI Decision Breakdown for one commodity
+ */
+export const GetCommodityAnalysisParams = zod.object({
+  symbol: zod.coerce
+    .string()
+    .describe("Yahoo Finance futures symbol, e.g. GC=F"),
+});
+
+export const GetCommodityAnalysisResponse = zod.object({
+  id: zod.string(),
+  market: zod.enum(["options", "intraday", "commodities"]),
+  title: zod.string(),
+  subtitle: zod.string(),
+  signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+  signalLabel: zod.string(),
+  headline: zod.object({
+    primaryLabel: zod.string(),
+    primaryValue: zod.string(),
+    primaryChangePercent: zod.number().nullish(),
+    secondaryLabel: zod.string().nullish(),
+    secondaryValue: zod.string().nullish(),
+    secondaryChangePercent: zod.number().nullish(),
+  }),
+  score: zod.object({
+    score: zod
+      .number()
+      .describe("0-100 signal strength. Not a probability of profit."),
+    band: zod.string(),
+    signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+    categories: zod.array(
+      zod.object({
+        key: zod.string(),
+        label: zod.string(),
+        weight: zod.number(),
+        score: zod.number(),
+        contribution: zod.number(),
+        note: zod.string(),
+      }),
+    ),
+  }),
+  reasons: zod.array(
+    zod.object({
+      text: zod.string(),
+      source: zod
+        .string()
+        .describe("Score category this reason was derived from."),
+    }),
+  ),
+  timeframes: zod.array(
+    zod.object({
+      timeframe: zod.string(),
+      label: zod.string(),
+      caption: zod.string(),
+      direction: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      strength: zod.number().describe("0-100 decisiveness of this timeframe."),
+      directionalScore: zod
+        .number()
+        .describe("Signed conviction between -1 and 1."),
+      indicators: zod.array(
+        zod.object({
+          label: zod.string(),
+          value: zod.string(),
+          tone: zod.enum(["positive", "negative", "neutral"]),
+          marker: zod
+            .string()
+            .describe(
+              "Text marker so the reading stays readable without colour.",
+            ),
+          provenance: zod
+            .enum([
+              "LIVE",
+              "API",
+              "CALCULATED",
+              "MOCK",
+              "STATIC",
+              "GENERATED",
+              "UNAVAILABLE",
+            ])
+            .describe("Where a displayed value actually came from."),
+        }),
+      ),
+      sparkline: zod.array(zod.number()),
+    }),
+  ),
+  multiTimeframe: zod.object({
+    aligned: zod.boolean(),
+    alignmentLabel: zod.string(),
+    alignment: zod.enum(["BULLISH", "BEARISH", "NEUTRAL", "CONFLICT"]),
+    alignmentStrength: zod.enum(["Strong", "Moderate", "Weak"]),
+    confidenceBoost: zod
+      .number()
+      .describe(
+        "Signed points the alignment added to the score. Negative on conflict.",
+      ),
+    probability: zod.enum(["High", "Medium", "Low"]),
+    verdict: zod.string().nullish(),
+    explanation: zod.string(),
+    rows: zod.array(
+      zod.object({
+        label: zod.string(),
+        direction: zod.enum(["BULLISH", "BEARISH", "NEUTRAL"]),
+      }),
+    ),
+  }),
+  tradePlan: zod.object({
+    currency: zod.string(),
+    entryLow: zod.number(),
+    entryHigh: zod.number(),
+    target1: zod.number(),
+    target2: zod.number(),
+    stopLoss: zod.number(),
+    riskReward: zod.string(),
+    maxRisk: zod.object({
+      amount: zod.number().nullish(),
+      pct: zod.number().nullish(),
+      lots: zod.number().nullish(),
+      lotSize: zod.number().nullish(),
+      note: zod.string(),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  }),
+  risks: zod.array(
+    zod.object({
+      text: zod.string(),
+      severity: zod.enum(["high", "medium", "low"]),
+    }),
+  ),
+  metrics: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.string(),
+      badge: zod.string().nullish(),
+      tone: zod.enum(["positive", "negative", "neutral"]),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  greeks: zod
+    .object({
+      available: zod.boolean(),
+      note: zod.string(),
+      values: zod.array(
+        zod.object({
+          label: zod.string(),
+          value: zod.string().nullish(),
+          available: zod.boolean(),
+        }),
+      ),
+    })
+    .nullish(),
+  optionChain: zod
+    .object({
+      available: zod.boolean(),
+      note: zod.string(),
+      pcr: zod.number().nullish(),
+      callOi: zod.number().nullish(),
+      putOi: zod.number().nullish(),
+      oiBuildup: zod.string().nullish(),
+      maxPain: zod.number().nullish(),
+      moneyness: zod.string().nullish(),
+      nearbyStrikes: zod.array(
+        zod.object({
+          strike: zod.number(),
+          callOi: zod.number(),
+          putOi: zod.number(),
+        }),
+      ),
+    })
+    .nullish(),
+  provenance: zod.object({
+    signalGeneratedAt: zod.string(),
+    dataUpdatedAt: zod.string(),
+    timeframes: zod.array(zod.string()),
+    dataSource: zod.string(),
+    engine: zod.string(),
+    engineVersion: zod.string(),
+    mode: zod.enum(["MOCK", "PARTIAL", "LIVE"]),
+    fields: zod.array(
+      zod.object({
+        name: zod.string(),
+        provenance: zod
+          .enum([
+            "LIVE",
+            "API",
+            "CALCULATED",
+            "MOCK",
+            "STATIC",
+            "GENERATED",
+            "UNAVAILABLE",
+          ])
+          .describe("Where a displayed value actually came from."),
+      }),
+    ),
+  }),
+});
+
+/**
  * @summary Disconnect Upstox API
  */
 export const DisconnectUpstoxResponse = zod.object({

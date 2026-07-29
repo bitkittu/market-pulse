@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import {
   getNseHistory,
   getGiftNiftyHistory,
@@ -18,7 +18,13 @@ import {
   getUsdToInr,
   getCommodityHistory,
 } from "../lib/liveMarketData.js";
-import { getIntradaySuggestions, getOptionsSuggestions } from "../lib/suggestions.js";
+import {
+  getIntradaySuggestions,
+  getOptionsSuggestions,
+  getOptionsAnalysis,
+  getIntradayAnalysis,
+} from "../lib/suggestions.js";
+import { getCommodityAnalysis, type AiAnalysis } from "../lib/analysis/index.js";
 import { getDecisionPanel } from "../lib/decisionEngine.js";
 import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
 import { analyzeFoTrade } from "../lib/foAnalyzer.js";
@@ -314,6 +320,58 @@ router.get("/suggestions/options", async (_req, res) => {
     res.json(await getOptionsSuggestions());
   } catch {
     res.status(500).json({ error: "Failed to generate options suggestions" });
+  }
+});
+
+// ── AI Decision Breakdown ────────────────────────────────────────────────
+// Analysis is computed per pick on demand rather than for every row up front,
+// and memoised briefly so re-expanding the same pick is free.
+const ANALYSIS_TTL = 60_000;
+const analysisCache = new Map<string, { data: AiAnalysis; expiry: number }>();
+
+async function serveAnalysis(
+  cacheKey: string,
+  load: () => Promise<AiAnalysis | null>,
+  res: Response
+) {
+  const hit = analysisCache.get(cacheKey);
+  if (hit && hit.expiry > Date.now()) {
+    res.json(hit.data);
+    return;
+  }
+  const data = await load();
+  if (!data) {
+    res.status(404).json({ error: "No analysis available for that selection" });
+    return;
+  }
+  analysisCache.set(cacheKey, { data, expiry: Date.now() + ANALYSIS_TTL });
+  res.json(data);
+}
+
+router.get("/suggestions/options/:id/analysis", async (req, res) => {
+  try {
+    await serveAnalysis(`options:${req.params.id}`, () => getOptionsAnalysis(req.params.id), res);
+  } catch (err) {
+    req.log.error({ err }, "Options analysis error");
+    res.status(500).json({ error: "Failed to build options analysis" });
+  }
+});
+
+router.get("/suggestions/intraday/:symbol/analysis", async (req, res) => {
+  try {
+    await serveAnalysis(`intraday:${req.params.symbol}`, () => getIntradayAnalysis(req.params.symbol), res);
+  } catch (err) {
+    req.log.error({ err }, "Intraday analysis error");
+    res.status(500).json({ error: "Failed to build intraday analysis" });
+  }
+});
+
+router.get("/commodities/:symbol/analysis", async (req, res) => {
+  try {
+    await serveAnalysis(`commodity:${req.params.symbol}`, () => getCommodityAnalysis(req.params.symbol), res);
+  } catch (err) {
+    req.log.error({ err }, "Commodity analysis error");
+    res.status(500).json({ error: "Failed to build commodity analysis" });
   }
 });
 
