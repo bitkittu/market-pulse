@@ -23,6 +23,8 @@ tags:
     description: API settings
   - name: insights
     description: Stock insights, indicators and news
+  - name: holding
+    description: Holding Stocks — ranked 1-3 month positional opportunities
 
 paths:
   /healthz:
@@ -497,6 +499,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UpstoxSettings"
+
+  /holding/scan:
+    get:
+      operationId: getHoldingScan
+      tags: [holding]
+      summary: Holding Stocks scan — ranked 1-3 month opportunities
+      description: >
+        Screens a configurable Indian-equity universe and returns the
+        opportunities that clear the MarketPulse Holding Score qualification
+        threshold, ranked highest first. Fewer than ten results means fewer
+        than ten stocks qualified — the list is never padded. Rebuilt once per
+        post-close boundary, not per request.
+      parameters:
+        - name: universe
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/HoldingUniverseId"
+          description: Universe to screen. Falls back to the widest available one.
+      responses:
+        "200":
+          description: Holding scan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingScan"
+
+  /holding/picks/{symbol}/analysis:
+    get:
+      operationId: getHoldingAnalysis
+      tags: [holding]
+      summary: Full breakdown for one Holding Stocks pick
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+          description: NSE symbol as used internally, e.g. RELIANCE
+        - name: universe
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/HoldingUniverseId"
+      responses:
+        "200":
+          description: Holding analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingAnalysis"
+        "404":
+          description: Symbol was not part of the scan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+
+  /holding/previous-picks:
+    get:
+      operationId: getHoldingPreviousPicks
+      tags: [holding]
+      summary: Previously selected Holding Stocks picks with forward performance
+      description: >
+        Forward returns are computed from real price history and stay null
+        until the corresponding window has actually elapsed.
+      responses:
+        "200":
+          description: Previous picks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingPreviousPicks"
 
   /suggestions/intraday:
     get:
@@ -1931,6 +2008,322 @@ components:
         secondaryLabel:         { type: string, nullable: true }
         secondaryValue:         { type: string, nullable: true }
         secondaryChangePercent: { type: number, nullable: true }
+
+    # ── Holding Stocks ──────────────────────────────────────────────────────
+    HoldingUniverseId:
+      type: string
+      enum: [NIFTY_50, NIFTY_100, NIFTY_200, NIFTY_500]
+
+    HoldingClassification:
+      type: string
+      description: >
+        Setup quality band derived from the MarketPulse Holding Score. Not a
+        trade instruction — this module ranks research opportunities.
+      enum: [STRONG_SETUP, GOOD_SETUP, WATCH, AVOID]
+
+    HoldingRiskLevel:
+      type: string
+      enum: [Low, Medium, High]
+
+    HoldingCatalystImpact:
+      type: string
+      enum: [Positive, Neutral, Negative]
+
+    HoldingPick:
+      type: object
+      required:
+        - rank
+        - symbol
+        - displaySymbol
+        - name
+        - sector
+        - currentPrice
+        - changePercent
+        - trendLabel
+        - catalystLabel
+        - catalystImpact
+        - score
+        - classification
+        - classificationLabel
+        - riskLevel
+        - isNew
+        - priceProvenance
+      properties:
+        rank:          { type: integer }
+        symbol:        { type: string }
+        displaySymbol:
+          type: string
+          description: Exchange ticker spelling, e.g. BAJAJ-AUTO for internal key BAJAJ_AUTO.
+        name:          { type: string }
+        sector:        { type: string }
+        currentPrice:  { type: number }
+        changePercent: { type: number }
+        return1w:      { type: number, nullable: true }
+        return1m:      { type: number, nullable: true }
+        return3m:      { type: number, nullable: true }
+        distanceFrom52wHighPct: { type: number, nullable: true }
+        trendLabel:    { type: string }
+        catalystLabel: { type: string }
+        catalystImpact:
+          $ref: "#/components/schemas/HoldingCatalystImpact"
+        score:
+          type: number
+          description: MarketPulse Holding Score, 0-100 signal quality. Not a probability of profit.
+        classification:
+          $ref: "#/components/schemas/HoldingClassification"
+        classificationLabel: { type: string }
+        riskLevel:
+          $ref: "#/components/schemas/HoldingRiskLevel"
+        isNew:
+          type: boolean
+          description: Not present in the previous stored scan.
+        priceProvenance:
+          $ref: "#/components/schemas/Provenance"
+
+    HoldingScanSummary:
+      type: object
+      required:
+        - qualifiedCount
+        - published
+        - strongSetups
+        - newThisScan
+        - marketBias
+        - marketBiasNote
+        - lastScanAt
+        - universeRequested
+        - universeResolved
+        - screened
+        - analysed
+        - rejectedIlliquid
+        - shortlisted
+        - belowThreshold
+        - qualificationThreshold
+      properties:
+        qualifiedCount:
+          type: integer
+          description: Stocks clearing the quality bar. May exceed the published list.
+        published:      { type: integer }
+        strongSetups:   { type: integer }
+        newThisScan:    { type: integer }
+        marketBias:
+          type: string
+          enum: [Bullish, Neutral, Bearish]
+        marketBiasNote: { type: string }
+        lastScanAt:     { type: string }
+        nextScanAt:     { type: string, nullable: true }
+        universeRequested:
+          $ref: "#/components/schemas/HoldingUniverseId"
+        universeResolved:
+          $ref: "#/components/schemas/HoldingUniverseId"
+        universeNote:   { type: string, nullable: true }
+        screened:       { type: integer }
+        analysed:       { type: integer }
+        rejectedIlliquid: { type: integer }
+        shortlisted:
+          type: integer
+          description: Symbols that reached the deep fundamentals/catalysts pass.
+        belowThreshold: { type: integer }
+        qualificationThreshold: { type: number }
+
+    HoldingUniverseOption:
+      type: object
+      required: [id, label, available, note]
+      properties:
+        id:
+          $ref: "#/components/schemas/HoldingUniverseId"
+        label:     { type: string }
+        available: { type: boolean }
+        size:      { type: integer, nullable: true }
+        note:      { type: string }
+
+    HoldingScan:
+      type: object
+      required: [summary, picks, universes, sectors, provenance]
+      properties:
+        summary:
+          $ref: "#/components/schemas/HoldingScanSummary"
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingPick"
+        universes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingUniverseOption"
+        sectors:
+          type: array
+          items: { type: string }
+        provenance:
+          $ref: "#/components/schemas/AnalysisProvenance"
+
+    HoldingAnalysisHeader:
+      type: object
+      required: [currentPrice, riskLevel, lastScanAt]
+      properties:
+        currentPrice: { type: number }
+        return1m:     { type: number, nullable: true }
+        return3m:     { type: number, nullable: true }
+        distanceFrom52wHighPct: { type: number, nullable: true }
+        riskLevel:
+          $ref: "#/components/schemas/HoldingRiskLevel"
+        lastScanAt:   { type: string }
+
+    HoldingCatalystEntry:
+      type: object
+      required: [title, source, impact, kind]
+      properties:
+        title:  { type: string }
+        date:   { type: string, nullable: true }
+        source: { type: string }
+        impact:
+          $ref: "#/components/schemas/HoldingCatalystImpact"
+        kind:   { type: string }
+        url:    { type: string, nullable: true }
+
+    HoldingCatalystBlock:
+      type: object
+      required: [available, note, items]
+      properties:
+        available: { type: boolean }
+        note:      { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingCatalystEntry"
+
+    HoldingFundamentalsBlock:
+      type: object
+      required: [available, note, items]
+      properties:
+        available: { type: boolean }
+        note:      { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisMetric"
+
+    HoldingOutlook:
+      type: object
+      required: [trend, momentum, catalyst, risk, overall, note]
+      properties:
+        trend:
+          type: string
+          enum: [Strong, Positive, Neutral, Weak]
+        momentum:
+          type: string
+          enum: [Strong, Moderate, Weak]
+        catalyst:
+          $ref: "#/components/schemas/HoldingCatalystImpact"
+        risk:
+          $ref: "#/components/schemas/HoldingRiskLevel"
+        overall: { type: string }
+        note:    { type: string }
+
+    HoldingAnalysis:
+      type: object
+      required:
+        - id
+        - symbol
+        - displaySymbol
+        - name
+        - sector
+        - classification
+        - classificationLabel
+        - header
+        - score
+        - reasons
+        - technical
+        - momentum
+        - fundamentals
+        - catalysts
+        - risks
+        - outlook
+        - priceLevels
+        - provenance
+      properties:
+        id:     { type: string }
+        symbol: { type: string }
+        displaySymbol: { type: string }
+        name:   { type: string }
+        sector: { type: string }
+        classification:
+          $ref: "#/components/schemas/HoldingClassification"
+        classificationLabel: { type: string }
+        header:
+          $ref: "#/components/schemas/HoldingAnalysisHeader"
+        score:
+          $ref: "#/components/schemas/SignalScore"
+        reasons:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisReason"
+        technical:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisMetric"
+        momentum:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisMetric"
+        fundamentals:
+          $ref: "#/components/schemas/HoldingFundamentalsBlock"
+        catalysts:
+          $ref: "#/components/schemas/HoldingCatalystBlock"
+        risks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisRiskFactor"
+        outlook:
+          $ref: "#/components/schemas/HoldingOutlook"
+        priceLevels:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisMetric"
+        provenance:
+          $ref: "#/components/schemas/AnalysisProvenance"
+
+    HoldingPreviousPick:
+      type: object
+      required:
+        - symbol
+        - name
+        - scanDate
+        - scanPrice
+        - score
+        - classification
+        - classificationLabel
+        - riskLevel
+        - status
+      properties:
+        symbol:    { type: string }
+        name:      { type: string }
+        scanDate:  { type: string }
+        scanPrice: { type: number }
+        score:     { type: number }
+        classification:
+          $ref: "#/components/schemas/HoldingClassification"
+        classificationLabel: { type: string }
+        riskLevel:
+          $ref: "#/components/schemas/HoldingRiskLevel"
+        currentPrice:   { type: number, nullable: true }
+        returnPct:      { type: number, nullable: true }
+        return1m:       { type: number, nullable: true }
+        return2m:       { type: number, nullable: true }
+        return3m:       { type: number, nullable: true }
+        maxGainPct:     { type: number, nullable: true }
+        maxDrawdownPct: { type: number, nullable: true }
+        status:         { type: string }
+
+    HoldingPreviousPicks:
+      type: object
+      required: [available, note, picks]
+      properties:
+        available: { type: boolean }
+        note:      { type: string }
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HoldingPreviousPick"
 
     AiAnalysis:
       type: object

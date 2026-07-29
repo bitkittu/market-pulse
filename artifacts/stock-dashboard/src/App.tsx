@@ -7,6 +7,7 @@ const Home             = lazy(() => import("@/pages/Home").then(m => ({ default:
 const Portfolio        = lazy(() => import("@/pages/Portfolio").then(m => ({ default: m.Portfolio })));
 const Settings         = lazy(() => import("@/pages/Settings").then(m => ({ default: m.Settings })));
 const ApiSettings      = lazy(() => import("@/pages/Settings").then(m => ({ default: m.ApiSettings })));
+const HoldingStocks    = lazy(() => import("@/pages/HoldingStocks").then(m => ({ default: m.HoldingStocks })));
 const IntradayDashboard = lazy(() => import("@/pages/IntradayDashboard").then(m => ({ default: m.IntradayDashboard })));
 const OptionsDashboard = lazy(() => import("@/pages/OptionsDashboard").then(m => ({ default: m.OptionsDashboard })));
 const Performance      = lazy(() => import("@/pages/Performance").then(m => ({ default: m.Performance })));
@@ -211,6 +212,9 @@ function AppShell() {
   const [theme, setTheme] = useState<"dark" | "light">(getInitialTheme);
 
   const moduleLocked: Record<MarketId, boolean> = {
+    // Holding Stocks ships unlocked — it is research and ranking rather than
+    // the trade-level output the Pro gates cover.
+    holding: false,
     intraday: !hasAccess(user?.plan, "intraday"),
     options: !hasAccess(user?.plan, "options"),
     commodities: false,
@@ -273,6 +277,7 @@ function AppShell() {
                         Market Hub <span className="mx-1">/</span>
                         <span className="font-semibold text-foreground">{mkt.label}</span>
                       </div>
+                      {mkt.id === "holding"     && <HoldingStocks />}
                       {mkt.id === "intraday"    && <IntradayDashboard />}
                       {mkt.id === "options"     && <OptionsDashboard />}
                       {mkt.id === "commodities" && <Commodities />}

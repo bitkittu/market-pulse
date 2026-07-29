@@ -925,6 +925,225 @@ export interface AnalysisHeadline {
   secondaryChangePercent?: number | null;
 }
 
+export type HoldingUniverseId =
+  (typeof HoldingUniverseId)[keyof typeof HoldingUniverseId];
+
+export const HoldingUniverseId = {
+  NIFTY_50: "NIFTY_50",
+  NIFTY_100: "NIFTY_100",
+  NIFTY_200: "NIFTY_200",
+  NIFTY_500: "NIFTY_500",
+} as const;
+
+/**
+ * Setup quality band derived from the MarketPulse Holding Score. Not a trade instruction — this module ranks research opportunities.
+
+ */
+export type HoldingClassification =
+  (typeof HoldingClassification)[keyof typeof HoldingClassification];
+
+export const HoldingClassification = {
+  STRONG_SETUP: "STRONG_SETUP",
+  GOOD_SETUP: "GOOD_SETUP",
+  WATCH: "WATCH",
+  AVOID: "AVOID",
+} as const;
+
+export type HoldingRiskLevel =
+  (typeof HoldingRiskLevel)[keyof typeof HoldingRiskLevel];
+
+export const HoldingRiskLevel = {
+  Low: "Low",
+  Medium: "Medium",
+  High: "High",
+} as const;
+
+export type HoldingCatalystImpact =
+  (typeof HoldingCatalystImpact)[keyof typeof HoldingCatalystImpact];
+
+export const HoldingCatalystImpact = {
+  Positive: "Positive",
+  Neutral: "Neutral",
+  Negative: "Negative",
+} as const;
+
+export interface HoldingPick {
+  rank: number;
+  symbol: string;
+  /** Exchange ticker spelling, e.g. BAJAJ-AUTO for internal key BAJAJ_AUTO. */
+  displaySymbol: string;
+  name: string;
+  sector: string;
+  currentPrice: number;
+  changePercent: number;
+  return1w?: number | null;
+  return1m?: number | null;
+  return3m?: number | null;
+  distanceFrom52wHighPct?: number | null;
+  trendLabel: string;
+  catalystLabel: string;
+  catalystImpact: HoldingCatalystImpact;
+  /** MarketPulse Holding Score, 0-100 signal quality. Not a probability of profit. */
+  score: number;
+  classification: HoldingClassification;
+  classificationLabel: string;
+  riskLevel: HoldingRiskLevel;
+  /** Not present in the previous stored scan. */
+  isNew: boolean;
+  priceProvenance: Provenance;
+}
+
+export type HoldingScanSummaryMarketBias =
+  (typeof HoldingScanSummaryMarketBias)[keyof typeof HoldingScanSummaryMarketBias];
+
+export const HoldingScanSummaryMarketBias = {
+  Bullish: "Bullish",
+  Neutral: "Neutral",
+  Bearish: "Bearish",
+} as const;
+
+export interface HoldingScanSummary {
+  /** Stocks clearing the quality bar. May exceed the published list. */
+  qualifiedCount: number;
+  published: number;
+  strongSetups: number;
+  newThisScan: number;
+  marketBias: HoldingScanSummaryMarketBias;
+  marketBiasNote: string;
+  lastScanAt: string;
+  nextScanAt?: string | null;
+  universeRequested: HoldingUniverseId;
+  universeResolved: HoldingUniverseId;
+  universeNote?: string | null;
+  screened: number;
+  analysed: number;
+  rejectedIlliquid: number;
+  /** Symbols that reached the deep fundamentals/catalysts pass. */
+  shortlisted: number;
+  belowThreshold: number;
+  qualificationThreshold: number;
+}
+
+export interface HoldingUniverseOption {
+  id: HoldingUniverseId;
+  label: string;
+  available: boolean;
+  size?: number | null;
+  note: string;
+}
+
+export interface HoldingScan {
+  summary: HoldingScanSummary;
+  picks: HoldingPick[];
+  universes: HoldingUniverseOption[];
+  sectors: string[];
+  provenance: AnalysisProvenance;
+}
+
+export interface HoldingAnalysisHeader {
+  currentPrice: number;
+  return1m?: number | null;
+  return3m?: number | null;
+  distanceFrom52wHighPct?: number | null;
+  riskLevel: HoldingRiskLevel;
+  lastScanAt: string;
+}
+
+export interface HoldingCatalystEntry {
+  title: string;
+  date?: string | null;
+  source: string;
+  impact: HoldingCatalystImpact;
+  kind: string;
+  url?: string | null;
+}
+
+export interface HoldingCatalystBlock {
+  available: boolean;
+  note: string;
+  items: HoldingCatalystEntry[];
+}
+
+export interface HoldingFundamentalsBlock {
+  available: boolean;
+  note: string;
+  items: AnalysisMetric[];
+}
+
+export type HoldingOutlookTrend =
+  (typeof HoldingOutlookTrend)[keyof typeof HoldingOutlookTrend];
+
+export const HoldingOutlookTrend = {
+  Strong: "Strong",
+  Positive: "Positive",
+  Neutral: "Neutral",
+  Weak: "Weak",
+} as const;
+
+export type HoldingOutlookMomentum =
+  (typeof HoldingOutlookMomentum)[keyof typeof HoldingOutlookMomentum];
+
+export const HoldingOutlookMomentum = {
+  Strong: "Strong",
+  Moderate: "Moderate",
+  Weak: "Weak",
+} as const;
+
+export interface HoldingOutlook {
+  trend: HoldingOutlookTrend;
+  momentum: HoldingOutlookMomentum;
+  catalyst: HoldingCatalystImpact;
+  risk: HoldingRiskLevel;
+  overall: string;
+  note: string;
+}
+
+export interface HoldingAnalysis {
+  id: string;
+  symbol: string;
+  displaySymbol: string;
+  name: string;
+  sector: string;
+  classification: HoldingClassification;
+  classificationLabel: string;
+  header: HoldingAnalysisHeader;
+  score: SignalScore;
+  reasons: AnalysisReason[];
+  technical: AnalysisMetric[];
+  momentum: AnalysisMetric[];
+  fundamentals: HoldingFundamentalsBlock;
+  catalysts: HoldingCatalystBlock;
+  risks: AnalysisRiskFactor[];
+  outlook: HoldingOutlook;
+  priceLevels: AnalysisMetric[];
+  provenance: AnalysisProvenance;
+}
+
+export interface HoldingPreviousPick {
+  symbol: string;
+  name: string;
+  scanDate: string;
+  scanPrice: number;
+  score: number;
+  classification: HoldingClassification;
+  classificationLabel: string;
+  riskLevel: HoldingRiskLevel;
+  currentPrice?: number | null;
+  returnPct?: number | null;
+  return1m?: number | null;
+  return2m?: number | null;
+  return3m?: number | null;
+  maxGainPct?: number | null;
+  maxDrawdownPct?: number | null;
+  status: string;
+}
+
+export interface HoldingPreviousPicks {
+  available: boolean;
+  note: string;
+  picks: HoldingPreviousPick[];
+}
+
 export type AiAnalysisMarket =
   (typeof AiAnalysisMarket)[keyof typeof AiAnalysisMarket];
 
@@ -1092,6 +1311,21 @@ export type RemoveFromWatchlist200 = {
 
 export type RemovePortfolioStock200 = {
   success: boolean;
+};
+
+export type GetHoldingScanParams = {
+  /**
+   * Universe to screen. Falls back to the widest available one.
+   */
+  universe?: HoldingUniverseId;
+};
+
+export type GetHoldingAnalysisParams = {
+  universe?: HoldingUniverseId;
+};
+
+export type GetHoldingAnalysis404 = {
+  error?: string;
 };
 
 export type GetOptionsAnalysis404 = {

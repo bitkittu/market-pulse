@@ -11,16 +11,12 @@ import {
   useGetNseSectors,
   useGetUpstoxSettings,
 } from "@workspace/api-client-react";
-import type {
-  DecisionPanel,
-  SignalRow,
-} from "@workspace/api-client-react";
+import type { DecisionPanel } from "@workspace/api-client-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import { format } from "date-fns";
-import { LockedValue, LockedHint } from "@/components/LockedValue";
 import { LockOverlay } from "@/components/UpgradeGate";
 import { useFeatureAccess } from "@/lib/plan";
 import { useDashboardLayouts, type WidgetId } from "@/lib/dashboardLayout";
@@ -209,9 +205,9 @@ function DecisionHero({ panel, mode }: { panel: DecisionPanel | undefined; mode:
 // ── Key Levels Panel ──────────────────────────────────────────────────────
 function LevelPill({ label, value, accent, tip }: { label: string; value: number; accent?: string; tip?: string }) {
   return (
-    <div className={cn("bg-background/50 border rounded-xl px-2 sm:px-3 py-2.5 text-center hover:border-primary/30 transition-colors overflow-hidden", accent ?? "border-border")}>
-      <p className="text-[9px] font-bold tracking-widest text-muted-foreground mb-1">{label}</p>
-      <p className={cn("text-sm sm:text-base font-black font-mono truncate", accent ? "text-foreground" : "text-foreground")}>{fmt(value, 2)}</p>
+    <div className={cn("bg-background/50 border rounded-xl px-1.5 sm:px-2.5 xl:px-1.5 2xl:px-3 py-2.5 text-center hover:border-primary/30 transition-colors overflow-hidden", accent ?? "border-border")}>
+      <p className="text-[9px] font-bold tracking-wider xl:tracking-normal 2xl:tracking-widest text-muted-foreground mb-1 truncate">{label}</p>
+      <p className="text-sm md:text-base xl:text-[clamp(0.7rem,0.92vw,1rem)] font-black font-mono tabular-nums tracking-tight text-foreground truncate">{fmt(value, 2)}</p>
       {tip && <p className="text-[9px] text-muted-foreground mt-0.5">{tip}</p>}
     </div>
   );
@@ -221,15 +217,15 @@ function KeyLevelsPanel({ panel, mode }: { panel: DecisionPanel | undefined; mod
   const canView = useFeatureAccess("keyLevels");
   if (!panel) return (
     <div className="bg-card border border-border rounded-xl p-4">
-      <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-        {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-14" />)}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-11 gap-2">
+        {[...Array(11)].map((_, i) => <Skeleton key={i} className="h-14" />)}
       </div>
     </div>
   );
 
   const kl = panel.keyLevels;
   const grid = (
-    <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-11 gap-2">
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-11 gap-2">
       <LevelPill label="R3"        value={kl.r3}        accent="border-emerald-700/40"  tip={mode === "learning" ? "Strong resistance" : undefined} />
       <LevelPill label="R2"        value={kl.r2}        accent="border-emerald-600/40" />
       <LevelPill label="R1"        value={kl.r1}        accent="border-emerald-500/50" />
@@ -336,85 +332,6 @@ function MoneyFlowCard({ panel, mode }: { panel: DecisionPanel | undefined; mode
       {mode === "learning" && (
         <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">{mf.description}</p>
       )}
-    </div>
-  );
-}
-
-// ── Signals Table ─────────────────────────────────────────────────────────
-const SIG_STYLES = {
-  BUY:  { badge: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40", bar: "bg-emerald-500" },
-  SELL: { badge: "bg-red-500/20 text-red-400 border-red-500/40",             bar: "bg-red-500" },
-  HOLD: { badge: "bg-muted/40 text-muted-foreground border-border",          bar: "bg-muted" },
-};
-
-function SignalsTable({ panel, mode }: { panel: DecisionPanel | undefined; mode: Mode }) {
-  if (!panel) return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 mb-2" />)}
-    </div>
-  );
-
-  const rows = panel.signalsTable;
-  return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-bold flex items-center gap-2">
-          <Zap className="w-4 h-4 text-primary" /> Live Signals
-        </h3>
-        {mode === "learning" && (
-          <span className="text-[10px] text-muted-foreground">Signals based on RSI + VWAP + price action</span>
-        )}
-      </div>
-      <div className="px-4 pt-3">
-        <LockedHint fields="Entry, Stop Loss & Target" />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-[10px] sm:text-xs">
-          <thead>
-            <tr className="text-muted-foreground border-b border-border/60">
-              <th className="text-left px-2 sm:px-4 py-2 font-semibold">Stock</th>
-              <th className="text-center px-2 sm:px-3 py-2 font-semibold">Signal</th>
-              <th className="text-right px-2 sm:px-3 py-2 font-semibold">Entry</th>
-              <th className="text-right px-2 sm:px-3 py-2 font-semibold">Stop Loss</th>
-              <th className="text-right px-2 sm:px-3 py-2 font-semibold">Target</th>
-              <th className="text-right px-2 sm:px-3 py-2 font-semibold">R:R</th>
-              <th className="text-right px-2 sm:px-4 py-2 font-semibold">Confidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row: SignalRow) => {
-              const s = SIG_STYLES[row.signal];
-              return (
-                <tr key={row.symbol} className="border-b border-border/30 hover:bg-muted/10 transition-colors">
-                  <td className="px-4 py-2.5">
-                    <p className="font-bold text-foreground">{row.symbol}</p>
-                    {mode === "learning" && (
-                      <p className="text-muted-foreground text-[10px] truncate max-w-[120px]">{row.name}</p>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-center">
-                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-black border", s.badge)}>
-                      {row.signal}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono font-semibold"><LockedValue>{fmtINR(row.entry)}</LockedValue></td>
-                  <td className="px-3 py-2.5 text-right font-mono text-red-400"><LockedValue>{fmtINR(row.stopLoss)}</LockedValue></td>
-                  <td className="px-3 py-2.5 text-right font-mono text-emerald-400"><LockedValue>{fmtINR(row.target)}</LockedValue></td>
-                  <td className="px-3 py-2.5 text-right font-mono text-primary font-bold">1:{row.riskReward}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2 justify-end">
-                      <div className="w-12 h-1.5 bg-muted/40 rounded-full overflow-hidden">
-                        <div className={cn("h-full rounded-full", s.bar)} style={{ width: `${row.confidence}%` }} />
-                      </div>
-                      <span className="font-mono font-bold w-8 text-right">{row.confidence}%</span>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
@@ -892,7 +809,6 @@ export function Home() {
                 <MarketPressureCard panel={panel} mode={mode} />
                 <MoneyFlowCard panel={panel} mode={mode} />
               </div>
-              <SignalsTable panel={panel} mode={mode} />
             </div>
           ),
           "alerts": <AlertSystem mode={mode} />,

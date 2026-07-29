@@ -259,6 +259,18 @@ function toPasswordReset(r: Raw): PasswordResetRow {
   };
 }
 
+/** One stored Holding Stocks pick, joined to the scan that produced it. */
+export interface HoldingScanPickRow {
+  symbol: string;
+  name: string;
+  scanPrice: number;
+  score: number;
+  classification: string;
+  riskLevel: string;
+  scannedAt: Date;
+  universe: string;
+}
+
 // ── Query helpers ───────────────────────────────────────────────────────────
 const ROLE_SELECT = `
   SELECT r.id, r.name, r.description, r.created_at,
@@ -500,6 +512,101 @@ export const db = {
     /** MySQL has no TTL index, so expired rows are swept on demand. */
     async purgeExpired(): Promise<void> {
       await execute("DELETE FROM password_resets WHERE expires_at < NOW()");
+    },
+  },
+
+  /**
+   * Holding Stocks scan history. Schema lives in lib/db/holding_stocks.sql and
+   * is applied by hand like the rest of this project's DDL — callers are
+   * expected to tolerate these tables being absent.
+   */
+  holdingScans: {
+    /** Idempotent per (universe, scanned_at) so a repeated scan updates in place. */
+    async upsertScan(s: {
+      universe: string;
+      scannedAt: Date;
+      pickCount: number;
+    }): Promise<number> {
+      await execute(
+        `INSERT INTO holding_scans (universe, scanned_at, pick_count)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE pick_count = VALUES(pick_count)`,
+        [s.universe, s.scannedAt, s.pickCount],
+      );
+      const rows = await query(
+        "SELECT id FROM holding_scans WHERE universe = ? AND scanned_at = ? LIMIT 1",
+        [s.universe, s.scannedAt],
+      );
+      return Number(rows[0]!["id"]);
+    },
+
+    async upsertPick(p: {
+      scanId: number;
+      symbol: string;
+      name: string;
+      scanPrice: number;
+      score: number;
+      scoreComponents: string;
+      classification: string;
+      riskLevel: string;
+      reasons: string;
+    }): Promise<void> {
+      await execute(
+        `INSERT INTO holding_scan_picks
+           (scan_id, symbol, name, scan_price, score, score_components,
+            classification, risk_level, reasons)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           name = VALUES(name),
+           scan_price = VALUES(scan_price),
+           score = VALUES(score),
+           score_components = VALUES(score_components),
+           classification = VALUES(classification),
+           risk_level = VALUES(risk_level),
+           reasons = VALUES(reasons)`,
+        [
+          p.scanId, p.symbol, p.name, p.scanPrice, p.score, p.scoreComponents,
+          p.classification, p.riskLevel, p.reasons,
+        ],
+      );
+    },
+
+    /** Symbols picked by the most recent scan strictly before `before`. */
+    async previousScanSymbols(universe: string, before: Date): Promise<string[]> {
+      const rows = await query(
+        `SELECT p.symbol
+         FROM holding_scan_picks p
+         JOIN holding_scans s ON s.id = p.scan_id
+         WHERE s.universe = ?
+           AND s.scanned_at = (
+             SELECT MAX(scanned_at) FROM holding_scans
+             WHERE universe = ? AND scanned_at < ?
+           )`,
+        [universe, universe, before],
+      );
+      return rows.map((r) => String(r["symbol"]));
+    },
+
+    async recentPicks(limit: number): Promise<HoldingScanPickRow[]> {
+      const rows = await query(
+        `SELECT p.symbol, p.name, p.scan_price, p.score, p.classification,
+                p.risk_level, s.scanned_at, s.universe
+         FROM holding_scan_picks p
+         JOIN holding_scans s ON s.id = p.scan_id
+         ORDER BY s.scanned_at DESC, p.score DESC
+         LIMIT ?`,
+        [limit],
+      );
+      return rows.map((r) => ({
+        symbol: String(r["symbol"]),
+        name: String(r["name"]),
+        scanPrice: Number(r["scan_price"]),
+        score: Number(r["score"]),
+        classification: String(r["classification"]),
+        riskLevel: String(r["risk_level"]),
+        scannedAt: r["scanned_at"] as Date,
+        universe: String(r["universe"]),
+      }));
     },
   },
 };

@@ -63,9 +63,12 @@ async function fetchOhlcv(
     throw new Error(`Unsupported Yahoo interval "${interval}"`);
   }
 
+  // chart() validates its options object by schema, and an explicitly present
+  // `period2: undefined` fails that check rather than being treated as absent.
+  // Omit the key entirely when the caller wants "up to now".
   const result = await yf.chart(symbol, {
     period1: opts.period1,
-    period2: opts.period2,
+    ...(opts.period2 == null ? {} : { period2: opts.period2 }),
     interval,
   });
 
@@ -119,6 +122,7 @@ class TTLCache {
 const cache = new TTLCache();
 const STOCK_TTL  = 90_000;  // 90 seconds
 const INDEX_TTL  = 30_000;  // 30 seconds (real-time NSE data)
+const DAILY_TTL  = 3_600_000; // 1 hour (daily candles settle once a session)
 
 // ── NSE India real-time index API ─────────────────────────────────────────
 // Single call returns ALL NSE indices (Nifty 50, Bank Nifty, IT, etc.)
@@ -799,6 +803,49 @@ const GLOBAL_INDEX_META: Record<string, { label: string; currency: string }> = {
   "^HSI":      { label: "Hang Seng Index",    currency: "HKD" },
   "^NSEI":     { label: "Nifty 50",           currency: "INR" },
 };
+
+/**
+ * Daily OHLCV history for one NSE symbol, keyed by the internal symbol.
+ *
+ * Exposed for the positional (1-3 month) engines, which need a long daily
+ * series to compute moving averages, momentum and 52-week levels. Cached for
+ * an hour because daily candles only change once a session — the intraday
+ * modules keep using the short-TTL quote path above.
+ */
+export async function getDailyOhlcv(nseSymbol: string, lookbackDays = 420): Promise<OhlcvRow[]> {
+  const key = `daily:${nseSymbol}:${lookbackDays}`;
+  const cached = cache.get<OhlcvRow[]>(key);
+  if (cached) return cached;
+
+  const start = new Date();
+  start.setDate(start.getDate() - lookbackDays);
+
+  const rows = await fetchOhlcv(toYF(nseSymbol), {
+    period1: start.toISOString().split("T")[0],
+    interval: "1d",
+  });
+
+  cache.set(key, rows, DAILY_TTL);
+  return rows;
+}
+
+/** Same as `getDailyOhlcv` but for a raw Yahoo ticker (indices such as ^NSEI). */
+export async function getDailyOhlcvByTicker(ticker: string, lookbackDays = 420): Promise<OhlcvRow[]> {
+  const key = `daily-raw:${ticker}:${lookbackDays}`;
+  const cached = cache.get<OhlcvRow[]>(key);
+  if (cached) return cached;
+
+  const start = new Date();
+  start.setDate(start.getDate() - lookbackDays);
+
+  const rows = await fetchOhlcv(ticker, {
+    period1: start.toISOString().split("T")[0],
+    interval: "1d",
+  });
+
+  cache.set(key, rows, DAILY_TTL);
+  return rows;
+}
 
 export async function getGlobalIndexQuote(ticker: string) {
   const key = `global-quote-${ticker}`;

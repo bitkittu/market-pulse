@@ -12,7 +12,7 @@ import type { ScoreCategory, Signal, SignalScore } from "./types.js";
  * probability of profit anywhere in the product (§6).
  */
 
-export type Market = "options" | "intraday" | "commodities";
+export type Market = "options" | "intraday" | "commodities" | "holding";
 
 /**
  * Relative weights per market. A category may be omitted by the caller (e.g.
@@ -42,6 +42,19 @@ export const CATEGORY_WEIGHTS: Record<Market, Record<string, { label: string; we
     vwapPosition: { label: "VWAP Position", weight: 10 },
     volatility: { label: "Volatility", weight: 8 },
     riskReward: { label: "Risk / Reward", weight: 10 },
+  },
+  /**
+   * Positional 1-3 month holding. Weights sum to 100 and map 1:1 onto the five
+   * published categories, so the number a user sees per category is the number
+   * the engine used. `computeScore` renormalises if a category has to be
+   * dropped (e.g. no fundamental feed for a symbol) rather than scoring it 0.
+   */
+  holding: {
+    trendMomentum: { label: "Trend & Momentum", weight: 30 },
+    breakoutStrength: { label: "Breakout / 52-Week Strength", weight: 20 },
+    participation: { label: "Participation", weight: 15 },
+    fundamentalsCatalysts: { label: "Fundamentals & Catalysts", weight: 20 },
+    risk: { label: "Risk", weight: 15 },
   },
   commodities: {
     trendDirection: { label: "Trend Direction", weight: 20 },

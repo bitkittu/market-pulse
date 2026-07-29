@@ -17,7 +17,15 @@ const ORDER = { high: 0, medium: 1, low: 2 } as const;
  * Shown with the same prominence as "Why This Pick?" — a recommendation that
  * only lists its own supporting evidence is not transparent.
  */
-export function RiskFactors({ risks }: { risks: AnalysisRiskFactor[] }) {
+export function RiskFactors({
+  risks,
+  title = "Risk Factors",
+  caption = "What could invalidate this trade",
+}: {
+  risks: AnalysisRiskFactor[];
+  title?: string;
+  caption?: string;
+}) {
   const sorted = [...risks].sort(
     (a, b) => (ORDER[a.severity as keyof typeof ORDER] ?? 3) - (ORDER[b.severity as keyof typeof ORDER] ?? 3)
   );
@@ -27,10 +35,10 @@ export function RiskFactors({ risks }: { risks: AnalysisRiskFactor[] }) {
       title={
         <span className="flex items-center gap-1.5">
           <AlertTriangle className="h-3.5 w-3.5 text-orange-500" aria-hidden="true" />
-          Risk Factors
+          {title}
         </span>
       }
-      action={<span className="text-[10px] text-muted-foreground">What could invalidate this trade</span>}
+      action={<span className="text-[10px] text-muted-foreground">{caption}</span>}
     >
       <ul className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 xl:grid-cols-3">
         {sorted.map((r, i) => {

@@ -567,6 +567,366 @@ export const SaveUpstoxSettingsResponse = zod.object({
 });
 
 /**
+ * Screens a configurable Indian-equity universe and returns the opportunities that clear the MarketPulse Holding Score qualification threshold, ranked highest first. Fewer than ten results means fewer than ten stocks qualified — the list is never padded. Rebuilt once per post-close boundary, not per request.
+
+ * @summary Holding Stocks scan — ranked 1-3 month opportunities
+ */
+export const GetHoldingScanQueryParams = zod.object({
+  universe: zod
+    .enum(["NIFTY_50", "NIFTY_100", "NIFTY_200", "NIFTY_500"])
+    .optional()
+    .describe("Universe to screen. Falls back to the widest available one."),
+});
+
+export const GetHoldingScanResponse = zod.object({
+  summary: zod.object({
+    qualifiedCount: zod
+      .number()
+      .describe(
+        "Stocks clearing the quality bar. May exceed the published list.",
+      ),
+    published: zod.number(),
+    strongSetups: zod.number(),
+    newThisScan: zod.number(),
+    marketBias: zod.enum(["Bullish", "Neutral", "Bearish"]),
+    marketBiasNote: zod.string(),
+    lastScanAt: zod.string(),
+    nextScanAt: zod.string().nullish(),
+    universeRequested: zod.enum([
+      "NIFTY_50",
+      "NIFTY_100",
+      "NIFTY_200",
+      "NIFTY_500",
+    ]),
+    universeResolved: zod.enum([
+      "NIFTY_50",
+      "NIFTY_100",
+      "NIFTY_200",
+      "NIFTY_500",
+    ]),
+    universeNote: zod.string().nullish(),
+    screened: zod.number(),
+    analysed: zod.number(),
+    rejectedIlliquid: zod.number(),
+    shortlisted: zod
+      .number()
+      .describe("Symbols that reached the deep fundamentals\/catalysts pass."),
+    belowThreshold: zod.number(),
+    qualificationThreshold: zod.number(),
+  }),
+  picks: zod.array(
+    zod.object({
+      rank: zod.number(),
+      symbol: zod.string(),
+      displaySymbol: zod
+        .string()
+        .describe(
+          "Exchange ticker spelling, e.g. BAJAJ-AUTO for internal key BAJAJ_AUTO.",
+        ),
+      name: zod.string(),
+      sector: zod.string(),
+      currentPrice: zod.number(),
+      changePercent: zod.number(),
+      return1w: zod.number().nullish(),
+      return1m: zod.number().nullish(),
+      return3m: zod.number().nullish(),
+      distanceFrom52wHighPct: zod.number().nullish(),
+      trendLabel: zod.string(),
+      catalystLabel: zod.string(),
+      catalystImpact: zod.enum(["Positive", "Neutral", "Negative"]),
+      score: zod
+        .number()
+        .describe(
+          "MarketPulse Holding Score, 0-100 signal quality. Not a probability of profit.",
+        ),
+      classification: zod
+        .enum(["STRONG_SETUP", "GOOD_SETUP", "WATCH", "AVOID"])
+        .describe(
+          "Setup quality band derived from the MarketPulse Holding Score. Not a trade instruction — this module ranks research opportunities.\n",
+        ),
+      classificationLabel: zod.string(),
+      riskLevel: zod.enum(["Low", "Medium", "High"]),
+      isNew: zod.boolean().describe("Not present in the previous stored scan."),
+      priceProvenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  universes: zod.array(
+    zod.object({
+      id: zod.enum(["NIFTY_50", "NIFTY_100", "NIFTY_200", "NIFTY_500"]),
+      label: zod.string(),
+      available: zod.boolean(),
+      size: zod.number().nullish(),
+      note: zod.string(),
+    }),
+  ),
+  sectors: zod.array(zod.string()),
+  provenance: zod.object({
+    signalGeneratedAt: zod.string(),
+    dataUpdatedAt: zod.string(),
+    timeframes: zod.array(zod.string()),
+    dataSource: zod.string(),
+    engine: zod.string(),
+    engineVersion: zod.string(),
+    mode: zod.enum(["MOCK", "PARTIAL", "LIVE"]),
+    fields: zod.array(
+      zod.object({
+        name: zod.string(),
+        provenance: zod
+          .enum([
+            "LIVE",
+            "API",
+            "CALCULATED",
+            "MOCK",
+            "STATIC",
+            "GENERATED",
+            "UNAVAILABLE",
+          ])
+          .describe("Where a displayed value actually came from."),
+      }),
+    ),
+  }),
+});
+
+/**
+ * @summary Full breakdown for one Holding Stocks pick
+ */
+export const GetHoldingAnalysisParams = zod.object({
+  symbol: zod.coerce
+    .string()
+    .describe("NSE symbol as used internally, e.g. RELIANCE"),
+});
+
+export const GetHoldingAnalysisQueryParams = zod.object({
+  universe: zod
+    .enum(["NIFTY_50", "NIFTY_100", "NIFTY_200", "NIFTY_500"])
+    .optional(),
+});
+
+export const GetHoldingAnalysisResponse = zod.object({
+  id: zod.string(),
+  symbol: zod.string(),
+  displaySymbol: zod.string(),
+  name: zod.string(),
+  sector: zod.string(),
+  classification: zod
+    .enum(["STRONG_SETUP", "GOOD_SETUP", "WATCH", "AVOID"])
+    .describe(
+      "Setup quality band derived from the MarketPulse Holding Score. Not a trade instruction — this module ranks research opportunities.\n",
+    ),
+  classificationLabel: zod.string(),
+  header: zod.object({
+    currentPrice: zod.number(),
+    return1m: zod.number().nullish(),
+    return3m: zod.number().nullish(),
+    distanceFrom52wHighPct: zod.number().nullish(),
+    riskLevel: zod.enum(["Low", "Medium", "High"]),
+    lastScanAt: zod.string(),
+  }),
+  score: zod.object({
+    score: zod
+      .number()
+      .describe("0-100 signal strength. Not a probability of profit."),
+    band: zod.string(),
+    signal: zod.enum(["STRONG_BUY", "BUY", "WATCH", "SELL", "STRONG_SELL"]),
+    categories: zod.array(
+      zod.object({
+        key: zod.string(),
+        label: zod.string(),
+        weight: zod.number(),
+        score: zod.number(),
+        contribution: zod.number(),
+        note: zod.string(),
+      }),
+    ),
+  }),
+  reasons: zod.array(
+    zod.object({
+      text: zod.string(),
+      source: zod
+        .string()
+        .describe("Score category this reason was derived from."),
+    }),
+  ),
+  technical: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.string(),
+      badge: zod.string().nullish(),
+      tone: zod.enum(["positive", "negative", "neutral"]),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  momentum: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.string(),
+      badge: zod.string().nullish(),
+      tone: zod.enum(["positive", "negative", "neutral"]),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  fundamentals: zod.object({
+    available: zod.boolean(),
+    note: zod.string(),
+    items: zod.array(
+      zod.object({
+        label: zod.string(),
+        value: zod.string(),
+        badge: zod.string().nullish(),
+        tone: zod.enum(["positive", "negative", "neutral"]),
+        provenance: zod
+          .enum([
+            "LIVE",
+            "API",
+            "CALCULATED",
+            "MOCK",
+            "STATIC",
+            "GENERATED",
+            "UNAVAILABLE",
+          ])
+          .describe("Where a displayed value actually came from."),
+      }),
+    ),
+  }),
+  catalysts: zod.object({
+    available: zod.boolean(),
+    note: zod.string(),
+    items: zod.array(
+      zod.object({
+        title: zod.string(),
+        date: zod.string().nullish(),
+        source: zod.string(),
+        impact: zod.enum(["Positive", "Neutral", "Negative"]),
+        kind: zod.string(),
+        url: zod.string().nullish(),
+      }),
+    ),
+  }),
+  risks: zod.array(
+    zod.object({
+      text: zod.string(),
+      severity: zod.enum(["high", "medium", "low"]),
+    }),
+  ),
+  outlook: zod.object({
+    trend: zod.enum(["Strong", "Positive", "Neutral", "Weak"]),
+    momentum: zod.enum(["Strong", "Moderate", "Weak"]),
+    catalyst: zod.enum(["Positive", "Neutral", "Negative"]),
+    risk: zod.enum(["Low", "Medium", "High"]),
+    overall: zod.string(),
+    note: zod.string(),
+  }),
+  priceLevels: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.string(),
+      badge: zod.string().nullish(),
+      tone: zod.enum(["positive", "negative", "neutral"]),
+      provenance: zod
+        .enum([
+          "LIVE",
+          "API",
+          "CALCULATED",
+          "MOCK",
+          "STATIC",
+          "GENERATED",
+          "UNAVAILABLE",
+        ])
+        .describe("Where a displayed value actually came from."),
+    }),
+  ),
+  provenance: zod.object({
+    signalGeneratedAt: zod.string(),
+    dataUpdatedAt: zod.string(),
+    timeframes: zod.array(zod.string()),
+    dataSource: zod.string(),
+    engine: zod.string(),
+    engineVersion: zod.string(),
+    mode: zod.enum(["MOCK", "PARTIAL", "LIVE"]),
+    fields: zod.array(
+      zod.object({
+        name: zod.string(),
+        provenance: zod
+          .enum([
+            "LIVE",
+            "API",
+            "CALCULATED",
+            "MOCK",
+            "STATIC",
+            "GENERATED",
+            "UNAVAILABLE",
+          ])
+          .describe("Where a displayed value actually came from."),
+      }),
+    ),
+  }),
+});
+
+/**
+ * Forward returns are computed from real price history and stay null until the corresponding window has actually elapsed.
+
+ * @summary Previously selected Holding Stocks picks with forward performance
+ */
+export const GetHoldingPreviousPicksResponse = zod.object({
+  available: zod.boolean(),
+  note: zod.string(),
+  picks: zod.array(
+    zod.object({
+      symbol: zod.string(),
+      name: zod.string(),
+      scanDate: zod.string(),
+      scanPrice: zod.number(),
+      score: zod.number(),
+      classification: zod
+        .enum(["STRONG_SETUP", "GOOD_SETUP", "WATCH", "AVOID"])
+        .describe(
+          "Setup quality band derived from the MarketPulse Holding Score. Not a trade instruction — this module ranks research opportunities.\n",
+        ),
+      classificationLabel: zod.string(),
+      riskLevel: zod.enum(["Low", "Medium", "High"]),
+      currentPrice: zod.number().nullish(),
+      returnPct: zod.number().nullish(),
+      return1m: zod.number().nullish(),
+      return2m: zod.number().nullish(),
+      return3m: zod.number().nullish(),
+      maxGainPct: zod.number().nullish(),
+      maxDrawdownPct: zod.number().nullish(),
+      status: zod.string(),
+    }),
+  ),
+});
+
+/**
  * Returns top 10 NSE stocks suggested for intraday trading based on last 24h signals
  * @summary Get top 10 intraday stock suggestions
  */

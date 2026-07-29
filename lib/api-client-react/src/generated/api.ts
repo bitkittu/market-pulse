@@ -33,6 +33,9 @@ import type {
   GetGiftNiftyIntraday200,
   GetGlobalIndexHistoryParams,
   GetGlobalIndexQuoteParams,
+  GetHoldingAnalysis404,
+  GetHoldingAnalysisParams,
+  GetHoldingScanParams,
   GetIntradayAnalysis404,
   GetNseHistoryParams,
   GetOptionsAnalysis404,
@@ -41,6 +44,9 @@ import type {
   GiftNiftyQuote,
   GlobalIndexQuote,
   HealthStatus,
+  HoldingAnalysis,
+  HoldingPreviousPicks,
+  HoldingScan,
   InsightsResult,
   LookupStocksParams,
   NseMovers,
@@ -2152,6 +2158,300 @@ export const useSaveUpstoxSettings = <
 > => {
   return useMutation(getSaveUpstoxSettingsMutationOptions(options));
 };
+
+/**
+ * Screens a configurable Indian-equity universe and returns the opportunities that clear the MarketPulse Holding Score qualification threshold, ranked highest first. Fewer than ten results means fewer than ten stocks qualified — the list is never padded. Rebuilt once per post-close boundary, not per request.
+
+ * @summary Holding Stocks scan — ranked 1-3 month opportunities
+ */
+export const getGetHoldingScanUrl = (params?: GetHoldingScanParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/holding/scan?${stringifiedParams}`
+    : `/api/holding/scan`;
+};
+
+export const getHoldingScan = async (
+  params?: GetHoldingScanParams,
+  options?: RequestInit,
+): Promise<HoldingScan> => {
+  return customFetch<HoldingScan>(getGetHoldingScanUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHoldingScanQueryKey = (params?: GetHoldingScanParams) => {
+  return [`/api/holding/scan`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetHoldingScanQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHoldingScan>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHoldingScanParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoldingScan>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHoldingScanQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHoldingScan>>> = ({
+    signal,
+  }) => getHoldingScan(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHoldingScan>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHoldingScanQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHoldingScan>>
+>;
+export type GetHoldingScanQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Holding Stocks scan — ranked 1-3 month opportunities
+ */
+
+export function useGetHoldingScan<
+  TData = Awaited<ReturnType<typeof getHoldingScan>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHoldingScanParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoldingScan>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHoldingScanQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Full breakdown for one Holding Stocks pick
+ */
+export const getGetHoldingAnalysisUrl = (
+  symbol: string,
+  params?: GetHoldingAnalysisParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/holding/picks/${symbol}/analysis?${stringifiedParams}`
+    : `/api/holding/picks/${symbol}/analysis`;
+};
+
+export const getHoldingAnalysis = async (
+  symbol: string,
+  params?: GetHoldingAnalysisParams,
+  options?: RequestInit,
+): Promise<HoldingAnalysis> => {
+  return customFetch<HoldingAnalysis>(
+    getGetHoldingAnalysisUrl(symbol, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetHoldingAnalysisQueryKey = (
+  symbol: string,
+  params?: GetHoldingAnalysisParams,
+) => {
+  return [
+    `/api/holding/picks/${symbol}/analysis`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetHoldingAnalysisQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHoldingAnalysis>>,
+  TError = ErrorType<GetHoldingAnalysis404>,
+>(
+  symbol: string,
+  params?: GetHoldingAnalysisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoldingAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetHoldingAnalysisQueryKey(symbol, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHoldingAnalysis>>
+  > = ({ signal }) =>
+    getHoldingAnalysis(symbol, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!symbol,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHoldingAnalysis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHoldingAnalysisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHoldingAnalysis>>
+>;
+export type GetHoldingAnalysisQueryError = ErrorType<GetHoldingAnalysis404>;
+
+/**
+ * @summary Full breakdown for one Holding Stocks pick
+ */
+
+export function useGetHoldingAnalysis<
+  TData = Awaited<ReturnType<typeof getHoldingAnalysis>>,
+  TError = ErrorType<GetHoldingAnalysis404>,
+>(
+  symbol: string,
+  params?: GetHoldingAnalysisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHoldingAnalysis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHoldingAnalysisQueryOptions(
+    symbol,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Forward returns are computed from real price history and stay null until the corresponding window has actually elapsed.
+
+ * @summary Previously selected Holding Stocks picks with forward performance
+ */
+export const getGetHoldingPreviousPicksUrl = () => {
+  return `/api/holding/previous-picks`;
+};
+
+export const getHoldingPreviousPicks = async (
+  options?: RequestInit,
+): Promise<HoldingPreviousPicks> => {
+  return customFetch<HoldingPreviousPicks>(getGetHoldingPreviousPicksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHoldingPreviousPicksQueryKey = () => {
+  return [`/api/holding/previous-picks`] as const;
+};
+
+export const getGetHoldingPreviousPicksQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHoldingPreviousPicks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHoldingPreviousPicks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetHoldingPreviousPicksQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHoldingPreviousPicks>>
+  > = ({ signal }) => getHoldingPreviousPicks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHoldingPreviousPicks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHoldingPreviousPicksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHoldingPreviousPicks>>
+>;
+export type GetHoldingPreviousPicksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Previously selected Holding Stocks picks with forward performance
+ */
+
+export function useGetHoldingPreviousPicks<
+  TData = Awaited<ReturnType<typeof getHoldingPreviousPicks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getHoldingPreviousPicks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHoldingPreviousPicksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * Returns top 10 NSE stocks suggested for intraday trading based on last 24h signals

@@ -12,7 +12,17 @@ import { AnalysisCard, Meter } from "./shared";
  * The category breakdown is one click away so the number is auditable rather
  * than magic.
  */
-export function AISignalScore({ score }: { score: SignalScore }) {
+export function AISignalScore({
+  score,
+  title = "AI Signal Score",
+  footnote,
+}: {
+  score: SignalScore;
+  /** Overridden by modules with their own score name (e.g. MarketPulse Holding Score). */
+  title?: string;
+  /** Replaces the default "not a probability of profit" line. */
+  footnote?: React.ReactNode;
+}) {
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   const value = score.score;
@@ -22,7 +32,7 @@ export function AISignalScore({ score }: { score: SignalScore }) {
     value >= 85 ? "text-emerald-500" : value >= 70 ? "text-green-500" : value >= 52 ? "text-yellow-500" : value >= 38 ? "text-orange-500" : "text-red-500";
 
   return (
-    <AnalysisCard title="AI Signal Score" bodyClassName="p-3 pt-2.5">
+    <AnalysisCard title={title} bodyClassName="p-3 pt-2.5">
       <div className="flex items-baseline gap-2">
         <span className={cn("font-mono text-4xl font-black leading-none", textClass)}>{value}</span>
         <span className="font-mono text-sm text-muted-foreground">/100</span>
@@ -34,7 +44,11 @@ export function AISignalScore({ score }: { score: SignalScore }) {
       <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-muted-foreground">
         <Info className="mt-px h-3 w-3 shrink-0" />
         <span>
-          Signal <strong className="font-semibold text-foreground">strength</strong>, not a probability of profit.
+          {footnote ?? (
+            <>
+              Signal <strong className="font-semibold text-foreground">strength</strong>, not a probability of profit.
+            </>
+          )}
         </span>
       </p>
 

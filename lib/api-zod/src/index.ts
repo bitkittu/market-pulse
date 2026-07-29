@@ -6,4 +6,8 @@ export * from "./generated/types";
 // ambiguous (TS2308). This package exists to hand out runtime schemas, so the
 // explicit re-export resolves the tie in favour of the zod object. The
 // parameter types stay reachable from `@workspace/api-client-react`.
-export { GetNseHistoryParams, GetStockHistoryParams } from "./generated/api";
+export {
+  GetNseHistoryParams,
+  GetStockHistoryParams,
+  GetHoldingAnalysisParams,
+} from "./generated/api";

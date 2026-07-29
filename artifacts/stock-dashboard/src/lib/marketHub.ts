@@ -1,12 +1,12 @@
 import {
-  Zap, Activity, Wheat, Coins, Bitcoin,
+  Zap, Activity, Wheat, Coins, Bitcoin, CalendarRange,
   LayoutDashboard, GraduationCap, LineChart, Sparkles, Filter, Target, FileText,
   type LucideIcon,
 } from "lucide-react";
 
-export type MarketId = "intraday" | "options" | "commodities" | "forex" | "crypto";
+export type MarketId = "holding" | "intraday" | "options" | "commodities" | "forex" | "crypto";
 export type SectionId = "dashboard" | "learn" | "indicators" | "ai" | "screeners" | "strategies" | "reports";
-export type AccentColor = "emerald" | "violet" | "orange" | "blue" | "amber";
+export type AccentColor = "emerald" | "violet" | "orange" | "blue" | "amber" | "cyan";
 
 /** Top-level destinations outside the Market Hub tree. */
 export type GeneralTab = "home" | "portfolio" | "performance" | "insights" | "api" | "account";
@@ -33,6 +33,9 @@ export interface SectionMeta {
  * breadcrumbs, and routing all derive from this array.
  */
 export const MARKETS: MarketMeta[] = [
+  // Holding Stocks leads the hub: it is the longest-horizon module and the
+  // entry point for users who are not day-trading (§29).
+  { id: "holding",     label: "Holding Stocks", icon: CalendarRange, accent: "cyan" },
   { id: "intraday",    label: "Intraday",    icon: Zap,      accent: "emerald" },
   { id: "options",     label: "Options",     icon: Activity, accent: "violet" },
   { id: "commodities", label: "Commodities", icon: Wheat,    accent: "orange" },
@@ -56,7 +59,7 @@ export const SECTIONS: SectionMeta[] = [
  * than a Coming Soon placeholder. Keep this in sync with the lazy imports
  * wired up in App.tsx.
  */
-export const LIVE_DASHBOARD_MARKETS: MarketId[] = ["intraday", "options", "commodities"];
+export const LIVE_DASHBOARD_MARKETS: MarketId[] = ["holding", "intraday", "options", "commodities"];
 
 export interface SectionContent {
   /** Page title — may differ from the menu label (e.g. "AI Decision" -> "AI Decision Engine"). */
@@ -155,6 +158,10 @@ export const ACCENT_CLASSES: Record<AccentColor, {
   amber: {
     text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500",
     iconBg: "bg-amber-500/10", iconBorder: "border-amber-500/30", glow: "bg-amber-500/15",
+  },
+  cyan: {
+    text: "text-cyan-600 dark:text-cyan-400", dot: "bg-cyan-500",
+    iconBg: "bg-cyan-500/10", iconBorder: "border-cyan-500/30", glow: "bg-cyan-500/15",
   },
 };
 

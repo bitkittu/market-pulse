@@ -9,9 +9,15 @@ import { AnalysisCard } from "./shared";
  * because these statements are generated from computed evidence — they are not
  * free-form model prose (§7).
  */
-export function WhyThisPick({ reasons }: { reasons: AnalysisReason[] }) {
+export function WhyThisPick({
+  reasons,
+  title = "Why This Pick?",
+}: {
+  reasons: AnalysisReason[];
+  title?: string;
+}) {
   return (
-    <AnalysisCard title="Why This Pick?">
+    <AnalysisCard title={title}>
       <ul className="space-y-1.5">
         {reasons.map((r, i) => (
           <li key={`${r.source}-${i}`} className="flex items-start gap-2" title={`Derived from: ${r.source}`}>
