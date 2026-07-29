@@ -10,6 +10,92 @@ import {
 
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
+/**
+ * One OHLCV candle, in the shape the rest of this module consumes.
+ *
+ * Identical to the row `yahoo-finance2`'s removed `historical()` used to
+ * return, so call sites did not have to change: `date` plus nullable OHLCV,
+ * and `adjClose` spelled with a capital C (chart() spells it `adjclose`).
+ */
+export interface OhlcvRow {
+  date: Date;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+  adjClose?: number | null;
+}
+
+/** Intervals Yahoo's chart endpoint actually serves. Anything else is rejected. */
+const YAHOO_INTERVALS = [
+  "1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo",
+] as const;
+
+export type YahooInterval = (typeof YAHOO_INTERVALS)[number];
+
+/**
+ * Fetch OHLCV candles via chart().
+ *
+ * Replaces `yf.historical()`, which Yahoo removed server-side — the library
+ * now only shims it onto chart() and prints a deprecation notice. Calling
+ * chart() directly drops the notice and lets us reach intraday intervals that
+ * historical() never exposed (it was capped at 1d/1wk/1mo).
+ *
+ * The normalisation below reproduces what the historical() shim did, because
+ * this feeds indicators and the signal engine and must not shift underneath
+ * them: candles stay in Yahoo's ascending-by-date order, timestamps stay the
+ * Date objects chart() already returns (UTC instants — render-time formatting
+ * decides the display zone), and `adjclose` is renamed to `adjClose`.
+ *
+ * One deliberate difference: the shim *throws* when a candle has some (but not
+ * all) null fields. For a live intraday feed the forming candle can legitimately
+ * arrive that way, and taking down the whole request over it is worse than
+ * dropping the row — a partial candle is not a tradeable input either way. So
+ * any candle missing a field we depend on is skipped rather than thrown on.
+ */
+async function fetchOhlcv(
+  symbol: string,
+  opts: { period1: string | Date; period2?: string | Date; interval?: YahooInterval }
+): Promise<OhlcvRow[]> {
+  const interval = opts.interval ?? "1d";
+  if (!YAHOO_INTERVALS.includes(interval)) {
+    throw new Error(`Unsupported Yahoo interval "${interval}"`);
+  }
+
+  const result = await yf.chart(symbol, {
+    period1: opts.period1,
+    period2: opts.period2,
+    interval,
+  });
+
+  // An unknown symbol or a range with no trading days yields no quotes rather
+  // than an error, so callers get an empty series to fall back on.
+  const quotes = result?.quotes ?? [];
+
+  const rows: OhlcvRow[] = [];
+  for (const q of quotes) {
+    if (!q?.date) continue;
+    // Yahoo pads non-trading slots with all-null candles; drop them, and drop
+    // partially-filled ones for the reason above.
+    if (q.open == null || q.high == null || q.low == null || q.close == null) continue;
+
+    const { adjclose, ...rest } = q;
+    rows.push({
+      ...rest,
+      date: q.date,
+      open: q.open,
+      high: q.high,
+      low: q.low,
+      close: q.close,
+      volume: q.volume ?? 0,
+      ...(adjclose == null ? {} : { adjClose: adjclose }),
+    });
+  }
+
+  return rows;
+}
+
 // ── TTL in-memory cache ────────────────────────────────────────────────────
 class TTLCache {
   private store = new Map<string, { data: unknown; expiry: number }>();
@@ -619,7 +705,7 @@ export async function getLiveCommodities(): Promise<CommodityItem[]> {
         // Fetch 20-day history for sparkline + prediction
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 25);
-        const hist = await yf.historical(meta.symbol, {
+        const hist = await fetchOhlcv(meta.symbol, {
           period1: startDate.toISOString().split("T")[0],
           period2: new Date().toISOString().split("T")[0],
           interval: "1d",
@@ -688,14 +774,14 @@ export async function getCommodityHistory(symbol: string, period: string) {
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - months);
 
-  const rows = await yf.historical(symbol, {
+  const rows = await fetchOhlcv(symbol, {
     period1: startDate.toISOString().split("T")[0],
     period2: new Date().toISOString().split("T")[0],
     interval: "1d",
   });
 
   const data = rows.map((d) => ({
-    timestamp: (d.date as Date).toISOString(),
+    timestamp: d.date.toISOString(),
     open: d.open ?? 0, high: d.high ?? 0, low: d.low ?? 0,
     close: d.close ?? 0, volume: d.volume ?? 0,
   }));
@@ -744,14 +830,14 @@ export async function getGlobalIndexHistory(ticker: string, period: string) {
   const startDate = new Date();
   startDate.setMonth(startDate.getMonth() - months);
 
-  const rows = await yf.historical(ticker, {
+  const rows = await fetchOhlcv(ticker, {
     period1: startDate.toISOString().split("T")[0],
     period2: new Date().toISOString().split("T")[0],
     interval: "1d",
   });
 
   const data = rows.map((d) => ({
-    timestamp: (d.date as Date).toISOString(),
+    timestamp: d.date.toISOString(),
     open:   d.open  ?? 0,
     high:   d.high  ?? 0,
     low:    d.low   ?? 0,
