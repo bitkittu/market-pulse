@@ -1292,6 +1292,33 @@ export const TestUpstoxConnectionResponse = zod.object({
 });
 
 /**
+ * Layered lookup: the in-process NSE index answers first, then the provider search index. Returns an empty list for queries under two characters rather than erroring.
+ * @summary Autocomplete stock symbols by ticker or company name
+ */
+export const LookupStocksQueryParams = zod.object({
+  q: zod.coerce
+    .string()
+    .describe("Partial ticker or company name (e.g. HDFC, Reliance Ind)"),
+});
+
+export const LookupStocksResponse = zod.object({
+  results: zod.array(
+    zod.object({
+      symbol: zod
+        .string()
+        .describe(
+          "Provider symbol including exchange suffix (e.g. HDFCBANK.NS)",
+        ),
+      displaySymbol: zod
+        .string()
+        .describe("Suffix-stripped symbol for display (e.g. HDFCBANK)"),
+      name: zod.string(),
+      exchange: zod.string(),
+    }),
+  ),
+});
+
+/**
  * @summary Search stock insights, indicators and news
  */
 export const SearchInsightsQueryParams = zod.object({
@@ -1303,6 +1330,26 @@ export const SearchInsightsQueryParams = zod.object({
 export const SearchInsightsResponse = zod.object({
   symbol: zod.string(),
   name: zod.string(),
+  exchange: zod
+    .string()
+    .optional()
+    .describe("Resolved listing exchange (NSE, BSE, or the provider's name)"),
+  priceSource: zod
+    .string()
+    .optional()
+    .describe("Provider that supplied the quote and price history"),
+  newsSource: zod
+    .string()
+    .optional()
+    .describe("Provider that supplied the news feed"),
+  lastUpdated: zod
+    .string()
+    .optional()
+    .describe("ISO-8601 instant this payload was assembled"),
+  newsScanned: zod
+    .number()
+    .optional()
+    .describe("Articles examined before relevance filtering"),
   price: zod.number(),
   change: zod.number(),
   changePercent: zod.number(),
@@ -1332,8 +1379,15 @@ export const SearchInsightsResponse = zod.object({
       title: zod.string(),
       description: zod.string(),
       url: zod.string(),
-      source: zod.string(),
-      publishedAt: zod.string(),
+      source: zod
+        .string()
+        .describe("Publisher name as reported by the provider"),
+      publishedAt: zod
+        .string()
+        .nullable()
+        .describe(
+          "ISO-8601 publication instant, or null when the provider did not supply one. Never substituted with the fetch time.",
+        ),
       thumbnail: zod.string(),
     }),
   ),

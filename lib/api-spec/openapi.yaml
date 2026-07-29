@@ -647,6 +647,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/UpstoxTestResult"
 
+  /insights/lookup:
+    get:
+      operationId: lookupStocks
+      tags: [insights]
+      summary: Autocomplete stock symbols by ticker or company name
+      description: >-
+        Layered lookup: the in-process NSE index answers first, then the
+        provider search index. Returns an empty list for queries under two
+        characters rather than erroring.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Partial ticker or company name (e.g. HDFC, Reliance Ind)
+      responses:
+        "200":
+          description: Matching stocks, best match first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockLookupResult"
+
   /insights/search:
     get:
       operationId: searchInsights
@@ -749,11 +773,40 @@ components:
           type: string
         source:
           type: string
+          description: Publisher name as reported by the provider
         publishedAt:
           type: string
+          nullable: true
+          description: >-
+            ISO-8601 publication instant, or null when the provider did not
+            supply one. Never substituted with the fetch time.
         thumbnail:
           type: string
       required: [title, description, url, source, publishedAt, thumbnail]
+
+    StockLookupItem:
+      type: object
+      properties:
+        symbol:
+          type: string
+          description: Provider symbol including exchange suffix (e.g. HDFCBANK.NS)
+        displaySymbol:
+          type: string
+          description: Suffix-stripped symbol for display (e.g. HDFCBANK)
+        name:
+          type: string
+        exchange:
+          type: string
+      required: [symbol, displaySymbol, name, exchange]
+
+    StockLookupResult:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockLookupItem"
+      required: [results]
 
     InsightsResult:
       type: object
@@ -762,6 +815,21 @@ components:
           type: string
         name:
           type: string
+        exchange:
+          type: string
+          description: Resolved listing exchange (NSE, BSE, or the provider's name)
+        priceSource:
+          type: string
+          description: Provider that supplied the quote and price history
+        newsSource:
+          type: string
+          description: Provider that supplied the news feed
+        lastUpdated:
+          type: string
+          description: ISO-8601 instant this payload was assembled
+        newsScanned:
+          type: number
+          description: Articles examined before relevance filtering
         price:
           type: number
         change:

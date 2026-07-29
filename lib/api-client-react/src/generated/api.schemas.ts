@@ -15,9 +15,24 @@ export interface NewsArticle {
   title: string;
   description: string;
   url: string;
+  /** Publisher name as reported by the provider */
   source: string;
-  publishedAt: string;
+  /** ISO-8601 publication instant, or null when the provider did not supply one. Never substituted with the fetch time. */
+  publishedAt: string | null;
   thumbnail: string;
+}
+
+export interface StockLookupItem {
+  /** Provider symbol including exchange suffix (e.g. HDFCBANK.NS) */
+  symbol: string;
+  /** Suffix-stripped symbol for display (e.g. HDFCBANK) */
+  displaySymbol: string;
+  name: string;
+  exchange: string;
+}
+
+export interface StockLookupResult {
+  results: StockLookupItem[];
 }
 
 export type InsightsResultForecast =
@@ -41,6 +56,16 @@ export const InsightsResultSentiment = {
 export interface InsightsResult {
   symbol: string;
   name: string;
+  /** Resolved listing exchange (NSE, BSE, or the provider's name) */
+  exchange?: string;
+  /** Provider that supplied the quote and price history */
+  priceSource?: string;
+  /** Provider that supplied the news feed */
+  newsSource?: string;
+  /** ISO-8601 instant this payload was assembled */
+  lastUpdated?: string;
+  /** Articles examined before relevance filtering */
+  newsScanned?: number;
   price: number;
   change: number;
   changePercent: number;
@@ -1083,6 +1108,13 @@ export type GetCommodityAnalysis404 = {
 
 export type DisconnectUpstox200 = {
   success: boolean;
+};
+
+export type LookupStocksParams = {
+  /**
+   * Partial ticker or company name (e.g. HDFC, Reliance Ind)
+   */
+  q: string;
 };
 
 export type SearchInsightsParams = {

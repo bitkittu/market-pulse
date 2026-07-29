@@ -10,7 +10,9 @@ export interface NewsArticle {
   title: string;
   description: string;
   url: string;
+  /** Publisher name as reported by the provider */
   source: string;
-  publishedAt: string;
+  /** ISO-8601 publication instant, or null when the provider did not supply one. Never substituted with the fetch time. */
+  publishedAt: string | null;
   thumbnail: string;
 }

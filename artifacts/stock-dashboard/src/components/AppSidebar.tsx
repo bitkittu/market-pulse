@@ -17,7 +17,7 @@ import {
 
 const GENERAL_ITEMS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "home",        label: "Dashboard",  icon: LayoutDashboard },
-  { id: "insights",    label: "Insights",   icon: Newspaper },
+  { id: "insights",    label: "AI Insights", icon: Newspaper },
   { id: "portfolio",   label: "Portfolio",  icon: Briefcase },
   { id: "performance", label: "Performance", icon: BarChart2 },
   { id: "api",         label: "API",        icon: Link2 },

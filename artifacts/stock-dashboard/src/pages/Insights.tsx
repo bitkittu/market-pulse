@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useSearchInsights, InsightsResult, NewsArticle } from "@workspace/api-client-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchInsights, useLookupStocks, InsightsResult, NewsArticle } from "@workspace/api-client-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
@@ -29,13 +29,37 @@ function fmtVol(n: number) {
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
   return `${n}`;
 }
-function timeAgo(iso: string) {
-  const d = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(d / 60000);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+/**
+ * Absolute publication time in IST.
+ *
+ * The product is India-first and has no per-user timezone setting, so news is
+ * pinned to Asia/Kolkata rather than the viewer's local zone — a Mumbai user on
+ * a laptop still set to UTC should not read a market headline an hour adrift.
+ * Returns null for a missing or unparseable instant so callers can say so
+ * explicitly instead of printing a fabricated time.
+ */
+function formatIst(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "numeric", minute: "2-digit", hour12: true,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const dayPeriod = get("dayPeriod").toUpperCase().replace(/\./g, "");
+  return `${get("day")} ${get("month")} ${get("year")} · ${get("hour")}:${get("minute")} ${dayPeriod} IST`;
+}
+
+/** Clock-only IST stamp, for the "Updated …" label beside the heading. */
+function formatIstTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true,
+  }).toUpperCase().replace(/\./g, "") + " IST";
 }
 
 const POPULAR = ["RELIANCE", "TCS", "SBIN", "INFY", "HDFCBANK", "COALINDIA", "WIPRO", "AAPL", "TSLA"];
@@ -193,26 +217,33 @@ function PriceChart({ data, symbol, vwap }: { data: InsightsResult["priceHistory
 
 // ── News Card ──────────────────────────────────────────────────────────────
 function NewsCard({ article, idx }: { article: NewsArticle; idx: number }) {
+  const published = formatIst(article.publishedAt);
   return (
     <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3 hover:border-primary/30 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <span className="text-[10px] font-bold text-primary/60 bg-primary/10 px-2 py-0.5 rounded-full shrink-0">#{idx + 1}</span>
-        <span className="text-[10px] text-muted-foreground">{timeAgo(article.publishedAt)}</span>
       </div>
       {article.thumbnail && (
         <img src={article.thumbnail} alt="" className="w-full h-32 object-cover rounded-lg" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
       )}
       <div>
-        <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-2 mb-1">
+        <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-3 mb-1">
           {article.title}
         </h3>
         <p className="text-xs text-muted-foreground line-clamp-2">
           {article.description || "Read the full article for details."}
         </p>
       </div>
-      <div className="flex items-center gap-1 mt-auto">
-        <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
-        <span className="text-[10px] text-muted-foreground truncate">{article.source}</span>
+      {/* Publisher + absolute publication time. Wraps rather than truncating on
+          narrow screens so the source stays legible on mobile. */}
+      <div className="mt-auto flex flex-col gap-0.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Globe className="w-3 h-3 text-muted-foreground shrink-0" />
+          <span className="text-[11px] font-semibold text-foreground/80 break-words">{article.source}</span>
+        </div>
+        <span className={cn("text-[10px] break-words", published ? "text-muted-foreground" : "text-muted-foreground/60 italic")}>
+          {published ?? "Published time unavailable"}
+        </span>
       </div>
       <div className="flex gap-2 pt-1 border-t border-border">
         <a href={article.url} target="_blank" rel="noopener noreferrer"
@@ -234,16 +265,50 @@ function NewsCard({ article, idx }: { article: NewsArticle; idx: number }) {
 function StockInsights() {
   const [input, setInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, isError, error, isFetching } = useSearchInsights(
     { q: searchTerm },
     { query: { enabled: !!searchTerm, staleTime: 60000 } as any }
   );
 
-  const handleSearch = useCallback(() => {
-    const q = input.trim().toUpperCase();
-    if (q) setSearchTerm(q);
+  // Debounce so autocomplete costs one request per pause, not per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(input.trim()), 250);
+    return () => clearTimeout(t);
   }, [input]);
+
+  const { data: lookup } = useLookupStocks(
+    { q: debounced },
+    { query: { enabled: debounced.length >= 2 && showSuggest, staleTime: 300000 } as any }
+  );
+  const suggestions = lookup?.results ?? [];
+
+  // Close the dropdown on any click outside the search box.
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setShowSuggest(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const handleSearch = useCallback((raw?: string) => {
+    const q = (raw ?? input).trim();
+    if (q) {
+      setSearchTerm(q);
+      setShowSuggest(false);
+    }
+  }, [input]);
+
+  const pick = useCallback((s: { displaySymbol: string; symbol: string }) => {
+    setInput(s.displaySymbol);
+    setSearchTerm(s.symbol);
+    setShowSuggest(false);
+  }, []);
 
   const price = data?.price ?? 0;
   const change = data?.change ?? 0;
@@ -252,46 +317,111 @@ function StockInsights() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header — heading plus subtle provenance (§5/§15). Wraps under the
+          title on narrow screens so it never crowds the heading. */}
       <div>
-        <h1 className="text-xl font-bold flex items-center gap-2 mb-1">
-          <Newspaper className="w-5 h-5 text-primary" />
-          Stock Insights
-        </h1>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-1">
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Newspaper className="w-5 h-5 text-primary" />
+            Stock Insights
+          </h1>
+          <span className="text-xs text-muted-foreground">
+            <span className="hidden sm:inline">· </span>
+            Market data: {data?.priceSource ?? "Yahoo Finance"}
+            {data?.lastUpdated && formatIstTime(data.lastUpdated) && (
+              <> · Updated {formatIstTime(data.lastUpdated)}</>
+            )}
+          </span>
+        </div>
         <p className="text-sm text-muted-foreground">Real-time indicators, AI forecast, sentiment &amp; latest news for any stock</p>
       </div>
 
       {/* Search Bar */}
       <div className="bg-card border border-border rounded-2xl p-4">
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 relative" ref={boxRef}>
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Search NSE stock: SBIN, RELIANCE, COALINDIA, or AAPL…"
+              onChange={(e) => { setInput(e.target.value); setShowSuggest(true); }}
+              onFocus={() => setShowSuggest(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSearch();
+                if (e.key === "Escape") setShowSuggest(false);
+              }}
+              placeholder="Search by symbol or company: HDFC Bank, RELIANCE, Infosys…"
               className="w-full pl-9 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground/60"
             />
+
+            {/* Autocomplete. Constrained to the input width so it fits on mobile. */}
+            {showSuggest && suggestions.length > 0 && (
+              <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-popover border border-border rounded-xl shadow-xl overflow-hidden max-h-72 overflow-y-auto">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.symbol}
+                    onClick={() => pick(s)}
+                    className="w-full text-left px-3 py-2.5 hover:bg-accent transition-colors border-b border-border last:border-0"
+                  >
+                    <div className="text-sm font-semibold text-foreground break-words leading-snug">{s.name}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      <span className="font-bold text-primary/80">{s.displaySymbol}</span> · {s.exchange}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <button onClick={handleSearch} disabled={isLoading || isFetching || !input.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+          <button onClick={() => handleSearch()} disabled={isLoading || isFetching || !input.trim()}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0">
             {(isLoading || isFetching) ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             {(isLoading || isFetching) ? "Loading…" : "Search"}
           </button>
         </div>
+
         {/* Popular chips */}
         <div className="flex flex-wrap gap-2 mt-3">
           <span className="text-[10px] text-muted-foreground self-center mr-1">Popular:</span>
           {POPULAR.map((s) => (
-            <button key={s} onClick={() => { setInput(s); setSearchTerm(s); }}
+            <button key={s} onClick={() => { setInput(s); setSearchTerm(s); setShowSuggest(false); }}
               className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-accent hover:bg-primary/10 hover:text-primary border border-border transition-colors">
               {s}
             </button>
           ))}
         </div>
+
+        <button onClick={() => setHelpOpen(true)}
+          className="mt-2.5 text-[11px] text-muted-foreground hover:text-primary underline underline-offset-2 transition-colors">
+          Can't find a stock?
+        </button>
       </div>
+
+      {/* Search help — a short explainer rather than a raw URL in the UI (§8). */}
+      {helpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setHelpOpen(false)}>
+          <div className="bg-card border border-border rounded-2xl p-5 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-base mb-2 flex items-center gap-2">
+              <Info className="w-4 h-4 text-primary" />
+              Finding a stock
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Search using the NSE symbol or the company name — both work. Start typing and pick from the suggestions.
+            </p>
+            <ul className="text-xs text-muted-foreground mt-3 space-y-1.5">
+              <li>· <span className="text-foreground font-semibold">HDFCBANK</span> or <span className="text-foreground font-semibold">HDFC Bank</span></li>
+              <li>· <span className="text-foreground font-semibold">TCS</span> or <span className="text-foreground font-semibold">Tata Consultancy Services</span></li>
+              <li>· Partial names work too — try <span className="text-foreground font-semibold">Bajaj</span></li>
+            </ul>
+            <p className="text-[11px] text-muted-foreground/70 mt-3 leading-relaxed">
+              You don't need the exchange suffix. NSE and BSE listings are resolved for you.
+            </p>
+            <button onClick={() => setHelpOpen(false)}
+              className="mt-4 w-full py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Loading Spinner */}
       {(isLoading || isFetching) && (
@@ -463,24 +593,35 @@ function StockInsights() {
 
           {/* News Section */}
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold flex items-center gap-2">
-                <Newspaper className="w-4 h-4 text-primary" />
-                Latest News
-                <span className="text-xs font-normal text-muted-foreground ml-1">({data.news.length} articles)</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h2 className="font-bold flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="flex items-center gap-2">
+                  <Newspaper className="w-4 h-4 text-primary" />
+                  Latest News
+                </span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({data.news.length} {data.news.length === 1 ? "article" : "articles"}) · News: {data.newsSource ?? "Yahoo Finance"}
+                </span>
               </h2>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
-                data.sentiment === "Positive" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                : data.sentiment === "Negative" ? "bg-red-500/10 text-red-400 border-red-500/30"
-                : "bg-slate-500/10 text-slate-400 border-slate-500/30"
-              }`}>
-                {data.sentiment} Tone
-              </span>
+              {data.news.length > 0 && (
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 ${
+                  data.sentiment === "Positive" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                  : data.sentiment === "Negative" ? "bg-red-500/10 text-red-400 border-red-500/30"
+                  : "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                }`}>
+                  {data.sentiment} Tone
+                </span>
+              )}
             </div>
 
             {data.news.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground text-sm bg-card border border-border rounded-2xl">
-                No news articles found for <span className="text-foreground font-bold">{data.symbol}</span>.
+              <div className="text-center py-12 px-4 bg-card border border-border rounded-2xl">
+                <p className="font-bold text-sm text-foreground">No recent stock-specific news found</p>
+                <p className="text-xs text-muted-foreground mt-1.5 max-w-md mx-auto leading-relaxed">
+                  No relevant articles are currently available for{" "}
+                  <span className="text-foreground font-semibold">{data.name}</span>. Unrelated
+                  market headlines are deliberately not shown here.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

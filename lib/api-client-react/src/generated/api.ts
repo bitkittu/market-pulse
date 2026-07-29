@@ -42,6 +42,7 @@ import type {
   GlobalIndexQuote,
   HealthStatus,
   InsightsResult,
+  LookupStocksParams,
   NseMovers,
   NseStock,
   OptionsSuggestion,
@@ -55,6 +56,7 @@ import type {
   SearchInsightsParams,
   SectorPerf,
   StockIndicators,
+  StockLookupResult,
   StockQuote,
   StockSuggestion,
   UpstoxSettings,
@@ -2732,6 +2734,101 @@ export const useTestUpstoxConnection = <
 > => {
   return useMutation(getTestUpstoxConnectionMutationOptions(options));
 };
+
+/**
+ * Layered lookup: the in-process NSE index answers first, then the provider search index. Returns an empty list for queries under two characters rather than erroring.
+ * @summary Autocomplete stock symbols by ticker or company name
+ */
+export const getLookupStocksUrl = (params: LookupStocksParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/insights/lookup?${stringifiedParams}`
+    : `/api/insights/lookup`;
+};
+
+export const lookupStocks = async (
+  params: LookupStocksParams,
+  options?: RequestInit,
+): Promise<StockLookupResult> => {
+  return customFetch<StockLookupResult>(getLookupStocksUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getLookupStocksQueryKey = (params?: LookupStocksParams) => {
+  return [`/api/insights/lookup`, ...(params ? [params] : [])] as const;
+};
+
+export const getLookupStocksQueryOptions = <
+  TData = Awaited<ReturnType<typeof lookupStocks>>,
+  TError = ErrorType<unknown>,
+>(
+  params: LookupStocksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof lookupStocks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getLookupStocksQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof lookupStocks>>> = ({
+    signal,
+  }) => lookupStocks(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof lookupStocks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type LookupStocksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof lookupStocks>>
+>;
+export type LookupStocksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Autocomplete stock symbols by ticker or company name
+ */
+
+export function useLookupStocks<
+  TData = Awaited<ReturnType<typeof lookupStocks>>,
+  TError = ErrorType<unknown>,
+>(
+  params: LookupStocksParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof lookupStocks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getLookupStocksQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Search stock insights, indicators and news

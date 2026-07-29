@@ -100,7 +100,7 @@ export function BottomNav({
             <SheetTitle className="text-base">More</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
-            <MoreRow icon={Newspaper} label="Insights" onClick={() => { goTab("insights"); setMoreOpen(false); }} />
+            <MoreRow icon={Newspaper} label="AI Insights" onClick={() => { goTab("insights"); setMoreOpen(false); }} />
             <MoreRow icon={BarChart2} label="Performance" onClick={() => { goTab("performance"); setMoreOpen(false); }} />
             <MoreRow icon={Link2} label="API" onClick={() => { goTab("api"); setMoreOpen(false); }} />
             <MoreRow icon={User} label="Account Settings" onClick={() => { onAccountSettings(); setMoreOpen(false); }} />

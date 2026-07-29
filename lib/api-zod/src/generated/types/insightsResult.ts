@@ -13,6 +13,16 @@ import type { PriceCandle } from "./priceCandle";
 export interface InsightsResult {
   symbol: string;
   name: string;
+  /** Resolved listing exchange (NSE, BSE, or the provider's name) */
+  exchange?: string;
+  /** Provider that supplied the quote and price history */
+  priceSource?: string;
+  /** Provider that supplied the news feed */
+  newsSource?: string;
+  /** ISO-8601 instant this payload was assembled */
+  lastUpdated?: string;
+  /** Articles examined before relevance filtering */
+  newsScanned?: number;
   price: number;
   change: number;
   changePercent: number;
