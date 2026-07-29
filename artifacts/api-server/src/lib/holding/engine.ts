@@ -55,7 +55,10 @@ import type {
 import { readLastScanSymbols } from "./store.js";
 
 export const ENGINE = "MarketPulse Holding Engine";
-export const ENGINE_VERSION = "1.1.0";
+// Bumped whenever scan/storage behaviour changes. Surfaced in every payload's
+// provenance block, which makes it the one reliable way to tell from outside
+// which build a deployment is actually running.
+export const ENGINE_VERSION = "1.1.1";
 
 /**
  * How many technically-strongest names get the expensive fundamentals /
