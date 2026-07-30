@@ -7,6 +7,7 @@ const Home             = lazy(() => import("@/pages/Home").then(m => ({ default:
 const Portfolio        = lazy(() => import("@/pages/Portfolio").then(m => ({ default: m.Portfolio })));
 const Settings         = lazy(() => import("@/pages/Settings").then(m => ({ default: m.Settings })));
 const ApiSettings      = lazy(() => import("@/pages/Settings").then(m => ({ default: m.ApiSettings })));
+const Support          = lazy(() => import("@/pages/Support").then(m => ({ default: m.Support })));
 const HoldingStocks    = lazy(() => import("@/pages/HoldingStocks").then(m => ({ default: m.HoldingStocks })));
 const IntradayDashboard = lazy(() => import("@/pages/IntradayDashboard").then(m => ({ default: m.IntradayDashboard })));
 const OptionsDashboard = lazy(() => import("@/pages/OptionsDashboard").then(m => ({ default: m.OptionsDashboard })));
@@ -18,6 +19,7 @@ const Login            = lazy(() => import("@/pages/Login").then(m => ({ default
 const Register         = lazy(() => import("@/pages/Register").then(m => ({ default: m.Register })));
 const ForgotPassword   = lazy(() => import("@/pages/ForgotPassword").then(m => ({ default: m.ForgotPassword })));
 const ResetPassword    = lazy(() => import("@/pages/ResetPassword").then(m => ({ default: m.ResetPassword })));
+const VerifyEmail      = lazy(() => import("@/pages/VerifyEmail").then(m => ({ default: m.VerifyEmail })));
 const AdminPanel       = lazy(() => import("@/pages/AdminPanel").then(m => ({ default: m.AdminPanel })));
 const ComingSoonPage   = lazy(() => import("@/pages/ComingSoon").then(m => ({ default: m.ComingSoonPage })));
 const CommodityAIDecisionEngine = lazy(() => import("@/pages/CommodityAIDecisionEngine").then(m => ({ default: m.CommodityAIDecisionEngine })));
@@ -264,6 +266,7 @@ function AppShell() {
               {tab === "portfolio"   && <Portfolio />}
               {tab === "insights"    && <Insights />}
               {tab === "api"         && <ApiSettings />}
+              {tab === "support"     && <Support />}
               {tab === "account"     && <Settings />}
 
               {MARKETS.map((mkt) => SECTIONS.map((sec) => {
@@ -341,9 +344,9 @@ function LoadingScreen() {
 // ── App Router ────────────────────────────────────────────────────────────
 type AuthView = "landing" | "login" | "register" | "forgot" | "reset";
 
-function readResetTokenFromUrl(): string | null {
+function readTokenFromUrl(param: string): string | null {
   try {
-    return new URLSearchParams(window.location.search).get("reset_token");
+    return new URLSearchParams(window.location.search).get(param);
   } catch {
     return null;
   }
@@ -351,8 +354,9 @@ function readResetTokenFromUrl(): string | null {
 
 function AppRouter() {
   const { user, isLoading } = useAuth();
-  const [resetToken, setResetToken] = useState<string | null>(() => readResetTokenFromUrl());
-  const [view, setView] = useState<AuthView>(() => (readResetTokenFromUrl() ? "reset" : "landing"));
+  const [resetToken, setResetToken] = useState<string | null>(() => readTokenFromUrl("reset_token"));
+  const [verifyToken, setVerifyToken] = useState<string | null>(() => readTokenFromUrl("verify_token"));
+  const [view, setView] = useState<AuthView>(() => (readTokenFromUrl("reset_token") ? "reset" : "landing"));
 
   // Ensure landing page uses dark mode
   useEffect(() => {
@@ -375,6 +379,16 @@ function AppRouter() {
     setView("login");
   };
 
+  const finishVerify = () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("verify_token");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    } catch { /* ignore */ }
+    setVerifyToken(null);
+    if (!user) setView("login");
+  };
+
   if (isLoading) return <LoadingScreen />;
 
   // A reset link takes precedence over everything, even a stale session, so a
@@ -383,6 +397,16 @@ function AppRouter() {
     return (
       <Suspense fallback={<PageLoader />}>
         <ResetPassword token={resetToken ?? ""} onDone={finishReset} />
+      </Suspense>
+    );
+  }
+
+  // A verify link works whether or not the user is currently signed in (it
+  // confirms the target account's email, verified by the token itself).
+  if (verifyToken) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <VerifyEmail token={verifyToken} onDone={finishVerify} />
       </Suspense>
     );
   }

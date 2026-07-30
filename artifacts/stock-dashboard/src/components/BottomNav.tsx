@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   LayoutDashboard, Briefcase, Store, MoreHorizontal,
-  Newspaper, BarChart2, Link2, User, Sun, Moon, LogOut,
+  Newspaper, BarChart2, Link2, User, Sun, Moon, LogOut, LifeBuoy,
 } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -103,6 +103,7 @@ export function BottomNav({
             <MoreRow icon={Newspaper} label="AI Insights" onClick={() => { goTab("insights"); setMoreOpen(false); }} />
             <MoreRow icon={BarChart2} label="Performance" onClick={() => { goTab("performance"); setMoreOpen(false); }} />
             <MoreRow icon={Link2} label="API" onClick={() => { goTab("api"); setMoreOpen(false); }} />
+            <MoreRow icon={LifeBuoy} label="Support" onClick={() => { goTab("support"); setMoreOpen(false); }} />
             <MoreRow icon={User} label="Account Settings" onClick={() => { onAccountSettings(); setMoreOpen(false); }} />
             <MoreRow
               icon={theme === "dark" ? Moon : Sun}

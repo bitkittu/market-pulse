@@ -6,6 +6,12 @@ import type { Request, Response, NextFunction } from "express";
 export const SESSION_COOKIE = "mp_session";
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function resolveBaseUrl(req: { protocol: string; get: (name: string) => string | undefined }): string {
+  return (process.env["APP_BASE_URL"] ?? `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+}
+
 const DEFAULT_ROLES = [
   { name: "admin", description: "Full system access — user management, system monitor" },
   { name: "user", description: "Standard end-user access to the dashboard" },
@@ -19,6 +25,9 @@ const DEFAULT_PERMISSIONS = [
   { name: "portfolio.manage", description: "Add/remove portfolio holdings" },
   { name: "settings.manage", description: "Manage own account/API settings" },
   { name: "system.monitor", description: "View system health / admin monitor panel" },
+  { name: "email.manage", description: "Configure SMTP, email templates, and view email logs" },
+  { name: "support.view", description: "View the support ticket queue and ticket conversations" },
+  { name: "support.manage", description: "Reply to, assign, and change the status of support tickets" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<(typeof DEFAULT_ROLES)[number]["name"], readonly string[]> = {
@@ -42,22 +51,30 @@ export function verifyPassword(password: string, hash: string): Promise<boolean>
 
 interface SessionPayload {
   uid: number;
+  /**
+   * The user's token_version at signing time. Omitted from tokens signed
+   * before this field existed — requireAuth treats a missing claim as 0,
+   * which matches the column's default, so already-issued sessions keep
+   * working across this deploy and only stop verifying once token_version
+   * is actually bumped (password reset/change).
+   */
+  tv?: number;
 }
 
 function isSessionPayload(payload: unknown): payload is SessionPayload {
   return typeof payload === "object" && payload !== null && typeof (payload as SessionPayload).uid === "number";
 }
 
-export function signSessionToken(userId: number): string {
-  return jwt.sign({ uid: userId } satisfies SessionPayload, getJwtSecret(), {
+export function signSessionToken(userId: number, tokenVersion: number): string {
+  return jwt.sign({ uid: userId, tv: tokenVersion } satisfies SessionPayload, getJwtSecret(), {
     expiresIn: SESSION_TTL_SECONDS,
   });
 }
 
-function verifySessionToken(token: string): number | null {
+function verifySessionToken(token: string): SessionPayload | null {
   try {
     const payload = jwt.verify(token, getJwtSecret());
-    return isSessionPayload(payload) ? payload.uid : null;
+    return isSessionPayload(payload) ? payload : null;
   } catch {
     return null;
   }
@@ -104,6 +121,7 @@ export function toPublicUser(user: UserRow, roleName: string) {
     plan: user.plan,
     joinedAt: user.createdAt,
     lastLogin: user.lastLoginAt,
+    emailVerified: user.emailVerifiedAt !== null,
   };
 }
 
@@ -121,10 +139,14 @@ declare global {
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
-  const userId = token ? verifySessionToken(token) : null;
-  const user = userId ? await loadAuthedUser(userId) : null;
+  const payload = token ? verifySessionToken(token) : null;
+  const user = payload ? await loadAuthedUser(payload.uid) : null;
   if (!user || user.status !== "active") {
     res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  if ((payload!.tv ?? 0) !== user.tokenVersion) {
+    res.status(401).json({ error: "Session expired — please sign in again" });
     return;
   }
   req.user = user;
@@ -161,7 +183,7 @@ export async function seedAuthDefaults(): Promise<void> {
   const existingAdmin = await db.users.findByRoleId(adminRole.id);
   if (existingAdmin) return;
 
-  const email = (process.env["ADMIN_EMAIL"] ?? "team@trading.brandmars.com").trim().toLowerCase();
+  const email = (process.env["ADMIN_EMAIL"] ?? "team@marketpulse.learninhome.com").trim().toLowerCase();
   const password = process.env["ADMIN_PASSWORD"] ?? "Admin@123";
   await db.users.insert({
     name: "Admin",
@@ -170,5 +192,7 @@ export async function seedAuthDefaults(): Promise<void> {
     roleId: adminRole.id,
     plan: "premium",
     status: "active",
+    termsAcceptedAt: new Date(),
+    marketingConsent: false,
   });
 }

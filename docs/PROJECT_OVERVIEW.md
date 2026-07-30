@@ -397,7 +397,7 @@ The following are baked into code or `.env.example` defaults — they are
 **not** secrets to leak (they are the documented bootstrap values), but
 they **must** be rotated before a real production deploy:
 
-- `ADMIN_EMAIL` default `team@trading.brandmars.com`
+- `ADMIN_EMAIL` default `team@marketpulse.learninhome.com`
 - `ADMIN_PASSWORD` default `Admin@123` (in `.env.example` and as the
   fallback in `seedAuthDefaults` when `ADMIN_PASSWORD` is unset)
 - `JWT_SECRET` placeholder `change-this-to-a-long-random-string`

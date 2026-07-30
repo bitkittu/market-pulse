@@ -9,7 +9,7 @@ export type SectionId = "dashboard" | "learn" | "indicators" | "ai" | "screeners
 export type AccentColor = "emerald" | "violet" | "orange" | "blue" | "amber" | "cyan";
 
 /** Top-level destinations outside the Market Hub tree. */
-export type GeneralTab = "home" | "portfolio" | "performance" | "insights" | "api" | "account";
+export type GeneralTab = "home" | "portfolio" | "performance" | "insights" | "api" | "account" | "support";
 export type MarketTab = `${MarketId}-${SectionId}`;
 export type Tab = GeneralTab | MarketTab;
 

@@ -48,7 +48,6 @@ async function buildAll() {
       "lightningcss",
       "pg-native",
       "oracledb",
-      "nodemailer",
       "handlebars",
       "knex",
       "typeorm",

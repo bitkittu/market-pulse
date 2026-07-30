@@ -8,15 +8,19 @@ export interface User {
   plan: "free" | "pro" | "premium";
   joinedAt: string;
   lastLogin: string | null;
+  emailVerified: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, acceptTerms: boolean, marketingConsent: boolean) => Promise<{ success: boolean; error?: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string; message?: string; devResetUrl?: string }>;
   resetPassword: (token: string, password: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  resendVerification: () => Promise<{ success: boolean; error?: string; message?: string }>;
+  changeEmail: (newEmail: string, currentPassword: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   updateProfile: (name: string) => Promise<{ success: boolean; error?: string }>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   logout: () => void;
@@ -27,7 +31,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-async function api<T>(path: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: T | { error: string } }> {
+export async function api<T>(path: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: T | { error: string } }> {
   const res = await fetch(`/api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -75,15 +79,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true };
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string, acceptTerms: boolean, marketingConsent: boolean) => {
     const res = await api<{ user: User }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, acceptTerms, marketingConsent }),
     });
     if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
     const me = (res.data as { user: User }).user;
     setUser(me);
     return { success: true };
+  };
+
+  const verifyEmail = async (token: string) => {
+    const res = await api<{ message: string }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    // Verifying doesn't change the session, but the account's verified flag
+    // did — refresh so Settings reflects it without a manual reload.
+    const me = await api<{ user: User }>("/auth/me");
+    if (me.ok) setUser((me.data as { user: User }).user);
+    return { success: true, message: (res.data as { message: string }).message };
+  };
+
+  const resendVerification = async () => {
+    const res = await api<{ message: string }>("/auth/resend-verification", { method: "POST" });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    return { success: true, message: (res.data as { message: string }).message };
+  };
+
+  const changeEmail = async (newEmail: string, currentPassword: string) => {
+    const res = await api<{ message: string }>("/auth/change-email", {
+      method: "POST",
+      body: JSON.stringify({ newEmail, currentPassword }),
+    });
+    if (!res.ok) return { success: false, error: (res.data as { error: string }).error };
+    return { success: true, message: (res.data as { message: string }).message };
   };
 
   const requestPasswordReset = async (email: string) => {
@@ -143,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, requestPasswordReset, resetPassword, updateProfile, changePassword, logout, allUsers, deleteUser, updateUserPlan }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, requestPasswordReset, resetPassword, verifyEmail, resendVerification, changeEmail, updateProfile, changePassword, logout, allUsers, deleteUser, updateUserPlan }}>
       {children}
     </AuthContext.Provider>
   );

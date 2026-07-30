@@ -124,8 +124,106 @@ export interface UserRow {
   status: "active" | "suspended";
   emailVerifiedAt: Date | null;
   lastLoginAt: Date | null;
+  /** Bumped on password change/reset to invalidate previously issued JWTs. */
+  tokenVersion: number;
+  termsAcceptedAt: Date | null;
+  marketingConsent: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface EmailVerificationRow {
+  id: number;
+  userId: number;
+  tokenHash: string;
+  /** NULL = verifying the account's current email; set = confirming a pending email change. */
+  newEmail: string | null;
+  expiresAt: Date;
+  verifiedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface SmtpSettingsRow {
+  host: string | null;
+  port: number;
+  encryption: "none" | "ssl" | "tls";
+  username: string | null;
+  /** AES-256-GCM ciphertext (base64), never the plaintext secret. */
+  passwordEncrypted: string | null;
+  fromName: string;
+  fromEmail: string | null;
+  replyToEmail: string | null;
+  supportEmail: string | null;
+  updatedBy: number | null;
+  updatedAt: Date;
+}
+
+export interface EmailTemplateRow {
+  id: number;
+  templateKey: string;
+  name: string;
+  subject: string;
+  preheader: string | null;
+  body: string;
+  ctaLabel: string | null;
+  ctaUrlTemplate: string | null;
+  footerNote: string | null;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EmailLogRow {
+  id: number;
+  userId: number | null;
+  templateKey: string;
+  recipient: string;
+  subject: string;
+  triggerSource: string;
+  status: "pending" | "sent" | "failed";
+  failureReason: string | null;
+  createdAt: Date;
+  sentAt: Date | null;
+}
+
+export type SupportCategory =
+  | "account_login" | "technical_issue" | "market_data" | "ai_signals"
+  | "holding_stocks" | "intraday" | "options" | "commodities"
+  | "subscription_billing" | "payment" | "feature_request" | "feedback" | "other";
+export type SupportPriority = "low" | "medium" | "high" | "urgent";
+export type SupportStatus = "open" | "waiting_admin" | "waiting_user" | "resolved" | "closed";
+
+export interface SupportTicketRow {
+  id: number;
+  ticketNumber: string | null;
+  userId: number;
+  category: SupportCategory;
+  subject: string;
+  description: string;
+  priority: SupportPriority;
+  status: SupportStatus;
+  assignedAdminId: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  resolvedAt: Date | null;
+  closedAt: Date | null;
+}
+
+export interface SupportMessageRow {
+  id: number;
+  ticketId: number;
+  authorUserId: number;
+  isAdminReply: boolean;
+  body: string;
+  createdAt: Date;
+}
+
+export interface SupportInternalNoteRow {
+  id: number;
+  ticketId: number;
+  adminUserId: number;
+  body: string;
+  createdAt: Date;
 }
 
 export interface RoleRow {
@@ -173,6 +271,25 @@ export interface LoginHistoryRow {
   createdAt: Date;
 }
 
+export interface UserProfileRow {
+  userId: number;
+  avatarUrl: string | null;
+  phone: string | null;
+  bio: string | null;
+  timezone: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NotificationPreferencesRow {
+  userId: number;
+  marketAlerts: boolean;
+  productUpdates: boolean;
+  supportUpdates: boolean;
+  billingUpdates: boolean;
+  updatedAt: Date;
+}
+
 export interface PasswordResetRow {
   id: number;
   userId: number;
@@ -187,6 +304,31 @@ export interface PasswordResetRow {
 // 0/1, so each table gets an explicit decoder rather than a blanket cast.
 type Raw = RowDataPacket;
 
+/**
+ * True for "table/column not there yet" MySQL errors — the signal that
+ * lib/db/account_upgrade.sql has not been hand-applied to this database yet.
+ * Accessors for columns/tables introduced by that migration catch this and
+ * degrade to a safe fallback instead of throwing, so new code can deploy
+ * before the migration is applied (same self-healing pattern as
+ * artifacts/api-server/src/lib/holding/store.ts, applied here at the data
+ * layer instead of a feature module).
+ */
+const MISSING_SCHEMA_CODES = new Set(["ER_NO_SUCH_TABLE", "ER_BAD_DB_ERROR", "ER_BAD_FIELD_ERROR"]);
+function isMissingSchema(err: unknown): boolean {
+  const code = (err as { code?: string })?.code;
+  return code != null && MISSING_SCHEMA_CODES.has(code);
+}
+
+/** Runs `primary`; if it fails because account_upgrade.sql hasn't landed yet, runs `fallback` instead. */
+async function withSchemaFallback<T>(primary: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
+  try {
+    return await primary();
+  } catch (err) {
+    if (!isMissingSchema(err)) throw err;
+    return fallback();
+  }
+}
+
 function toUser(r: Raw): UserRow {
   return {
     id: Number(r["id"]),
@@ -198,7 +340,143 @@ function toUser(r: Raw): UserRow {
     status: r["status"] as UserRow["status"],
     emailVerifiedAt: (r["email_verified_at"] as Date | null) ?? null,
     lastLoginAt: (r["last_login_at"] as Date | null) ?? null,
+    tokenVersion: r["token_version"] != null ? Number(r["token_version"]) : 0,
+    termsAcceptedAt: (r["terms_accepted_at"] as Date | null) ?? null,
+    marketingConsent: Boolean(r["marketing_consent"]),
     createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toEmailVerification(r: Raw): EmailVerificationRow {
+  return {
+    id: Number(r["id"]),
+    userId: Number(r["user_id"]),
+    tokenHash: String(r["token_hash"]),
+    newEmail: (r["new_email"] as string | null) ?? null,
+    expiresAt: r["expires_at"] as Date,
+    verifiedAt: (r["verified_at"] as Date | null) ?? null,
+    createdAt: r["created_at"] as Date,
+  };
+}
+
+function toSmtpSettings(r: Raw): SmtpSettingsRow {
+  return {
+    host: (r["host"] as string | null) ?? null,
+    port: Number(r["port"]),
+    encryption: r["encryption"] as SmtpSettingsRow["encryption"],
+    username: (r["username"] as string | null) ?? null,
+    passwordEncrypted: (r["password_encrypted"] as string | null) ?? null,
+    fromName: String(r["from_name"]),
+    fromEmail: (r["from_email"] as string | null) ?? null,
+    replyToEmail: (r["reply_to_email"] as string | null) ?? null,
+    supportEmail: (r["support_email"] as string | null) ?? null,
+    updatedBy: r["updated_by"] != null ? Number(r["updated_by"]) : null,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toEmailTemplate(r: Raw): EmailTemplateRow {
+  return {
+    id: Number(r["id"]),
+    templateKey: String(r["template_key"]),
+    name: String(r["name"]),
+    subject: String(r["subject"]),
+    preheader: (r["preheader"] as string | null) ?? null,
+    body: String(r["body"]),
+    ctaLabel: (r["cta_label"] as string | null) ?? null,
+    ctaUrlTemplate: (r["cta_url_template"] as string | null) ?? null,
+    footerNote: (r["footer_note"] as string | null) ?? null,
+    enabled: Boolean(r["enabled"]),
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toEmailLog(r: Raw): EmailLogRow {
+  return {
+    id: Number(r["id"]),
+    userId: r["user_id"] != null ? Number(r["user_id"]) : null,
+    templateKey: String(r["template_key"]),
+    recipient: String(r["recipient"]),
+    subject: String(r["subject"]),
+    triggerSource: String(r["trigger_source"]),
+    status: r["status"] as EmailLogRow["status"],
+    failureReason: (r["failure_reason"] as string | null) ?? null,
+    createdAt: r["created_at"] as Date,
+    sentAt: (r["sent_at"] as Date | null) ?? null,
+  };
+}
+
+function toSupportTicket(r: Raw): SupportTicketRow {
+  return {
+    id: Number(r["id"]),
+    ticketNumber: (r["ticket_number"] as string | null) ?? null,
+    userId: Number(r["user_id"]),
+    category: r["category"] as SupportCategory,
+    subject: String(r["subject"]),
+    description: String(r["description"]),
+    priority: r["priority"] as SupportPriority,
+    status: r["status"] as SupportStatus,
+    assignedAdminId: r["assigned_admin_id"] != null ? Number(r["assigned_admin_id"]) : null,
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+    resolvedAt: (r["resolved_at"] as Date | null) ?? null,
+    closedAt: (r["closed_at"] as Date | null) ?? null,
+  };
+}
+
+function toSupportMessage(r: Raw): SupportMessageRow {
+  return {
+    id: Number(r["id"]),
+    ticketId: Number(r["ticket_id"]),
+    authorUserId: Number(r["author_user_id"]),
+    isAdminReply: Boolean(r["is_admin_reply"]),
+    body: String(r["body"]),
+    createdAt: r["created_at"] as Date,
+  };
+}
+
+function toSupportInternalNote(r: Raw): SupportInternalNoteRow {
+  return {
+    id: Number(r["id"]),
+    ticketId: Number(r["ticket_id"]),
+    adminUserId: Number(r["admin_user_id"]),
+    body: String(r["body"]),
+    createdAt: r["created_at"] as Date,
+  };
+}
+
+function toLoginHistory(r: Raw): LoginHistoryRow {
+  return {
+    id: Number(r["id"]),
+    userId: Number(r["user_id"]),
+    ipAddress: (r["ip_address"] as string | null) ?? null,
+    userAgent: (r["user_agent"] as string | null) ?? null,
+    status: r["status"] as LoginHistoryRow["status"],
+    createdAt: r["created_at"] as Date,
+  };
+}
+
+function toUserProfile(r: Raw): UserProfileRow {
+  return {
+    userId: Number(r["user_id"]),
+    avatarUrl: (r["avatar_url"] as string | null) ?? null,
+    phone: (r["phone"] as string | null) ?? null,
+    bio: (r["bio"] as string | null) ?? null,
+    timezone: String(r["timezone"]),
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toNotificationPreferences(r: Raw): NotificationPreferencesRow {
+  return {
+    userId: Number(r["user_id"]),
+    marketAlerts: Boolean(r["market_alerts"]),
+    productUpdates: Boolean(r["product_updates"]),
+    supportUpdates: Boolean(r["support_updates"]),
+    billingUpdates: Boolean(r["billing_updates"]),
     updatedAt: r["updated_at"] as Date,
   };
 }
@@ -298,7 +576,12 @@ export const db = {
       const rows = await query("SELECT * FROM users ORDER BY id");
       return rows.map(toUser);
     },
-    /** Returns the AUTO_INCREMENT id of the new row. */
+    /**
+     * Returns the AUTO_INCREMENT id of the new row. `termsAcceptedAt` and
+     * `marketingConsent` are captured for every new registration; if
+     * account_upgrade.sql hasn't been applied yet, they're silently dropped
+     * (registration still succeeds) rather than failing every signup.
+     */
     async insert(u: {
       name: string;
       email: string;
@@ -306,19 +589,73 @@ export const db = {
       roleId: number;
       plan: UserRow["plan"];
       status: UserRow["status"];
+      termsAcceptedAt: Date;
+      marketingConsent: boolean;
     }): Promise<number> {
-      const res = await execute(
-        `INSERT INTO users (name, email, password_hash, role_id, plan, status)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [u.name, u.email, u.passwordHash, u.roleId, u.plan, u.status],
+      return withSchemaFallback(
+        async () => {
+          const res = await execute(
+            `INSERT INTO users (name, email, password_hash, role_id, plan, status, terms_accepted_at, marketing_consent)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [u.name, u.email, u.passwordHash, u.roleId, u.plan, u.status, u.termsAcceptedAt, u.marketingConsent],
+          );
+          return res.insertId;
+        },
+        async () => {
+          const res = await execute(
+            `INSERT INTO users (name, email, password_hash, role_id, plan, status)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [u.name, u.email, u.passwordHash, u.roleId, u.plan, u.status],
+          );
+          return res.insertId;
+        },
       );
-      return res.insertId;
     },
     async updateName(id: number, name: string): Promise<void> {
       await execute("UPDATE users SET name = ? WHERE id = ?", [name, id]);
     },
+    /**
+     * Also bumps token_version so previously issued session JWTs stop
+     * verifying — this is what makes a password reset/change actually
+     * invalidate other sessions instead of just changing the credential.
+     * Falls back to a plain update if the migration hasn't landed yet.
+     */
     async updatePasswordHash(id: number, passwordHash: string): Promise<void> {
-      await execute("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id]);
+      await withSchemaFallback(
+        async () => {
+          await execute(
+            "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?",
+            [passwordHash, id],
+          );
+        },
+        async () => {
+          await execute("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, id]);
+        },
+      );
+    },
+    async updateEmail(id: number, email: string): Promise<void> {
+      await withSchemaFallback(
+        async () => {
+          await execute(
+            "UPDATE users SET email = ?, email_verified_at = NOW(), token_version = token_version + 1 WHERE id = ?",
+            [email, id],
+          );
+        },
+        async () => {
+          await execute("UPDATE users SET email = ?, email_verified_at = NOW() WHERE id = ?", [email, id]);
+        },
+      );
+    },
+    async markEmailVerified(id: number): Promise<void> {
+      await execute("UPDATE users SET email_verified_at = NOW() WHERE id = ?", [id]);
+    },
+    /** Invalidates every previously issued session JWT without changing the password — "sign out everywhere". */
+    async bumpTokenVersion(id: number): Promise<void> {
+      try {
+        await execute("UPDATE users SET token_version = token_version + 1 WHERE id = ?", [id]);
+      } catch (err) {
+        if (!isMissingSchema(err)) throw err;
+      }
     },
     async updatePlan(id: number, plan: UserRow["plan"]): Promise<void> {
       await execute("UPDATE users SET plan = ? WHERE id = ?", [plan, id]);
@@ -487,6 +824,94 @@ export const db = {
         [entry.userId, entry.ipAddress, entry.userAgent, entry.status],
       );
     },
+    /** IP of the user's most recent successful login, if any — used to detect a new-location sign-in. */
+    async lastSuccessIp(userId: number): Promise<string | null> {
+      const rows = await query(
+        "SELECT ip_address FROM login_history WHERE user_id = ? AND status = 'success' ORDER BY created_at DESC LIMIT 1",
+        [userId],
+      );
+      return rows[0] ? ((rows[0]["ip_address"] as string | null) ?? null) : null;
+    },
+    async recentForUser(userId: number, limit: number): Promise<LoginHistoryRow[]> {
+      const rows = await query(
+        "SELECT * FROM login_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+        [userId, limit],
+      );
+      return rows.map(toLoginHistory);
+    },
+  },
+
+  userProfiles: {
+    async get(userId: number): Promise<UserProfileRow | null> {
+      const rows = await query("SELECT * FROM user_profiles WHERE user_id = ? LIMIT 1", [userId]);
+      return rows[0] ? toUserProfile(rows[0]) : null;
+    },
+    /** Upserts only the fields provided — omit a field to leave it unchanged. */
+    async upsert(
+      userId: number,
+      p: { avatarUrl?: string | null; phone?: string | null; bio?: string | null; timezone?: string },
+    ): Promise<UserProfileRow> {
+      const existingRows = await query("SELECT * FROM user_profiles WHERE user_id = ? LIMIT 1", [userId]);
+      if (existingRows.length === 0) {
+        await execute(
+          `INSERT INTO user_profiles (user_id, avatar_url, phone, bio, timezone) VALUES (?, ?, ?, ?, ?)`,
+          [userId, p.avatarUrl ?? null, p.phone ?? null, p.bio ?? null, p.timezone ?? "Asia/Kolkata"],
+        );
+      } else {
+        const current = toUserProfile(existingRows[0]!);
+        await execute(
+          "UPDATE user_profiles SET avatar_url = ?, phone = ?, bio = ?, timezone = ? WHERE user_id = ?",
+          [
+            p.avatarUrl !== undefined ? p.avatarUrl : current.avatarUrl,
+            p.phone !== undefined ? p.phone : current.phone,
+            p.bio !== undefined ? p.bio : current.bio,
+            p.timezone !== undefined ? p.timezone : current.timezone,
+            userId,
+          ],
+        );
+      }
+      const rows = await query("SELECT * FROM user_profiles WHERE user_id = ? LIMIT 1", [userId]);
+      return toUserProfile(rows[0]!);
+    },
+  },
+
+  notificationPreferences: {
+    async get(userId: number): Promise<NotificationPreferencesRow> {
+      const defaults: NotificationPreferencesRow = {
+        userId, marketAlerts: true, productUpdates: true, supportUpdates: true, billingUpdates: true,
+        updatedAt: new Date(),
+      };
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            "SELECT * FROM user_notification_preferences WHERE user_id = ? LIMIT 1",
+            [userId],
+          );
+          return rows[0] ? toNotificationPreferences(rows[0]) : defaults;
+        },
+        async () => defaults,
+      );
+    },
+    /** Returns false only if account_profile.sql hasn't been applied yet. */
+    async upsert(
+      userId: number,
+      p: { marketAlerts: boolean; productUpdates: boolean; supportUpdates: boolean; billingUpdates: boolean },
+    ): Promise<boolean> {
+      return withSchemaFallback(
+        async () => {
+          await execute(
+            `INSERT INTO user_notification_preferences
+               (user_id, market_alerts, product_updates, support_updates, billing_updates)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE market_alerts=VALUES(market_alerts), product_updates=VALUES(product_updates),
+               support_updates=VALUES(support_updates), billing_updates=VALUES(billing_updates)`,
+            [userId, p.marketAlerts, p.productUpdates, p.supportUpdates, p.billingUpdates],
+          );
+          return true;
+        },
+        async () => false,
+      );
+    },
   },
 
   passwordResets: {
@@ -512,6 +937,263 @@ export const db = {
     /** MySQL has no TTL index, so expired rows are swept on demand. */
     async purgeExpired(): Promise<void> {
       await execute("DELETE FROM password_resets WHERE expires_at < NOW()");
+    },
+  },
+
+  emailVerifications: {
+    async findUnusedByTokenHash(tokenHash: string): Promise<EmailVerificationRow | null> {
+      const rows = await query(
+        "SELECT * FROM email_verifications WHERE token_hash = ? AND verified_at IS NULL LIMIT 1",
+        [tokenHash],
+      );
+      return rows[0] ? toEmailVerification(rows[0]) : null;
+    },
+    /**
+     * Creates a verification token. `newEmail: null` means "verify the
+     * account's current email"; a non-null value means "confirm a pending
+     * change to this new address". Returns false only when an email-change
+     * token was requested but account_upgrade.sql (the new_email column)
+     * hasn't been applied yet — verify-current-email tokens always work,
+     * falling back to the pre-migration column set.
+     */
+    async insert(r: {
+      userId: number;
+      tokenHash: string;
+      expiresAt: Date;
+      newEmail?: string | null;
+    }): Promise<boolean> {
+      const newEmail = r.newEmail ?? null;
+      return withSchemaFallback(
+        async () => {
+          await execute(
+            "INSERT INTO email_verifications (user_id, token_hash, expires_at, new_email) VALUES (?, ?, ?, ?)",
+            [r.userId, r.tokenHash, r.expiresAt, newEmail],
+          );
+          return true;
+        },
+        async () => {
+          if (newEmail !== null) return false;
+          await execute(
+            "INSERT INTO email_verifications (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+            [r.userId, r.tokenHash, r.expiresAt],
+          );
+          return true;
+        },
+      );
+    },
+    async markVerified(id: number): Promise<void> {
+      await execute("UPDATE email_verifications SET verified_at = NOW() WHERE id = ?", [id]);
+    },
+    /** Clears outstanding tokens of one kind, so requesting a new one invalidates the old. */
+    async clearOutstanding(userId: number, kind: "verify" | "change-email"): Promise<void> {
+      const emailFilter = kind === "verify" ? "new_email IS NULL" : "new_email IS NOT NULL";
+      await withSchemaFallback(
+        async () => {
+          await execute(
+            `DELETE FROM email_verifications WHERE user_id = ? AND verified_at IS NULL AND ${emailFilter}`,
+            [userId],
+          );
+        },
+        async () => {
+          if (kind !== "verify") return;
+          await execute(
+            "DELETE FROM email_verifications WHERE user_id = ? AND verified_at IS NULL",
+            [userId],
+          );
+        },
+      );
+    },
+    async purgeExpired(): Promise<void> {
+      await execute("DELETE FROM email_verifications WHERE expires_at < NOW()");
+    },
+  },
+
+  smtpSettings: {
+    async get(): Promise<SmtpSettingsRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM smtp_settings WHERE id = 1 LIMIT 1");
+          return rows[0] ? toSmtpSettings(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    /**
+     * Upserts the singleton settings row. Omit `passwordEncrypted` to leave
+     * the currently stored secret untouched (used when the admin saves the
+     * form without re-entering the password).
+     */
+    async upsert(s: {
+      host: string | null;
+      port: number;
+      encryption: SmtpSettingsRow["encryption"];
+      username: string | null;
+      passwordEncrypted?: string;
+      fromName: string;
+      fromEmail: string | null;
+      replyToEmail: string | null;
+      supportEmail: string | null;
+      updatedBy: number | null;
+    }): Promise<void> {
+      if (s.passwordEncrypted === undefined) {
+        await execute(
+          `INSERT INTO smtp_settings (id, host, port, encryption, username, from_name, from_email, reply_to_email, support_email, updated_by)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE host=VALUES(host), port=VALUES(port), encryption=VALUES(encryption),
+             username=VALUES(username), from_name=VALUES(from_name), from_email=VALUES(from_email),
+             reply_to_email=VALUES(reply_to_email), support_email=VALUES(support_email), updated_by=VALUES(updated_by)`,
+          [s.host, s.port, s.encryption, s.username, s.fromName, s.fromEmail, s.replyToEmail, s.supportEmail, s.updatedBy],
+        );
+        return;
+      }
+      await execute(
+        `INSERT INTO smtp_settings (id, host, port, encryption, username, password_encrypted, from_name, from_email, reply_to_email, support_email, updated_by)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE host=VALUES(host), port=VALUES(port), encryption=VALUES(encryption),
+           username=VALUES(username), password_encrypted=VALUES(password_encrypted), from_name=VALUES(from_name),
+           from_email=VALUES(from_email), reply_to_email=VALUES(reply_to_email), support_email=VALUES(support_email),
+           updated_by=VALUES(updated_by)`,
+        [s.host, s.port, s.encryption, s.username, s.passwordEncrypted, s.fromName, s.fromEmail, s.replyToEmail, s.supportEmail, s.updatedBy],
+      );
+    },
+  },
+
+  emailTemplates: {
+    async all(): Promise<EmailTemplateRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM email_templates ORDER BY id");
+          return rows.map(toEmailTemplate);
+        },
+        async () => [],
+      );
+    },
+    async findByKey(key: string): Promise<EmailTemplateRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM email_templates WHERE template_key = ? LIMIT 1", [key]);
+          return rows[0] ? toEmailTemplate(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    async update(
+      key: string,
+      fields: {
+        name?: string;
+        subject?: string;
+        preheader?: string | null;
+        body?: string;
+        ctaLabel?: string | null;
+        ctaUrlTemplate?: string | null;
+        footerNote?: string | null;
+        enabled?: boolean;
+      },
+    ): Promise<void> {
+      const columnMap: Record<string, unknown> = {
+        name: fields.name,
+        subject: fields.subject,
+        preheader: fields.preheader,
+        body: fields.body,
+        cta_label: fields.ctaLabel,
+        cta_url_template: fields.ctaUrlTemplate,
+        footer_note: fields.footerNote,
+        enabled: fields.enabled,
+      };
+      const setClauses: string[] = [];
+      const params: SqlParam[] = [];
+      for (const [column, value] of Object.entries(columnMap)) {
+        if (value === undefined) continue;
+        setClauses.push(`${column} = ?`);
+        params.push(value as SqlParam);
+      }
+      if (setClauses.length === 0) return;
+      params.push(key);
+      await execute(`UPDATE email_templates SET ${setClauses.join(", ")} WHERE template_key = ?`, params);
+    },
+  },
+
+  emailLogs: {
+    /** Returns the new row's id, or null if email_logs isn't migrated yet (logging is best-effort). */
+    async insert(e: {
+      userId: number | null;
+      templateKey: string;
+      recipient: string;
+      subject: string;
+      triggerSource: string;
+    }): Promise<number | null> {
+      return withSchemaFallback(
+        async () => {
+          const res = await execute(
+            `INSERT INTO email_logs (user_id, template_key, recipient, subject, trigger_source, status)
+             VALUES (?, ?, ?, ?, ?, 'pending')`,
+            [e.userId, e.templateKey, e.recipient, e.subject, e.triggerSource],
+          );
+          return res.insertId;
+        },
+        async () => null,
+      );
+    },
+    async markSent(id: number | null): Promise<void> {
+      if (id == null) return;
+      await execute("UPDATE email_logs SET status = 'sent', sent_at = NOW() WHERE id = ?", [id]);
+    },
+    async markFailed(id: number | null, reason: string): Promise<void> {
+      if (id == null) return;
+      await execute("UPDATE email_logs SET status = 'failed', failure_reason = ? WHERE id = ?", [
+        reason.slice(0, 500),
+        id,
+      ]);
+    },
+    async search(filters: {
+      q?: string;
+      templateKey?: string;
+      status?: EmailLogRow["status"];
+      userId?: number;
+      from?: Date;
+      to?: Date;
+      limit?: number;
+    }): Promise<EmailLogRow[]> {
+      const clauses: string[] = [];
+      const params: SqlParam[] = [];
+      if (filters.q) {
+        clauses.push("(recipient LIKE ? OR subject LIKE ?)");
+        params.push(`%${filters.q}%`, `%${filters.q}%`);
+      }
+      if (filters.templateKey) {
+        clauses.push("template_key = ?");
+        params.push(filters.templateKey);
+      }
+      if (filters.status) {
+        clauses.push("status = ?");
+        params.push(filters.status);
+      }
+      if (filters.userId) {
+        clauses.push("user_id = ?");
+        params.push(filters.userId);
+      }
+      if (filters.from) {
+        clauses.push("created_at >= ?");
+        params.push(filters.from);
+      }
+      if (filters.to) {
+        clauses.push("created_at <= ?");
+        params.push(filters.to);
+      }
+      const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const limit = Math.min(Math.max(filters.limit ?? 100, 1), 500);
+      params.push(limit);
+
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            `SELECT * FROM email_logs ${where} ORDER BY created_at DESC LIMIT ?`,
+            params,
+          );
+          return rows.map(toEmailLog);
+        },
+        async () => [],
+      );
     },
   },
 
@@ -626,6 +1308,195 @@ export const db = {
         scannedAt: r["scanned_at"] as Date,
         universe: String(r["universe"]),
       }));
+    },
+  },
+
+  /**
+   * Support Ticket Center. Schema lives in lib/db/support_center.sql,
+   * applied by hand like every other schema change in this project. Only the
+   * entry points a route can reach *before* confirming a ticket exists
+   * (create/list/search/counts) degrade gracefully — once a ticket lookup
+   * has succeeded the tables are known to exist, so replies/notes/status
+   * updates don't re-check.
+   */
+  supportTickets: {
+    async insert(t: {
+      userId: number;
+      category: SupportCategory;
+      subject: string;
+      description: string;
+      priority: SupportPriority;
+    }): Promise<SupportTicketRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const res = await execute(
+            `INSERT INTO support_tickets (user_id, category, subject, description, priority)
+             VALUES (?, ?, ?, ?, ?)`,
+            [t.userId, t.category, t.subject, t.description, t.priority],
+          );
+          // Derived from the row's own id, so it's unique with no extra
+          // round-trip or counter table — ticket_number is display-only.
+          const ticketNumber = `MP-${new Date().getFullYear()}-${String(res.insertId).padStart(6, "0")}`;
+          await execute("UPDATE support_tickets SET ticket_number = ? WHERE id = ?", [ticketNumber, res.insertId]);
+          const rows = await query("SELECT * FROM support_tickets WHERE id = ?", [res.insertId]);
+          return toSupportTicket(rows[0]!);
+        },
+        async () => null,
+      );
+    },
+    async findById(id: number): Promise<SupportTicketRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM support_tickets WHERE id = ? LIMIT 1", [id]);
+          return rows[0] ? toSupportTicket(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    async findByUser(userId: number, status?: SupportStatus): Promise<SupportTicketRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = status
+            ? await query(
+                "SELECT * FROM support_tickets WHERE user_id = ? AND status = ? ORDER BY created_at DESC",
+                [userId, status],
+              )
+            : await query("SELECT * FROM support_tickets WHERE user_id = ? ORDER BY created_at DESC", [userId]);
+          return rows.map(toSupportTicket);
+        },
+        async () => [],
+      );
+    },
+    async search(filters: {
+      status?: SupportStatus;
+      category?: SupportCategory;
+      priority?: SupportPriority;
+      assignedAdminId?: number;
+      q?: string;
+      limit?: number;
+    }): Promise<SupportTicketRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const clauses: string[] = [];
+          const params: SqlParam[] = [];
+          if (filters.status) {
+            clauses.push("status = ?");
+            params.push(filters.status);
+          }
+          if (filters.category) {
+            clauses.push("category = ?");
+            params.push(filters.category);
+          }
+          if (filters.priority) {
+            clauses.push("priority = ?");
+            params.push(filters.priority);
+          }
+          if (filters.assignedAdminId) {
+            clauses.push("assigned_admin_id = ?");
+            params.push(filters.assignedAdminId);
+          }
+          if (filters.q) {
+            clauses.push("(subject LIKE ? OR ticket_number LIKE ?)");
+            params.push(`%${filters.q}%`, `%${filters.q}%`);
+          }
+          const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+          const limit = Math.min(Math.max(filters.limit ?? 100, 1), 500);
+          params.push(limit);
+          const rows = await query(
+            `SELECT * FROM support_tickets ${where} ORDER BY created_at DESC LIMIT ?`,
+            params,
+          );
+          return rows.map(toSupportTicket);
+        },
+        async () => [],
+      );
+    },
+    async counts(): Promise<{
+      open: number;
+      waitingAdmin: number;
+      waitingUser: number;
+      resolvedToday: number;
+      total: number;
+    }> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT status, COUNT(*) as c FROM support_tickets GROUP BY status");
+          const byStatus: Record<string, number> = {};
+          for (const r of rows) byStatus[String(r["status"])] = Number(r["c"]);
+          const resolvedTodayRows = await query(
+            "SELECT COUNT(*) as c FROM support_tickets WHERE status = 'resolved' AND DATE(resolved_at) = CURDATE()",
+          );
+          return {
+            open: byStatus["open"] ?? 0,
+            waitingAdmin: byStatus["waiting_admin"] ?? 0,
+            waitingUser: byStatus["waiting_user"] ?? 0,
+            resolvedToday: Number(resolvedTodayRows[0]?.["c"] ?? 0),
+            total: Object.values(byStatus).reduce((a, b) => a + b, 0),
+          };
+        },
+        async () => ({ open: 0, waitingAdmin: 0, waitingUser: 0, resolvedToday: 0, total: 0 }),
+      );
+    },
+    async updateStatus(id: number, status: SupportStatus): Promise<void> {
+      const extra =
+        status === "resolved" ? ", resolved_at = NOW()" : status === "closed" ? ", closed_at = NOW()" : "";
+      await execute(`UPDATE support_tickets SET status = ?${extra} WHERE id = ?`, [status, id]);
+    },
+    async updatePriority(id: number, priority: SupportPriority): Promise<void> {
+      await execute("UPDATE support_tickets SET priority = ? WHERE id = ?", [priority, id]);
+    },
+    async assign(id: number, adminId: number | null): Promise<void> {
+      await execute("UPDATE support_tickets SET assigned_admin_id = ? WHERE id = ?", [adminId, id]);
+    },
+  },
+
+  supportMessages: {
+    async insert(m: {
+      ticketId: number;
+      authorUserId: number;
+      isAdminReply: boolean;
+      body: string;
+    }): Promise<SupportMessageRow> {
+      const res = await execute(
+        "INSERT INTO support_messages (ticket_id, author_user_id, is_admin_reply, body) VALUES (?, ?, ?, ?)",
+        [m.ticketId, m.authorUserId, m.isAdminReply, m.body],
+      );
+      const rows = await query("SELECT * FROM support_messages WHERE id = ?", [res.insertId]);
+      return toSupportMessage(rows[0]!);
+    },
+    async findByTicket(ticketId: number): Promise<SupportMessageRow[]> {
+      const rows = await query(
+        "SELECT * FROM support_messages WHERE ticket_id = ? ORDER BY created_at ASC",
+        [ticketId],
+      );
+      return rows.map(toSupportMessage);
+    },
+  },
+
+  supportInternalNotes: {
+    async insert(n: { ticketId: number; adminUserId: number; body: string }): Promise<SupportInternalNoteRow> {
+      const res = await execute(
+        "INSERT INTO support_internal_notes (ticket_id, admin_user_id, body) VALUES (?, ?, ?)",
+        [n.ticketId, n.adminUserId, n.body],
+      );
+      const rows = await query("SELECT * FROM support_internal_notes WHERE id = ?", [res.insertId]);
+      return toSupportInternalNote(rows[0]!);
+    },
+    async findByTicket(ticketId: number): Promise<SupportInternalNoteRow[]> {
+      const rows = await query(
+        "SELECT * FROM support_internal_notes WHERE ticket_id = ? ORDER BY created_at ASC",
+        [ticketId],
+      );
+      return rows.map(toSupportInternalNote);
+    },
+  },
+
+  supportAssignments: {
+    async insert(a: { ticketId: number; adminUserId: number; assignedBy: number }): Promise<void> {
+      await execute(
+        "INSERT INTO support_assignments (ticket_id, admin_user_id, assigned_by) VALUES (?, ?, ?)",
+        [a.ticketId, a.adminUserId, a.assignedBy],
+      );
     },
   },
 };

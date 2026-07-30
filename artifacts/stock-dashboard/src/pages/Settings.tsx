@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetUpstoxSettings,
   useSaveUpstoxSettings,
@@ -10,9 +10,9 @@ import {
   Settings2, Link2, Unlink, CheckCircle2, AlertCircle, ExternalLink,
   Eye, EyeOff, Zap, Clock, Wifi, WifiOff, RefreshCw, TriangleAlert,
   User, Crown, Check, Lock, Sparkles, Mail, CalendarDays,
-  Save, KeyRound, Pencil, X, Loader2,
+  Save, KeyRound, Pencil, X, Loader2, Phone, Bell, ShieldCheck, LogOut, CreditCard,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, api } from "@/contexts/AuthContext";
 import { UpgradeGate } from "@/components/UpgradeGate";
 import {
   PLANS, PLAN_ORDER, FEATURE_ROWS, hasAccess,
@@ -22,6 +22,8 @@ import {
 function cn(...c: (string | false | undefined | null)[]) {
   return c.filter(Boolean).join(" ");
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return "—";
@@ -305,6 +307,115 @@ function ConnectForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+// ── Email verification status + change email ────────────────────────────────
+function EmailVerificationCard() {
+  const { user, resendVerification, changeEmail } = useAuth();
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+  const [changing, setChanging] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [changeError, setChangeError] = useState("");
+  const [changeMsg, setChangeMsg] = useState("");
+  const [changeSaving, setChangeSaving] = useState(false);
+
+  if (!user) return null;
+
+  const resend = async () => {
+    setResending(true); setResendMsg("");
+    const res = await resendVerification();
+    setResending(false);
+    setResendMsg(res.message ?? res.error ?? "");
+  };
+
+  const submitChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangeError(""); setChangeMsg("");
+    if (!EMAIL_RE.test(newEmail)) { setChangeError("Enter a valid email address"); return; }
+    if (!currentPassword) { setChangeError("Enter your current password"); return; }
+    setChangeSaving(true);
+    const res = await changeEmail(newEmail.trim(), currentPassword);
+    setChangeSaving(false);
+    if (!res.success) { setChangeError(res.error ?? "Failed to change email"); return; }
+    setChangeMsg(res.message ?? "Check your new email to confirm this change.");
+    setNewEmail(""); setCurrentPassword(""); setChanging(false);
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
+        <Mail className="w-4 h-4 text-primary" /> Email Verification
+      </h2>
+
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          {user.emailVerified ? (
+            <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold">
+              <AlertCircle className="w-3.5 h-3.5" /> Not verified
+            </span>
+          )}
+          <span className="text-sm text-muted-foreground">{user.email}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {!user.emailVerified && (
+            <button onClick={resend} disabled={resending}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 border border-primary/30 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-50">
+              {resending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              {resending ? "Sending…" : "Resend verification email"}
+            </button>
+          )}
+          {!changing && (
+            <button onClick={() => { setChanging(true); setChangeError(""); setChangeMsg(""); }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 transition-colors">
+              <Pencil className="w-3 h-3" /> Change email
+            </button>
+          )}
+        </div>
+      </div>
+
+      {resendMsg && <p className="mt-3 text-xs text-muted-foreground">{resendMsg}</p>}
+
+      {changing && (
+        <form onSubmit={submitChangeEmail} className="mt-4 pt-4 border-t border-border space-y-3 max-w-md">
+          <div>
+            <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">New email address</label>
+            <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Current password</label>
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Confirm with your current password" autoComplete="current-password"
+              className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          {changeError && (
+            <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {changeError}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <button type="submit" disabled={changeSaving}
+              className="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50">
+              {changeSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Send confirmation
+            </button>
+            <button type="button" onClick={() => { setChanging(false); setChangeError(""); }}
+              className="inline-flex items-center gap-1.5 border border-border text-muted-foreground hover:text-foreground text-xs font-bold px-3 py-1.5 rounded-lg transition-all">
+              <X className="w-3.5 h-3.5" /> Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {changeMsg && !changing && <p className="mt-3 text-xs text-emerald-400">{changeMsg}</p>}
+    </div>
+  );
+}
+
 // ── Profile card (editable name) ────────────────────────────────────────────
 function ProfileCard() {
   const { user, updateProfile } = useAuth();
@@ -395,6 +506,282 @@ function ProfileCard() {
           <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5"><Clock className="w-3 h-3" /> Last login</p>
           <p className="text-sm font-semibold text-foreground">{fmtDate(user.lastLogin)}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Profile details (phone / bio / timezone / avatar) ───────────────────────
+const TIMEZONES = [
+  "Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Asia/Tokyo", "Asia/Shanghai",
+  "Europe/London", "Europe/Berlin", "America/New_York", "America/Chicago",
+  "America/Los_Angeles", "Australia/Sydney", "UTC",
+];
+
+interface ProfileDetails { avatarUrl: string | null; phone: string | null; bio: string | null; timezone: string; }
+
+function ProfileDetailsCard() {
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ avatarUrl: "", phone: "", bio: "", timezone: "Asia/Kolkata" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const res = await api<ProfileDetails>("/auth/profile-details");
+      if (res.ok) {
+        const d = res.data as ProfileDetails;
+        setForm({ avatarUrl: d.avatarUrl ?? "", phone: d.phone ?? "", bio: d.bio ?? "", timezone: d.timezone });
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true); setError("");
+    const res = await api<ProfileDetails>("/auth/profile-details", {
+      method: "PATCH",
+      body: JSON.stringify({
+        avatarUrl: form.avatarUrl.trim() || null,
+        phone: form.phone.trim() || null,
+        bio: form.bio.trim() || null,
+        timezone: form.timezone,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) { setError((res.data as { error: string }).error); return; }
+    setEditing(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const inputCls = "w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50";
+  const labelCls = "text-xs text-muted-foreground font-semibold mb-1.5 block";
+
+  if (loading) return <div className="h-40 bg-muted/30 animate-pulse rounded-xl" />;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+          <Phone className="w-4 h-4 text-primary" /> Profile Details
+        </h2>
+        {!editing && (
+          <button onClick={() => setEditing(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 border border-primary/30 rounded-lg px-2.5 py-1 transition-colors">
+            <Pencil className="w-3 h-3" /> Edit
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-3 max-w-md">
+          <div>
+            <label className={labelCls}>Phone (optional)</label>
+            <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="+91 98765 43210" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Timezone</label>
+            <select value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))} className={inputCls}>
+              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Bio (optional)</label>
+            <textarea value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={3}
+              placeholder="A little about you" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Avatar URL (optional)</label>
+            <input value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))}
+              placeholder="https://…" className={inputCls} />
+          </div>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <div className="flex items-center gap-2">
+            <button onClick={save} disabled={saving}
+              className="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
+            </button>
+            <button onClick={() => setEditing(false)} disabled={saving}
+              className="inline-flex items-center gap-1.5 border border-border text-muted-foreground hover:text-foreground text-xs font-bold px-3 py-1.5 rounded-lg transition-all">
+              <X className="w-3.5 h-3.5" /> Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bg-background/50 border border-border rounded-lg px-4 py-3">
+            <p className="text-xs text-muted-foreground mb-1">Phone</p>
+            <p className="text-sm font-semibold text-foreground">{form.phone || "Not set"}</p>
+          </div>
+          <div className="bg-background/50 border border-border rounded-lg px-4 py-3">
+            <p className="text-xs text-muted-foreground mb-1">Timezone</p>
+            <p className="text-sm font-semibold text-foreground">{form.timezone}</p>
+          </div>
+          <div className="bg-background/50 border border-border rounded-lg px-4 py-3 sm:col-span-2">
+            <p className="text-xs text-muted-foreground mb-1">Bio</p>
+            <p className="text-sm text-foreground">{form.bio || "No bio yet"}</p>
+          </div>
+        </div>
+      )}
+      {saved && <p className="text-xs text-emerald-400 mt-3 flex items-center gap-1"><Check className="w-3 h-3" /> Saved</p>}
+    </div>
+  );
+}
+
+// ── Notification preferences ─────────────────────────────────────────────────
+interface NotificationPrefs { marketAlerts: boolean; productUpdates: boolean; supportUpdates: boolean; billingUpdates: boolean; }
+
+function NotificationPreferencesCard() {
+  const [loading, setLoading] = useState(true);
+  const [prefs, setPrefs] = useState<NotificationPrefs>({
+    marketAlerts: true, productUpdates: true, supportUpdates: true, billingUpdates: true,
+  });
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const res = await api<NotificationPrefs>("/auth/notification-preferences");
+      if (res.ok) setPrefs(res.data as NotificationPrefs);
+      setLoading(false);
+    })();
+  }, []);
+
+  const toggle = async (key: keyof NotificationPrefs) => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    await api("/auth/notification-preferences", { method: "PATCH", body: JSON.stringify(next) });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  if (loading) return <div className="h-40 bg-muted/30 animate-pulse rounded-xl" />;
+
+  const ROWS: { key: keyof NotificationPrefs; label: string; desc: string }[] = [
+    { key: "marketAlerts", label: "Market Alerts", desc: "Notable price moves and market events" },
+    { key: "productUpdates", label: "Product Updates", desc: "New features and improvements" },
+    { key: "supportUpdates", label: "Support Updates", desc: "Non-critical updates about your tickets" },
+    { key: "billingUpdates", label: "Billing Updates", desc: "Subscription and invoice reminders (coming soon)" },
+  ];
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
+        <Bell className="w-4 h-4 text-primary" /> Notification Preferences
+      </h2>
+      <p className="text-xs text-muted-foreground mb-4">
+        Security and account emails (verification, password resets, ticket replies) are always sent regardless of these settings.
+      </p>
+      <div className="space-y-3">
+        {ROWS.map((r) => (
+          <label key={r.key} className="flex items-center justify-between gap-3 cursor-pointer">
+            <div>
+              <p className="text-sm font-semibold text-foreground">{r.label}</p>
+              <p className="text-xs text-muted-foreground">{r.desc}</p>
+            </div>
+            <input type="checkbox" checked={prefs[r.key]} onChange={() => void toggle(r.key)}
+              className="w-5 h-5 rounded border-border text-primary focus:ring-primary/50 shrink-0" />
+          </label>
+        ))}
+      </div>
+      {saved && <p className="text-xs text-emerald-400 mt-3">Saved</p>}
+    </div>
+  );
+}
+
+// ── Sessions (login history + sign out everywhere) ──────────────────────────
+interface LoginHistoryEntry { id: number; ipAddress: string | null; userAgent: string | null; status: "success" | "failed"; createdAt: string; }
+
+function SessionsCard() {
+  const [history, setHistory] = useState<LoginHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const res = await api<{ history: LoginHistoryEntry[] }>("/auth/login-history");
+      if (res.ok) setHistory((res.data as { history: LoginHistoryEntry[] }).history);
+      setLoading(false);
+    })();
+  }, []);
+
+  const signOutEverywhere = async () => {
+    setSigningOut(true); setMsg("");
+    const res = await api<{ message: string }>("/auth/logout-all", { method: "POST" });
+    setSigningOut(false);
+    if (res.ok) setMsg((res.data as { message: string }).message);
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-primary" /> Sessions
+        </h2>
+        <button onClick={() => void signOutEverywhere()} disabled={signingOut}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-400 border border-red-500/30 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-50">
+          {signingOut ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />} Sign out of other devices
+        </button>
+      </div>
+      {msg && <p className="text-xs text-emerald-400 mb-3">{msg}</p>}
+      {loading ? (
+        <div className="h-24 bg-muted/30 animate-pulse rounded-lg" />
+      ) : history.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No login history yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {history.slice(0, 8).map((h) => (
+            <div key={h.id} className="flex items-center justify-between text-xs py-1.5 border-b border-border/50 last:border-0 gap-3">
+              <span className="text-muted-foreground truncate">{h.ipAddress ?? "Unknown IP"}</span>
+              <span className={h.status === "success" ? "text-emerald-500 shrink-0" : "text-red-500 shrink-0"}>
+                {h.status === "success" ? "Signed in" : "Failed attempt"}
+              </span>
+              <span className="text-muted-foreground shrink-0">{fmtDate(h.createdAt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Billing (Coming Soon placeholder) ────────────────────────────────────────
+function BillingDetailsCard() {
+  const rows = [
+    { label: "Billing Cycle", value: "—" },
+    { label: "Next Billing Date", value: "—" },
+    { label: "Payment Method", value: "Not connected" },
+  ];
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
+        <CreditCard className="w-4 h-4 text-primary" /> Billing Details
+      </h2>
+      <p className="text-xs text-muted-foreground mb-4">
+        Payment processing is not yet live — this area will activate once billing is available.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        {rows.map((r) => (
+          <div key={r.label} className="bg-background/50 border border-border rounded-lg px-4 py-3">
+            <p className="text-xs text-muted-foreground mb-1">{r.label}</p>
+            <p className="text-sm font-semibold text-foreground">{r.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="bg-background/50 border border-border rounded-lg p-4 mb-4">
+        <p className="text-xs font-semibold text-foreground mb-1">Payment History</p>
+        <p className="text-xs text-muted-foreground">No payment history yet.</p>
+      </div>
+      <div className="flex gap-2">
+        <button disabled className="flex-1 text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-not-allowed">
+          Download Invoice
+        </button>
+        <button disabled className="flex-1 text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-not-allowed">
+          Cancel Subscription
+        </button>
       </div>
     </div>
   );
@@ -656,8 +1043,13 @@ export function Settings() {
       </h1>
 
       <ProfileCard />
+      <ProfileDetailsCard />
+      <EmailVerificationCard />
+      <NotificationPreferencesCard />
       <ChangePassword />
+      <SessionsCard />
       <PlanSection currentPlan={plan} />
+      <BillingDetailsCard />
       <BenefitsTable currentPlan={plan} />
     </div>
   );

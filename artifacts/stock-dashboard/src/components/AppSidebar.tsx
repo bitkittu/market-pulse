@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Briefcase, Newspaper, BarChart2, Link2, ChevronRight, Lock,
-  TrendingUp, Store,
+  TrendingUp, Store, LifeBuoy,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupLabel, SidebarGroupContent,
@@ -21,6 +21,7 @@ const GENERAL_ITEMS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] 
   { id: "portfolio",   label: "Portfolio",  icon: Briefcase },
   { id: "performance", label: "Performance", icon: BarChart2 },
   { id: "api",         label: "API",        icon: Link2 },
+  { id: "support",     label: "Support",    icon: LifeBuoy },
 ];
 
 /**

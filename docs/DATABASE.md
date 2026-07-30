@@ -353,7 +353,7 @@ const existingAdmin = await db.users.findByRoleId(adminRole.id);
 if (existingAdmin) return;                  // idempotent
 await db.users.insert({
   name: "Admin",
-  email: process.env.ADMIN_EMAIL ?? "team@trading.brandmars.com",
+  email: process.env.ADMIN_EMAIL ?? "team@marketpulse.learninhome.com",
   passwordHash: await hashPassword(process.env.ADMIN_PASSWORD ?? "Admin@123"),
   roleId: adminRole.id,
   plan: "premium",                            // first admin gets premium

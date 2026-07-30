@@ -13,6 +13,8 @@ export function Register({ onLogin, onBack }: Props) {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
@@ -32,8 +34,9 @@ export function Register({ onLogin, onBack }: Props) {
     if (!form.name || !form.email || !form.password) { setError("Please fill in all fields."); return; }
     if (form.password !== form.confirm) { setError("Passwords do not match."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (!acceptTerms) { setError("Please accept the Terms of Service and Privacy Policy."); return; }
     setError(""); setLoading(true);
-    const res = await register(form.name.trim(), form.email.trim(), form.password);
+    const res = await register(form.name.trim(), form.email.trim(), form.password, acceptTerms, marketingConsent);
     setLoading(false);
     if (!res.success) setError(res.error ?? "Registration failed.");
   };
@@ -132,6 +135,22 @@ export function Register({ onLogin, onBack }: Props) {
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-colors" />
               </div>
 
+              <div className="space-y-2.5 pt-1">
+                <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-pointer">
+                  <input type="checkbox" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/50 focus:ring-offset-0 shrink-0" />
+                  <span>
+                    I agree to the <a href="#terms" className="text-blue-400 hover:text-blue-300 underline">Terms of Service</a> and{" "}
+                    <a href="#privacy" className="text-blue-400 hover:text-blue-300 underline">Privacy Policy</a>. <span className="text-slate-500">(required)</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-pointer">
+                  <input type="checkbox" checked={marketingConsent} onChange={e => setMarketingConsent(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/50 focus:ring-offset-0 shrink-0" />
+                  <span>Send me product updates and market insights by email. <span className="text-slate-500">(optional)</span></span>
+                </label>
+              </div>
+
               {error && (
                 <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>
               )}
@@ -142,7 +161,7 @@ export function Register({ onLogin, onBack }: Props) {
               </button>
 
               <p className="text-xs text-slate-500 text-center">
-                By creating an account you agree to our Terms of Service and Privacy Policy.
+                Security and account emails (verification, password resets, support updates) are always sent, regardless of the choice above.
               </p>
             </form>
 

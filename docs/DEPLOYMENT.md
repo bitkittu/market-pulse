@@ -100,7 +100,7 @@ not in `.env`.** `.env` is git-ignored.
 | `DB_PASSWORD`       | yes (if no URL)   | —                            | `connectDb()`                           |
 | `DB_NAME`           | yes (if no URL)   | —                            | `connectDb()`                           |
 | `JWT_SECRET`        | **yes**           | — (server refuses to start) | `signJwt()`, `verifyJwt()`              |
-| `ADMIN_EMAIL`       | yes for seed      | `team@trading.brandmars.com` | `seedAuthDefaults()`                    |
+| `ADMIN_EMAIL`       | yes for seed      | `team@marketpulse.learninhome.com` | `seedAuthDefaults()`                    |
 | `ADMIN_PASSWORD`    | yes for seed      | `Admin@123`                  | `seedAuthDefaults()`                    |
 | `APP_BASE_URL`      | yes in prod       | `http://localhost:3001`      | reset password email link               |
 | `SMTP_HOST`         | for email         | —                            | `lib/email.ts`                          |
