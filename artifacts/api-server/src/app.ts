@@ -55,9 +55,23 @@ if (existsSync(path.join(frontendDist, "index.html"))) {
   app.use(express.static(frontendDist, { index: false }));
 
   // SPA fallback: any non-API GET returns index.html for client-side routing.
+  // Uses the `root` option rather than building an absolute path manually —
+  // res.sendFile() resolves paths through a different code path than
+  // express.static internally, and `root` is the documented-safe way to keep
+  // the two in agreement. A failure here is logged with the real error
+  // (path/code) instead of just bubbling up as a bare 404, since that's what
+  // made a prior instance of this exact failure hard to diagnose remotely.
   app.use((req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) return next();
-    res.sendFile(path.join(frontendDist, "index.html"));
+    res.sendFile("index.html", { root: frontendDist }, (err) => {
+      if (err) {
+        logger.error(
+          { err: { message: err.message, code: (err as NodeJS.ErrnoException).code }, frontendDist, path: req.path },
+          "SPA fallback failed to send index.html",
+        );
+        next(err);
+      }
+    });
   });
 } else {
   logger.warn({ frontendDist }, "No frontend build found; serving API only");
