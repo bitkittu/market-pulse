@@ -6,27 +6,76 @@ import { resolveProvider, resolveWebhookSecret, type WebhookEvent } from "../lib
 
 const router: IRouter = Router();
 
-const PLAN_IDS: PlanId[] = ["pro", "premium"];
 const BILLING_CYCLES: BillingCycle[] = ["monthly", "annual"];
+/** `users.plan` (UserRow.plan) is a fixed 3-value legacy enum — never touch it with an arbitrary plan key. */
+const LEGACY_USER_PLAN_VALUES = new Set(["free", "pro", "premium"]);
 
 function amountFor(plan: { amountInrPaise: number; amountUsdCents: number }, currency: Currency): number {
   return currency === "INR" ? plan.amountInrPaise : plan.amountUsdCents;
 }
 
+/**
+ * `users.plan` stays in sync only for the three legacy values it can
+ * actually hold — a custom admin-created plan is tracked exclusively via the
+ * `subscriptions` row, which `resolveEffectivePlanKey` (lib/features/resolve.ts)
+ * already prefers over `users.plan` whenever one exists. Updating the enum
+ * column with an out-of-range value would throw a DB error, not silently
+ * truncate, so this guard is required, not just tidy.
+ */
+async function syncLegacyUserPlan(userId: number, planKey: string): Promise<void> {
+  if (!LEGACY_USER_PLAN_VALUES.has(planKey)) return;
+  await db.users.updatePlan(userId, planKey as "free" | "pro" | "premium");
+}
+
 // ── Plan catalog (public) ────────────────────────────────────────────────────
 
+// Full plan catalog for public display (pricing page, Settings→Your Plan) —
+// joins `plans` (identity/display), `subscription_plans` (pricing per
+// billing cycle) and `plan_features`+`features` (what's included), so both
+// pages read one source instead of each hardcoding plan copy.
 router.get("/payments/plans", async (_req, res) => {
   try {
-    const plans = await db.subscriptionPlans.all();
+    const [plans, pricingRows, planFeatureRows, features] = await Promise.all([
+      db.plans.all(),
+      db.subscriptionPlans.all(),
+      db.planFeatures.all(),
+      db.features.all(),
+    ]);
+    const featureByKey = new Map(features.map((f) => [f.featureKey, f]));
+
     res.json({
       plans: plans
-        .filter((p) => p.active)
+        .filter((p) => p.status === "active")
         .map((p) => ({
-          planId: p.planId,
-          billingCycle: p.billingCycle,
-          amountInrPaise: p.amountInrPaise,
-          amountUsdCents: p.amountUsdCents,
-        })),
+          planKey: p.planKey,
+          name: p.name,
+          description: p.description,
+          displayOrder: p.displayOrder,
+          isPopular: p.isPopular,
+          isRecommended: p.isRecommended,
+          color: p.color,
+          icon: p.icon,
+          supportType: p.supportType,
+          trialDays: p.trialDays,
+          pricing: pricingRows
+            .filter((pr) => pr.planId === p.planKey && pr.active)
+            .map((pr) => ({
+              billingCycle: pr.billingCycle,
+              amountInrPaise: pr.amountInrPaise,
+              amountUsdCents: pr.amountUsdCents,
+            })),
+          features: planFeatureRows
+            .filter((pf) => pf.planKey === p.planKey && !pf.hideCompletely)
+            .map((pf) => ({
+              featureKey: pf.featureKey,
+              name: featureByKey.get(pf.featureKey)?.name ?? pf.featureKey,
+              enabled: pf.enabled,
+              isUnlimited: pf.isUnlimited,
+              badge: pf.badge,
+              comingSoon: pf.comingSoon,
+            })),
+        }))
+        .sort((a, b) => a.displayOrder - b.displayOrder),
     });
   } catch (err) {
     console.error("[payments] list plans error:", err instanceof Error ? err.message : err);
@@ -40,7 +89,7 @@ router.post("/payments/checkout", requireAuth, async (req, res) => {
   try {
     const { planId, billingCycle, currency } = req.body ?? {};
 
-    if (!PLAN_IDS.includes(planId)) {
+    if (typeof planId !== "string" || !(await db.plans.findByKey(planId))) {
       res.status(400).json({ error: "Invalid plan" });
       return;
     }
@@ -263,7 +312,7 @@ async function applyRazorpayEvent(event: WebhookEvent, baseUrl: string): Promise
         "active",
         typeof periodEnd === "number" ? new Date(periodEnd * 1000) : null,
       );
-      await db.users.updatePlan(sub.userId, sub.planId);
+      await syncLegacyUserPlan(sub.userId, sub.planId);
       const vars = await emailVarsFor(sub.userId, baseUrl);
       if (vars) void sendTemplatedEmail("subscription_activated", vars["user_email"]!, { ...vars, plan_name: sub.planId }, { userId: sub.userId, triggerSource: "razorpay-webhook" });
       break;
@@ -375,7 +424,7 @@ async function applyStripeEvent(event: WebhookEvent, baseUrl: string): Promise<v
         typeof customerId === "string" ? customerId : null,
       );
       await db.subscriptions.updateStatus(sub.id, "active");
-      await db.users.updatePlan(sub.userId, sub.planId);
+      await syncLegacyUserPlan(sub.userId, sub.planId);
       const vars = await emailVarsFor(sub.userId, baseUrl);
       if (vars) void sendTemplatedEmail("subscription_activated", vars["user_email"]!, { ...vars, plan_name: sub.planId }, { userId: sub.userId, triggerSource: "stripe-webhook" });
       break;
@@ -392,7 +441,7 @@ async function applyStripeEvent(event: WebhookEvent, baseUrl: string): Promise<v
       } else {
         await db.subscriptions.updateStatus(sub.id, "active");
       }
-      await db.users.updatePlan(sub.userId, sub.planId);
+      await syncLegacyUserPlan(sub.userId, sub.planId);
 
       const paymentIntent = obj["payment_intent"];
       const invoiceId = obj["id"];

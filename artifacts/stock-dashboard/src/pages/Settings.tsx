@@ -13,11 +13,8 @@ import {
   Save, KeyRound, Pencil, X, Loader2, Phone, Bell, ShieldCheck, LogOut, CreditCard,
 } from "lucide-react";
 import { useAuth, api } from "@/contexts/AuthContext";
+import { useFeatureAccess, useFeatureAccessState } from "@/contexts/FeatureAccessContext";
 import { UpgradeGate } from "@/components/UpgradeGate";
-import {
-  PLANS, PLAN_ORDER, FEATURE_ROWS, hasAccess,
-  type PlanId,
-} from "@/lib/plan";
 import { loadRazorpayCheckout, openRazorpayCheckout } from "@/lib/razorpay";
 
 function cn(...c: (string | false | undefined | null)[]) {
@@ -420,6 +417,8 @@ function EmailVerificationCard() {
 // ── Profile card (editable name) ────────────────────────────────────────────
 function ProfileCard() {
   const { user, updateProfile } = useAuth();
+  const { planKey } = useFeatureAccessState();
+  const { plans } = usePlanCatalog();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name ?? "");
   const [saving, setSaving] = useState(false);
@@ -427,7 +426,9 @@ function ProfileCard() {
   const [saved, setSaved] = useState(false);
 
   if (!user) return null;
-  const plan = PLANS[user.plan];
+  const currentPlan = plans.find((p) => p.planKey === (planKey ?? user.plan));
+  const planBadge = planColorClasses(currentPlan?.color ?? null).badge;
+  const planName = currentPlan?.name ?? user.plan;
 
   const save = async () => {
     if (name.trim().length < 2) { setError("Name must be at least 2 characters"); return; }
@@ -485,8 +486,8 @@ function ProfileCard() {
             <>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-lg font-bold text-foreground truncate">{user.name}</span>
-                <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-bold capitalize", plan.badge)}>
-                  <Crown className="w-3 h-3" /> {plan.name}
+                <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-bold capitalize", planBadge)}>
+                  <Crown className="w-3 h-3" /> {planName}
                 </span>
                 {saved && <span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check className="w-3 h-3" /> Saved</span>}
               </div>
@@ -774,6 +775,42 @@ function formatMoney(amount: number, currency: "INR" | "USD"): string {
   return currency === "INR" ? `₹${value}` : `$${value}`;
 }
 
+// ── Usage ─────────────────────────────────────────────────────────────────
+// Reuses the already-fetched FeatureAccessContext data (GET /me/features
+// includes used/remaining per feature) rather than a second API call — a
+// feature only shows a bar once it actually has a limit configured via the
+// admin Plan Features grid; unlimited/disabled features show nothing here.
+function UsageBarsCard() {
+  const { features } = useFeatureAccessState();
+  const limited = Object.values(features).filter((f) => f.enabled && !f.isUnlimited && f.remaining !== null);
+  if (limited.length === 0) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
+        <Zap className="w-4 h-4 text-primary" /> Usage
+      </h2>
+      <div className="space-y-3">
+        {limited.map((f) => {
+          const limit = f.dailyLimit ?? f.monthlyLimit ?? f.usageLimit ?? 0;
+          const pct = limit > 0 ? Math.min(100, Math.round((f.used / limit) * 100)) : 0;
+          return (
+            <div key={f.featureKey}>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-semibold text-foreground capitalize">{f.featureKey.replace(/_/g, " ")}</span>
+                <span className="text-muted-foreground">{f.used} / {limit}{f.dailyLimit ? " today" : f.monthlyLimit ? " this month" : ""}</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                <div className={cn("h-full rounded-full", pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-primary")} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BillingDetailsCard() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);
@@ -941,36 +978,83 @@ function ChangePassword() {
 }
 
 // ── Upgrade / plan cards ────────────────────────────────────────────────────
-interface PlanCatalogEntry {
-  planId: "pro" | "premium";
+interface PlanFeatureEntry {
+  featureKey: string;
+  name: string;
+  enabled: boolean;
+  isUnlimited: boolean;
+  badge: "none" | "pro" | "premium" | "enterprise";
+  comingSoon: boolean;
+}
+interface PlanPricingEntry {
   billingCycle: "monthly" | "annual";
   amountInrPaise: number;
   amountUsdCents: number;
 }
+export interface PlanCatalogEntry {
+  planKey: string;
+  name: string;
+  description: string | null;
+  displayOrder: number;
+  isPopular: boolean;
+  isRecommended: boolean;
+  color: string | null;
+  icon: string | null;
+  supportType: string | null;
+  trialDays: number;
+  pricing: PlanPricingEntry[];
+  features: PlanFeatureEntry[];
+}
 
-function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
-  const { user } = useAuth();
-  const [catalog, setCatalog] = useState<PlanCatalogEntry[]>([]);
-  const [currency, setCurrency] = useState<"INR" | "USD">("INR");
-  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
-  const [checkingOut, setCheckingOut] = useState<PlanId | null>(null);
-  const [error, setError] = useState("");
+/**
+ * Maps a plan's DB-stored `color` (an admin-picked palette name) to Tailwind
+ * classes. Every class below must appear as a literal string for Tailwind's
+ * JIT scanner to generate it — a template-interpolated class name like
+ * `text-${color}-400` would not be detected and would silently render
+ * unstyled, so the palette is a fixed, curated set rather than passing an
+ * arbitrary admin-entered string straight into a class name.
+ */
+const PLAN_COLOR_PALETTE: Record<string, { accent: string; badge: string; card: string }> = {
+  slate: { accent: "text-slate-300", badge: "bg-slate-500/15 text-slate-300 border-slate-500/30", card: "border-slate-500/30" },
+  violet: { accent: "text-violet-400", badge: "bg-violet-500/15 text-violet-300 border-violet-500/30", card: "border-violet-500/40" },
+  amber: { accent: "text-amber-400", badge: "bg-amber-500/15 text-amber-300 border-amber-500/30", card: "border-amber-500/40" },
+  emerald: { accent: "text-emerald-400", badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", card: "border-emerald-500/40" },
+  blue: { accent: "text-blue-400", badge: "bg-blue-500/15 text-blue-300 border-blue-500/30", card: "border-blue-500/40" },
+  rose: { accent: "text-rose-400", badge: "bg-rose-500/15 text-rose-300 border-rose-500/30", card: "border-rose-500/40" },
+};
+function planColorClasses(color: string | null): { accent: string; badge: string; card: string } {
+  return PLAN_COLOR_PALETTE[color ?? "slate"] ?? PLAN_COLOR_PALETTE["slate"]!;
+}
 
+/** Shared by PlanSection and BenefitsTable — both render the same live catalog. */
+function usePlanCatalog(): { plans: PlanCatalogEntry[]; loading: boolean } {
+  const [plans, setPlans] = useState<PlanCatalogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     void (async () => {
       const res = await api<{ plans: PlanCatalogEntry[] }>("/payments/plans");
-      if (res.ok) setCatalog((res.data as { plans: PlanCatalogEntry[] }).plans);
+      if (res.ok) setPlans((res.data as { plans: PlanCatalogEntry[] }).plans);
+      setLoading(false);
     })();
   }, []);
+  return { plans, loading };
+}
 
-  const priceFor = (pid: PlanId): { amount: number; available: boolean } => {
-    if (pid === "free") return { amount: 0, available: true };
-    const entry = catalog.find((c) => c.planId === pid && c.billingCycle === cycle);
+function PlanSection({ currentPlan }: { currentPlan: string }) {
+  const { user } = useAuth();
+  const { plans } = usePlanCatalog();
+  const [currency, setCurrency] = useState<"INR" | "USD">("INR");
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const priceFor = (plan: PlanCatalogEntry): { amount: number; available: boolean } => {
+    const entry = plan.pricing.find((p) => p.billingCycle === cycle);
     const amount = entry ? (currency === "INR" ? entry.amountInrPaise : entry.amountUsdCents) : 0;
     return { amount, available: amount > 0 };
   };
 
-  const startCheckout = async (pid: "pro" | "premium") => {
+  const startCheckout = async (pid: string) => {
     setError("");
     setCheckingOut(pid);
     try {
@@ -989,11 +1073,12 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
       }
       if (data.provider === "razorpay" && data.razorpayKeyId) {
         await loadRazorpayCheckout();
+        const planName = plans.find((p) => p.planKey === pid)?.name ?? pid;
         openRazorpayCheckout({
           key: data.razorpayKeyId,
           subscription_id: data.subscriptionId,
           name: "MarketPulse AI",
-          description: `${PLANS[pid].name} — ${cycle === "monthly" ? "Monthly" : "Annual"}`,
+          description: `${planName} — ${cycle === "monthly" ? "Monthly" : "Annual"}`,
           prefill: { name: user?.name, email: user?.email },
           handler: () => { window.location.href = "/settings?checkout=success"; },
         });
@@ -1031,7 +1116,7 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
         </div>
       </div>
       <p className="text-xs text-muted-foreground mb-5">
-        You're on the <span className="font-semibold capitalize text-foreground">{PLANS[currentPlan].name}</span> plan. Upgrade to unlock predictions, live levels and broker integration.
+        You're on the <span className="font-semibold capitalize text-foreground">{plans.find((p) => p.planKey === currentPlan)?.name ?? currentPlan}</span> plan. Upgrade to unlock predictions, live levels and broker integration.
       </p>
 
       {error && (
@@ -1041,46 +1126,47 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {PLAN_ORDER.map((pid) => {
-          const p = PLANS[pid];
-          const isCurrent = pid === currentPlan;
-          const included = FEATURE_ROWS.filter((f) => hasAccess(pid, f.feature));
-          const { amount, available } = priceFor(pid);
-          const priceLabel = pid === "free" ? p.price : available ? formatMoney(amount, currency) : "Coming soon";
+        {plans.map((p) => {
+          const isCurrent = p.planKey === currentPlan;
+          const isFree = p.pricing.length === 0;
+          const included = p.features.filter((f) => f.enabled);
+          const colors = planColorClasses(p.color);
+          const { amount, available } = priceFor(p);
+          const priceLabel = isFree ? "₹0" : available ? formatMoney(amount, currency) : "Coming soon";
           return (
-            <div key={pid} className={cn("relative rounded-xl border bg-background/40 p-4 flex flex-col", isCurrent ? "border-primary/50 ring-1 ring-primary/30" : p.card)}>
+            <div key={p.planKey} className={cn("relative rounded-xl border bg-background/40 p-4 flex flex-col", isCurrent ? "border-primary/50 ring-1 ring-primary/30" : colors.card)}>
               {isCurrent && (
                 <span className="absolute -top-2.5 left-4 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary text-white">
                   Current
                 </span>
               )}
+              {!isCurrent && p.isPopular && (
+                <span className="absolute -top-2.5 right-4 text-[10px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-primary/80 text-white">
+                  Popular
+                </span>
+              )}
               <div className="flex items-baseline justify-between mb-1">
-                <span className={cn("text-base font-black", p.accent)}>{p.name}</span>
+                <span className={cn("text-base font-black", colors.accent)}>{p.name}</span>
                 <div className="text-right">
                   <span className="text-sm font-bold text-foreground">{priceLabel}</span>
-                  {pid !== "free" && available && <span className="text-[10px] text-muted-foreground ml-1">/{cycle === "monthly" ? "mo" : "yr"}</span>}
+                  {!isFree && available && <span className="text-[10px] text-muted-foreground ml-1">/{cycle === "monthly" ? "mo" : "yr"}</span>}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mb-3">{p.tagline}</p>
+              <p className="text-xs text-muted-foreground mb-3">{p.description}</p>
 
               <ul className="space-y-1.5 mb-4 flex-1">
                 {included.map((f) => (
-                  <li key={f.feature} className="flex items-start gap-1.5 text-xs text-foreground">
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /> {f.label}
+                  <li key={f.featureKey} className="flex items-start gap-1.5 text-xs text-foreground">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" /> {f.name}
                   </li>
                 ))}
-                {pid !== "free" && (
-                  <li className="flex items-start gap-1.5 text-xs text-muted-foreground italic">
-                    <Sparkles className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" /> More benefits announced soon
-                  </li>
-                )}
               </ul>
 
               {isCurrent ? (
                 <button disabled className="w-full text-xs font-bold py-2 rounded-lg border border-border bg-muted/30 text-muted-foreground cursor-default">
                   Your current plan
                 </button>
-              ) : pid === "free" ? (
+              ) : isFree ? (
                 <button disabled className="w-full text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-default">
                   Included
                 </button>
@@ -1089,10 +1175,10 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
                   <Sparkles className="w-3.5 h-3.5" /> Upgrade — coming soon
                 </button>
               ) : (
-                <button onClick={() => void startCheckout(pid)} disabled={checkingOut === pid}
+                <button onClick={() => void startCheckout(p.planKey)} disabled={checkingOut === p.planKey}
                   className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50">
-                  {checkingOut === pid ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {checkingOut === pid ? "Starting…" : "Upgrade"}
+                  {checkingOut === p.planKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {checkingOut === p.planKey ? "Starting…" : "Upgrade"}
                 </button>
               )}
             </div>
@@ -1104,7 +1190,14 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
 }
 
 // ── Plan benefits comparison ────────────────────────────────────────────────
-function BenefitsTable({ currentPlan }: { currentPlan: PlanId }) {
+function BenefitsTable({ currentPlan }: { currentPlan: string }) {
+  const { plans } = usePlanCatalog();
+  // Row list = the union of every feature that appears on any plan, in the
+  // order the highest-tier plan lists them — a plan created later with a
+  // feature no other plan has still shows up as a row.
+  const featureRows = new Map<string, string>();
+  for (const p of plans) for (const f of p.features) if (!featureRows.has(f.featureKey)) featureRows.set(f.featureKey, f.name);
+
   return (
     <div className="bg-card border border-border rounded-xl p-6">
       <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
@@ -1115,29 +1208,31 @@ function BenefitsTable({ currentPlan }: { currentPlan: PlanId }) {
           <thead>
             <tr className="border-b border-border">
               <th className="text-left font-semibold text-muted-foreground py-2 pr-4">Feature</th>
-              {PLAN_ORDER.map((pid) => (
-                <th key={pid} className={cn("text-center font-bold py-2 px-3 w-24", PLANS[pid].accent, pid === currentPlan && "underline underline-offset-4")}>
-                  {PLANS[pid].name}
+              {plans.map((p) => (
+                <th key={p.planKey} className={cn("text-center font-bold py-2 px-3 w-24", planColorClasses(p.color).accent, p.planKey === currentPlan && "underline underline-offset-4")}>
+                  {p.name}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {FEATURE_ROWS.map((f) => (
-              <tr key={f.feature} className="border-b border-border/40 last:border-0">
+            {[...featureRows.entries()].map(([featureKey, label]) => (
+              <tr key={featureKey} className="border-b border-border/40 last:border-0">
                 <td className="py-2.5 pr-4">
-                  <p className="text-xs font-semibold text-foreground">{f.label}</p>
-                  <p className="text-[11px] text-muted-foreground">{f.desc}</p>
+                  <p className="text-xs font-semibold text-foreground">{label}</p>
                 </td>
-                {PLAN_ORDER.map((pid) => (
-                  <td key={pid} className="text-center py-2.5 px-3">
-                    {hasAccess(pid, f.feature) ? (
-                      <Check className="w-4 h-4 text-emerald-400 mx-auto" />
-                    ) : (
-                      <Lock className="w-3.5 h-3.5 text-muted-foreground/60 mx-auto" />
-                    )}
-                  </td>
-                ))}
+                {plans.map((p) => {
+                  const enabled = p.features.find((f) => f.featureKey === featureKey)?.enabled ?? false;
+                  return (
+                    <td key={p.planKey} className="text-center py-2.5 px-3">
+                      {enabled ? (
+                        <Check className="w-4 h-4 text-emerald-400 mx-auto" />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 text-muted-foreground/60 mx-auto" />
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -1149,7 +1244,7 @@ function BenefitsTable({ currentPlan }: { currentPlan: PlanId }) {
 
 // ── Upstox API section (gated for free) ─────────────────────────────────────
 function ApiSection() {
-  const canApi = hasAccess(useAuth().user?.plan, "apiSettings");
+  const canApi = useFeatureAccess("api_settings");
   const { data, isLoading, refetch } = useGetUpstoxSettings({ query: { enabled: canApi } });
   const qc = useQueryClient();
   const disconnectMut = useDisconnectUpstox({
@@ -1208,7 +1303,11 @@ function ApiSection() {
 // ── Account Settings page (profile, password, plan, benefits) ───────────────
 export function Settings() {
   const { user } = useAuth();
-  const plan = user?.plan ?? "free";
+  // The resolved effective plan (subscriptions row when one exists, else the
+  // legacy users.plan enum) — not just `user.plan` directly, since a custom
+  // admin-created plan isn't reflected there. See lib/features/resolve.ts.
+  const { planKey } = useFeatureAccessState();
+  const plan = planKey ?? user?.plan ?? "free";
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1223,6 +1322,7 @@ export function Settings() {
       <ChangePassword />
       <SessionsCard />
       <PlanSection currentPlan={plan} />
+      <UsageBarsCard />
       <BillingDetailsCard />
       <BenefitsTable currentPlan={plan} />
     </div>

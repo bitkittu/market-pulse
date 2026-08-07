@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { format } from "date-fns";
 import { LockOverlay } from "@/components/UpgradeGate";
-import { useFeatureAccess } from "@/lib/plan";
+import { useFeatureAccess } from "@/contexts/FeatureAccessContext";
 import { useDashboardLayouts, type WidgetId } from "@/lib/dashboardLayout";
 import { DashboardGrid } from "@/components/dashboard-customize/DashboardGrid";
 import { WidgetPicker } from "@/components/dashboard-customize/WidgetPicker";
@@ -214,7 +214,7 @@ function LevelPill({ label, value, accent, tip }: { label: string; value: number
 }
 
 function KeyLevelsPanel({ panel, mode }: { panel: DecisionPanel | undefined; mode: Mode }) {
-  const canView = useFeatureAccess("keyLevels");
+  const canView = useFeatureAccess("key_levels");
   if (!panel) return (
     <div className="bg-card border border-border rounded-xl p-4">
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-11 gap-2">

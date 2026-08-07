@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { db, type UserRow } from "@workspace/db";
 import type { Request, Response, NextFunction } from "express";
+import { resolveEffectivePlanKey, resolveUserFeatureAccess, canAccessFeature } from "./features/resolve.js";
 
 export const SESSION_COOKIE = "mp_session";
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -134,6 +135,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthedUser;
+      /** Set by requireFeature() — the plan key access was actually resolved against, reused by recordFeatureUsage() so route handlers don't re-resolve it. */
+      effectivePlanKey?: string;
     }
   }
 }
@@ -161,6 +164,41 @@ export function requirePermission(permission: string) {
       return;
     }
     next();
+  };
+}
+
+/**
+ * Plan/feature authorization (MP-PLAN-001), sibling to requirePermission's
+ * RBAC check — this is a completely separate axis (what your subscription
+ * plan includes, not what your account role can administer). Reads
+ * lib/features/resolve.ts's single source of truth, the same one the
+ * frontend's `GET /me/features` and the admin Plan Features grid read.
+ * Fails closed on any error (feature tables missing, DB hiccup) rather than
+ * ever silently allowing access.
+ */
+export function requireFeature(featureKey: string) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (!req.user) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    try {
+      const planKey = await resolveEffectivePlanKey(req.user.id, req.user.plan);
+      const access = await resolveUserFeatureAccess(req.user.id, planKey);
+      if (!canAccessFeature(access[featureKey])) {
+        res.status(403).json({
+          error: "This feature is not included in your current plan",
+          featureKey,
+          upgradeRequired: true,
+        });
+        return;
+      }
+      req.effectivePlanKey = planKey;
+      next();
+    } catch (err) {
+      console.error("[requireFeature] resolution error:", err instanceof Error ? err.message : err);
+      res.status(403).json({ error: "Unable to verify plan access", featureKey, upgradeRequired: true });
+    }
   };
 }
 

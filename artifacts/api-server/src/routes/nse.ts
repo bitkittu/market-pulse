@@ -29,7 +29,8 @@ import { getDecisionPanel } from "../lib/decisionEngine.js";
 import { invalidateTokenCache, testUpstoxConnection } from "../lib/upstoxClient.js";
 import { analyzeFoTrade } from "../lib/foAnalyzer.js";
 import { db } from "@workspace/db";
-import { requireAuth } from "../lib/auth.js";
+import { requireAuth, requireFeature } from "../lib/auth.js";
+import { recordFeatureUsage } from "../lib/features/resolve.js";
 
 const router: IRouter = Router();
 
@@ -82,7 +83,7 @@ router.get("/gift-nifty/intraday", async (_req, res) => {
 // ── Trading Decision Engine ────────────────────────────────────────────
 let decisionCache: { data: Awaited<ReturnType<typeof getDecisionPanel>>; expiry: number } | null = null;
 
-router.get("/decision-engine", async (_req, res) => {
+router.get("/decision-engine", requireAuth, requireFeature("key_levels"), async (_req, res) => {
   try {
     if (decisionCache && decisionCache.expiry > Date.now()) {
       res.json(decisionCache.data);
@@ -152,7 +153,7 @@ router.get("/nse/history/:symbol", (req, res) => {
 });
 
 // ── Portfolio ────────────────────────────────────────────────────────────
-router.get("/portfolio", requireAuth, async (req, res) => {
+router.get("/portfolio", requireAuth, requireFeature("portfolio"), async (req, res) => {
   try {
     const items = await db.portfolio.findByUser(req.user!.id);
     res.json(
@@ -171,7 +172,7 @@ router.get("/portfolio", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/portfolio", requireAuth, async (req, res) => {
+router.post("/portfolio", requireAuth, requireFeature("portfolio"), async (req, res) => {
   try {
     const { symbol, exchange = "NSE", buyPrice, quantity } = req.body;
     if (!symbol || typeof symbol !== "string") {
@@ -206,13 +207,14 @@ router.post("/portfolio", requireAuth, async (req, res) => {
       buyPrice: inserted.buyPrice ?? undefined,
       quantity: inserted.quantity ?? undefined,
     });
+    if (req.effectivePlanKey) void recordFeatureUsage(req.user!.id, req.effectivePlanKey, "portfolio");
   } catch (err) {
     req.log.error({ err }, "Failed to add portfolio item");
     res.status(500).json({ error: "Failed to add portfolio item" });
   }
 });
 
-router.delete("/portfolio/:symbol", requireAuth, async (req, res) => {
+router.delete("/portfolio/:symbol", requireAuth, requireFeature("portfolio"), async (req, res) => {
   try {
     const symbol = String(req.params.symbol).toUpperCase();
     await db.portfolio.remove(req.user!.id, symbol);
@@ -223,8 +225,10 @@ router.delete("/portfolio/:symbol", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/portfolio/:symbol/indicators", (req, res) => {
-  const symbol = req.params.symbol.toUpperCase();
+router.get("/portfolio/:symbol/indicators", requireAuth, requireFeature("portfolio"), (req, res) => {
+  // Multiple middleware before the handler loses Express's literal-path
+  // param inference (same quirk documented in admin-email.ts).
+  const symbol = (req.params.symbol as string).toUpperCase();
   const indicators = calculateIndicators(symbol);
   if (!indicators) {
     res.status(404).json({ error: "Symbol not found" });
@@ -234,7 +238,7 @@ router.get("/portfolio/:symbol/indicators", (req, res) => {
 });
 
 // ── Upstox Settings ──────────────────────────────────────────────────────
-router.get("/settings/upstox", requireAuth, async (req, res) => {
+router.get("/settings/upstox", requireAuth, requireFeature("api_settings"), async (req, res) => {
   try {
     const settings = await db.upstoxSettings.findByUser(req.user!.id);
     if (!settings) {
@@ -255,7 +259,7 @@ router.get("/settings/upstox", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/settings/upstox", requireAuth, async (req, res) => {
+router.post("/settings/upstox", requireAuth, requireFeature("api_settings"), async (req, res) => {
   try {
     const { apiKey, apiSecret, clientId, accessToken } = req.body;
     if (!apiKey || typeof apiKey !== "string") {
@@ -285,7 +289,7 @@ router.post("/settings/upstox", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/settings/upstox/disconnect", requireAuth, async (req, res) => {
+router.post("/settings/upstox/disconnect", requireAuth, requireFeature("api_settings"), async (req, res) => {
   try {
     await db.upstoxSettings.removeForUser(req.user!.id);
     invalidateTokenCache();
@@ -307,7 +311,7 @@ router.post("/settings/upstox/test", async (_req, res) => {
 });
 
 // ── Suggestions ──────────────────────────────────────────────────────────
-router.get("/suggestions/intraday", async (_req, res) => {
+router.get("/suggestions/intraday", requireAuth, requireFeature("intraday"), async (_req, res) => {
   try {
     res.json(await getIntradaySuggestions());
   } catch {
@@ -315,7 +319,7 @@ router.get("/suggestions/intraday", async (_req, res) => {
   }
 });
 
-router.get("/suggestions/options", async (_req, res) => {
+router.get("/suggestions/options", requireAuth, requireFeature("options"), async (_req, res) => {
   try {
     res.json(await getOptionsSuggestions());
   } catch {
@@ -348,27 +352,33 @@ async function serveAnalysis(
   res.json(data);
 }
 
-router.get("/suggestions/options/:id/analysis", async (req, res) => {
+// Multiple middleware before the handler loses Express's literal-path param
+// inference (same quirk documented in admin-email.ts) — every `req.params.*`
+// below is cast `as string` for that reason.
+router.get("/suggestions/options/:id/analysis", requireAuth, requireFeature("options"), async (req, res) => {
   try {
-    await serveAnalysis(`options:${req.params.id}`, () => getOptionsAnalysis(req.params.id), res);
+    await serveAnalysis(`options:${req.params.id}`, () => getOptionsAnalysis(req.params.id as string), res);
+    if (req.effectivePlanKey) void recordFeatureUsage(req.user!.id, req.effectivePlanKey, "options");
   } catch (err) {
     req.log.error({ err }, "Options analysis error");
     res.status(500).json({ error: "Failed to build options analysis" });
   }
 });
 
-router.get("/suggestions/intraday/:symbol/analysis", async (req, res) => {
+router.get("/suggestions/intraday/:symbol/analysis", requireAuth, requireFeature("intraday"), async (req, res) => {
   try {
-    await serveAnalysis(`intraday:${req.params.symbol}`, () => getIntradayAnalysis(req.params.symbol), res);
+    await serveAnalysis(`intraday:${req.params.symbol}`, () => getIntradayAnalysis(req.params.symbol as string), res);
+    if (req.effectivePlanKey) void recordFeatureUsage(req.user!.id, req.effectivePlanKey, "intraday");
   } catch (err) {
     req.log.error({ err }, "Intraday analysis error");
     res.status(500).json({ error: "Failed to build intraday analysis" });
   }
 });
 
-router.get("/commodities/:symbol/analysis", async (req, res) => {
+router.get("/commodities/:symbol/analysis", requireAuth, requireFeature("commodities"), async (req, res) => {
   try {
-    await serveAnalysis(`commodity:${req.params.symbol}`, () => getCommodityAnalysis(req.params.symbol), res);
+    await serveAnalysis(`commodity:${req.params.symbol}`, () => getCommodityAnalysis(req.params.symbol as string), res);
+    if (req.effectivePlanKey) void recordFeatureUsage(req.user!.id, req.effectivePlanKey, "commodities");
   } catch (err) {
     req.log.error({ err }, "Commodity analysis error");
     res.status(500).json({ error: "Failed to build commodity analysis" });

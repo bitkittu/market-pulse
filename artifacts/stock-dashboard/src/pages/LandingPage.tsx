@@ -5,6 +5,7 @@ import {
   ArrowRight, Star, Check, Menu, X, Users, Database, Server, Clock,
   LineChart, AlertTriangle, PieChart, Layers
 } from "lucide-react";
+import { api } from "@/contexts/AuthContext";
 
 // ── Data ──────────────────────────────────────────────────────────────────
 const TICKER_DATA = [
@@ -88,26 +89,16 @@ const LOSERS = [
   { sym: "ONGC",      name: "ONGC",          price: "268.55",    chg: "-0.98%" },
 ];
 
-const PRICING = [
-  {
-    name: "Starter", price: "Free", period: "",
-    badge: null, color: "border-slate-700",
-    features: ["5 stocks watchlist", "Daily market summary", "Basic technical indicators", "Top 5 gainers/losers", "Market news feed"],
-    cta: "Get Started Free", ctaStyle: "border border-slate-600 text-white hover:border-blue-500 hover:bg-blue-500/10",
-  },
-  {
-    name: "Pro", price: "₹49", period: "/month",
-    badge: "Most Popular", color: "border-blue-500/50",
-    features: ["Unlimited watchlist", "AI daily market report", "50+ technical indicators", "FII/DII live activity", "Options chain analysis", "Price & signal alerts", "Portfolio analytics"],
-    cta: "Start Pro Trial", ctaStyle: "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white",
-  },
-  {
-    name: "Premium", price: "₹199", period: "/month",
-    badge: "Best Value", color: "border-emerald-500/50",
-    features: ["Everything in Pro", "AI trade signals daily", "Institutional flow alerts", "Sector rotation signals", "Priority email support", "Strategy backtesting", "Downloadable reports", "API access (beta)"],
-    cta: "Go Premium", ctaStyle: "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white",
-  },
-];
+// Pricing is fetched from GET /payments/plans at render time (MP-PLAN-001) —
+// see PricingSection below. No plan data is duplicated here.
+interface PlanCatalogEntry {
+  planKey: string;
+  name: string;
+  description: string | null;
+  isPopular: boolean;
+  pricing: { billingCycle: "monthly" | "annual"; amountInrPaise: number }[];
+  features: { featureKey: string; name: string; enabled: boolean }[];
+}
 
 const FAQS = [
   { q: "What is Market Pulse AI?", a: "Market Pulse AI is an Indian stock market intelligence platform that provides AI-generated insights, technical analysis, institutional activity tracking, and pre-market reports to help retail investors make informed decisions." },
@@ -828,6 +819,15 @@ function MarketPreviewSection({ onRegister }: { onRegister: () => void }) {
 
 // ── Pricing ───────────────────────────────────────────────────────────────
 function PricingSection({ onRegister }: { onRegister: () => void }) {
+  const [plans, setPlans] = useState<PlanCatalogEntry[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await api<{ plans: PlanCatalogEntry[] }>("/payments/plans");
+      if (res.ok) setPlans((res.data as { plans: PlanCatalogEntry[] }).plans);
+    })();
+  }, []);
+
   return (
     <section id="pricing" className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -840,36 +840,47 @@ function PricingSection({ onRegister }: { onRegister: () => void }) {
         </FadeSection>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {PRICING.map(plan => (
-            <FadeSection key={plan.name}>
-              <div className={`relative h-full flex flex-col bg-slate-800/50 backdrop-blur border-2 ${plan.color} rounded-2xl p-6 hover:shadow-2xl transition-all`}>
-                {plan.badge && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-600 to-emerald-600 text-white text-xs font-bold rounded-full shadow-lg whitespace-nowrap">
-                    {plan.badge}
+          {plans.map(plan => {
+            const isFree = plan.pricing.length === 0;
+            const monthly = plan.pricing.find((p) => p.billingCycle === "monthly");
+            const priceLabel = isFree ? "Free" : monthly ? `₹${(monthly.amountInrPaise / 100).toFixed(0)}` : "Coming soon";
+            const included = plan.features.filter((f) => f.enabled);
+            return (
+              <FadeSection key={plan.planKey}>
+                <div className={`relative h-full flex flex-col bg-slate-800/50 backdrop-blur border-2 ${plan.isPopular ? "border-blue-500/50" : "border-slate-700"} rounded-2xl p-6 hover:shadow-2xl transition-all`}>
+                  {plan.isPopular && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-600 to-emerald-600 text-white text-xs font-bold rounded-full shadow-lg whitespace-nowrap">
+                      Most Popular
+                    </div>
+                  )}
+                  <div className="mb-5">
+                    <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-white">{priceLabel}</span>
+                      {!isFree && monthly && <span className="text-slate-400 text-sm">/month</span>}
+                    </div>
+                    {plan.description && <p className="text-slate-400 text-xs mt-1">{plan.description}</p>}
                   </div>
-                )}
-                <div className="mb-5">
-                  <h3 className="text-lg font-bold text-white mb-1">{plan.name}</h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-white">{plan.price}</span>
-                    {plan.period && <span className="text-slate-400 text-sm">{plan.period}</span>}
-                  </div>
+                  <ul className="space-y-2.5 flex-1 mb-6">
+                    {included.map(f => (
+                      <li key={f.featureKey} className="flex items-center gap-2.5 text-sm text-slate-300">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                        {f.name}
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={onRegister}
+                    className={`w-full py-2.5 font-semibold rounded-xl text-sm transition-all ${
+                      isFree
+                        ? "border border-slate-600 text-white hover:border-blue-500 hover:bg-blue-500/10"
+                        : "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white"
+                    }`}>
+                    {isFree ? "Get Started Free" : `Start ${plan.name}`}
+                  </button>
                 </div>
-                <ul className="space-y-2.5 flex-1 mb-6">
-                  {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-sm text-slate-300">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={onRegister}
-                  className={`w-full py-2.5 font-semibold rounded-xl text-sm transition-all ${plan.ctaStyle}`}>
-                  {plan.cta}
-                </button>
-              </div>
-            </FadeSection>
-          ))}
+              </FadeSection>
+            );
+          })}
         </div>
       </div>
     </section>

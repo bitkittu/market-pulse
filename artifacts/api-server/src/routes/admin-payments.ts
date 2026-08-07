@@ -11,7 +11,6 @@ const router: IRouter = Router();
 // falls through earlier routers, not just this file's own `/admin/*` paths.
 const guard = [requireAuth, requirePermission("payments.manage")] as const;
 
-const PLAN_IDS: PlanId[] = ["pro", "premium"];
 const BILLING_CYCLES: BillingCycle[] = ["monthly", "annual"];
 
 function maskPaymentSettings(row: PaymentSettingsRow | null) {
@@ -113,7 +112,7 @@ router.put("/admin/subscription-plans/:planId/:billingCycle", ...guard, async (r
     // inference — see the identical note in admin-email.ts.
     const planId = req.params.planId as string;
     const billingCycle = req.params.billingCycle as string;
-    if (!PLAN_IDS.includes(planId as PlanId) || !BILLING_CYCLES.includes(billingCycle as BillingCycle)) {
+    if (!(await db.plans.findByKey(planId)) || !BILLING_CYCLES.includes(billingCycle as BillingCycle)) {
       res.status(400).json({ error: "Invalid plan or billing cycle" });
       return;
     }
@@ -128,6 +127,7 @@ router.put("/admin/subscription-plans/:planId/:billingCycle", ...guard, async (r
       return;
     }
 
+    await db.subscriptionPlans.ensureRow(planId as PlanId, billingCycle as BillingCycle);
     await db.subscriptionPlans.update(planId as PlanId, billingCycle as BillingCycle, {
       amountInrPaise: typeof amountInrPaise === "number" ? amountInrPaise : undefined,
       amountUsdCents: typeof amountUsdCents === "number" ? amountUsdCents : undefined,

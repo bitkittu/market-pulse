@@ -11,6 +11,8 @@ import supportRouter from "./support";
 import adminSupportRouter from "./admin-support";
 import paymentsRouter from "./payments";
 import adminPaymentsRouter from "./admin-payments";
+import featuresRouter from "./features";
+import adminFeaturesRouter from "./admin-features";
 
 const router: IRouter = Router();
 
@@ -26,5 +28,7 @@ router.use(supportRouter);
 router.use(adminSupportRouter);
 router.use(paymentsRouter);
 router.use(adminPaymentsRouter);
+router.use(featuresRouter);
+router.use(adminFeaturesRouter);
 
 export default router;

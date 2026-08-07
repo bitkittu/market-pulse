@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { FeatureAccessProvider, useFeatureAccessState, evaluateFeatureAccess } from "@/contexts/FeatureAccessContext";
 
 // Lazy-load all pages so each route is a separate chunk (faster initial load)
 const Home             = lazy(() => import("@/pages/Home").then(m => ({ default: m.Home })));
@@ -41,7 +42,6 @@ import {
   TrendingUp, Clock,
   Sun, Moon, LogOut, User, Crown, ChevronDown,
 } from "lucide-react";
-import { hasAccess } from "@/lib/plan";
 import {
   MARKETS, SECTIONS, LIVE_DASHBOARD_MARKETS, marketTab,
   type MarketId, type Tab,
@@ -208,21 +208,28 @@ function UserMenu({
 }
 
 // ── App Shell ─────────────────────────────────────────────────────────────
+// Markets whose "Dashboard" sub-item is gated by a real feature — driven by
+// the plan_features matrix (MP-PLAN-001), not a hardcoded boolean per
+// market. A market with no entry here (forex, crypto — no dashboard exists
+// yet) is never locked, same as before.
+const MARKET_FEATURE_KEY: Partial<Record<MarketId, string>> = {
+  holding: "holding_stocks",
+  intraday: "intraday",
+  options: "options",
+  commodities: "commodities",
+};
+
 function AppShell() {
-  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("home");
   const [theme, setTheme] = useState<"dark" | "light">(getInitialTheme);
+  const { features } = useFeatureAccessState();
 
-  const moduleLocked: Record<MarketId, boolean> = {
-    // Holding Stocks ships unlocked — it is research and ranking rather than
-    // the trade-level output the Pro gates cover.
-    holding: false,
-    intraday: !hasAccess(user?.plan, "intraday"),
-    options: !hasAccess(user?.plan, "options"),
-    commodities: false,
-    forex: false,
-    crypto: false,
-  };
+  const moduleLocked = Object.fromEntries(
+    MARKETS.map((m) => {
+      const featureKey = MARKET_FEATURE_KEY[m.id];
+      return [m.id, featureKey ? !evaluateFeatureAccess(features[featureKey]) : false];
+    }),
+  ) as Record<MarketId, boolean>;
 
   useEffect(() => { applyTheme(theme); }, [theme]);
 
@@ -438,7 +445,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRouter />
+        <FeatureAccessProvider>
+          <AppRouter />
+        </FeatureAccessProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

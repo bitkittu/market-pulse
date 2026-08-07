@@ -10,7 +10,8 @@ import {
   getAiMarketSummary,
 } from "../lib/stockData.js";
 import { db } from "@workspace/db";
-import { requireAuth } from "../lib/auth.js";
+import { requireAuth, requireFeature } from "../lib/auth.js";
+import { recordFeatureUsage } from "../lib/features/resolve.js";
 
 const router: IRouter = Router();
 
@@ -105,12 +106,12 @@ router.get("/stocks/sectors", (_req, res) => {
   res.json(getSectorPerformance());
 });
 
-router.get("/watchlist", requireAuth, async (req, res) => {
+router.get("/watchlist", requireAuth, requireFeature("watchlist"), async (req, res) => {
   const items = await db.watchlist.findByUser(req.user!.id);
   res.json(items.map((i) => ({ id: i.id, symbol: i.symbol, addedAt: i.addedAt.toISOString() })));
 });
 
-router.post("/watchlist", requireAuth, async (req, res) => {
+router.post("/watchlist", requireAuth, requireFeature("watchlist"), async (req, res) => {
   const { symbol } = req.body;
   if (!symbol || typeof symbol !== "string") {
     res.status(400).json({ error: "Symbol is required" });
@@ -124,9 +125,10 @@ router.post("/watchlist", requireAuth, async (req, res) => {
   }
   const inserted = await db.watchlist.insert(req.user!.id, upper);
   res.json({ id: inserted.id, symbol: inserted.symbol, addedAt: inserted.addedAt.toISOString() });
+  if (req.effectivePlanKey) void recordFeatureUsage(req.user!.id, req.effectivePlanKey, "watchlist");
 });
 
-router.delete("/watchlist/:symbol", requireAuth, async (req, res) => {
+router.delete("/watchlist/:symbol", requireAuth, requireFeature("watchlist"), async (req, res) => {
   const symbol = String(req.params.symbol).toUpperCase();
   await db.watchlist.remove(req.user!.id, symbol);
   res.json({ success: true });

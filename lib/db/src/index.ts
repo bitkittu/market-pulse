@@ -310,7 +310,13 @@ export interface PaymentSettingsRow {
   updatedAt: Date;
 }
 
-export type PlanId = "pro" | "premium";
+/**
+ * A `plans.plan_key` value. Was a fixed `"pro"|"premium"` union before
+ * MP-PLAN-001 — now a free-form key so an admin-created plan (see `PlanRow`
+ * below) is purchasable through the same checkout without a schema change.
+ * Validate membership against `db.plans` at runtime, not this type.
+ */
+export type PlanId = string;
 export type BillingCycle = "monthly" | "annual";
 export type PaymentProvider = "razorpay" | "stripe";
 
@@ -363,6 +369,85 @@ export interface InvoiceRow {
   invoiceNumber: string | null;
   paidAt: Date | null;
   createdAt: Date;
+}
+
+// ── Plan / feature access engine (MP-PLAN-001) ───────────────────────────────
+
+export type PlanStatus = "active" | "inactive" | "archived";
+
+export interface PlanRow {
+  planKey: string;
+  name: string;
+  description: string | null;
+  trialDays: number;
+  displayOrder: number;
+  isPopular: boolean;
+  isRecommended: boolean;
+  status: PlanStatus;
+  color: string | null;
+  icon: string | null;
+  /** Informational/display only — see the note in lib/db/feature_engine.sql. Actual enforcement is exclusively plan_features. */
+  maxUsers: number | null;
+  maxDevices: number | null;
+  maxWatchlists: number | null;
+  maxAlerts: number | null;
+  maxApiCalls: number | null;
+  maxAiRequests: number | null;
+  storageLimitMb: number | null;
+  supportType: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FeatureCategoryRow {
+  categoryKey: string;
+  name: string;
+  displayOrder: number;
+  icon: string | null;
+}
+
+export type FeatureStatus = "active" | "inactive";
+
+export interface FeatureRow {
+  featureKey: string;
+  name: string;
+  description: string | null;
+  categoryKey: string;
+  parentModule: string | null;
+  displayOrder: number;
+  icon: string | null;
+  status: FeatureStatus;
+}
+
+export type FeatureBadge = "none" | "pro" | "premium" | "enterprise";
+
+export interface PlanFeatureRow {
+  id: number;
+  planKey: string;
+  featureKey: string;
+  enabled: boolean;
+  usageLimit: number | null;
+  dailyLimit: number | null;
+  monthlyLimit: number | null;
+  isUnlimited: boolean;
+  visibleInMenu: boolean;
+  comingSoon: boolean;
+  isBeta: boolean;
+  badge: FeatureBadge;
+  hideCompletely: boolean;
+  showUpgradeBanner: boolean;
+  readOnly: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserFeatureUsageRow {
+  id: number;
+  userId: number;
+  featureKey: string;
+  period: string;
+  count: number;
+  updatedAt: Date;
 }
 
 // ── Row decoders ────────────────────────────────────────────────────────────
@@ -533,6 +618,86 @@ function toInvoice(r: Raw): InvoiceRow {
     invoiceNumber: (r["invoice_number"] as string | null) ?? null,
     paidAt: (r["paid_at"] as Date | null) ?? null,
     createdAt: r["created_at"] as Date,
+  };
+}
+
+function toPlan(r: Raw): PlanRow {
+  return {
+    planKey: String(r["plan_key"]),
+    name: String(r["name"]),
+    description: (r["description"] as string | null) ?? null,
+    trialDays: Number(r["trial_days"]),
+    displayOrder: Number(r["display_order"]),
+    isPopular: Boolean(r["is_popular"]),
+    isRecommended: Boolean(r["is_recommended"]),
+    status: r["status"] as PlanStatus,
+    color: (r["color"] as string | null) ?? null,
+    icon: (r["icon"] as string | null) ?? null,
+    maxUsers: r["max_users"] != null ? Number(r["max_users"]) : null,
+    maxDevices: r["max_devices"] != null ? Number(r["max_devices"]) : null,
+    maxWatchlists: r["max_watchlists"] != null ? Number(r["max_watchlists"]) : null,
+    maxAlerts: r["max_alerts"] != null ? Number(r["max_alerts"]) : null,
+    maxApiCalls: r["max_api_calls"] != null ? Number(r["max_api_calls"]) : null,
+    maxAiRequests: r["max_ai_requests"] != null ? Number(r["max_ai_requests"]) : null,
+    storageLimitMb: r["storage_limit_mb"] != null ? Number(r["storage_limit_mb"]) : null,
+    supportType: (r["support_type"] as string | null) ?? null,
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toFeatureCategory(r: Raw): FeatureCategoryRow {
+  return {
+    categoryKey: String(r["category_key"]),
+    name: String(r["name"]),
+    displayOrder: Number(r["display_order"]),
+    icon: (r["icon"] as string | null) ?? null,
+  };
+}
+
+function toFeature(r: Raw): FeatureRow {
+  return {
+    featureKey: String(r["feature_key"]),
+    name: String(r["name"]),
+    description: (r["description"] as string | null) ?? null,
+    categoryKey: String(r["category_key"]),
+    parentModule: (r["parent_module"] as string | null) ?? null,
+    displayOrder: Number(r["display_order"]),
+    icon: (r["icon"] as string | null) ?? null,
+    status: r["status"] as FeatureStatus,
+  };
+}
+
+function toPlanFeature(r: Raw): PlanFeatureRow {
+  return {
+    id: Number(r["id"]),
+    planKey: String(r["plan_key"]),
+    featureKey: String(r["feature_key"]),
+    enabled: Boolean(r["enabled"]),
+    usageLimit: r["usage_limit"] != null ? Number(r["usage_limit"]) : null,
+    dailyLimit: r["daily_limit"] != null ? Number(r["daily_limit"]) : null,
+    monthlyLimit: r["monthly_limit"] != null ? Number(r["monthly_limit"]) : null,
+    isUnlimited: Boolean(r["is_unlimited"]),
+    visibleInMenu: Boolean(r["visible_in_menu"]),
+    comingSoon: Boolean(r["coming_soon"]),
+    isBeta: Boolean(r["is_beta"]),
+    badge: r["badge"] as FeatureBadge,
+    hideCompletely: Boolean(r["hide_completely"]),
+    showUpgradeBanner: Boolean(r["show_upgrade_banner"]),
+    readOnly: Boolean(r["read_only"]),
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toUserFeatureUsage(r: Raw): UserFeatureUsageRow {
+  return {
+    id: Number(r["id"]),
+    userId: Number(r["user_id"]),
+    featureKey: String(r["feature_key"]),
+    period: String(r["period"]),
+    count: Number(r["count"]),
+    updatedAt: r["updated_at"] as Date,
   };
 }
 
@@ -1714,6 +1879,19 @@ export const db = {
         async () => null,
       );
     },
+    /**
+     * Creates a zero-amount/inactive row for a (planId, billingCycle) combo
+     * if one doesn't exist yet — needed once `plans` is admin-extensible
+     * (MP-PLAN-001): a newly created plan has no pricing row until an admin
+     * sets one via `update()`, and `update()` alone is a no-op against a
+     * missing row (its dynamic SET clause has nothing to attach a WHERE to).
+     */
+    async ensureRow(planId: PlanId, billingCycle: BillingCycle): Promise<void> {
+      await execute(
+        "INSERT IGNORE INTO subscription_plans (plan_id, billing_cycle) VALUES (?, ?)",
+        [planId, billingCycle],
+      );
+    },
     async update(
       planId: PlanId,
       billingCycle: BillingCycle,
@@ -1902,6 +2080,266 @@ export const db = {
       await execute(
         "UPDATE payment_webhook_events SET processed_at = NOW() WHERE provider = ? AND event_id = ?",
         [provider, eventId],
+      );
+    },
+  },
+
+  /**
+   * Plan catalog (MP-PLAN-001). Schema lives in lib/db/feature_engine.sql —
+   * replaces the fixed `"pro"|"premium"` enum that subscription_plans/
+   * subscriptions used to carry directly.
+   */
+  plans: {
+    async all(): Promise<PlanRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM plans ORDER BY display_order, plan_key");
+          return rows.map(toPlan);
+        },
+        async () => [],
+      );
+    },
+    async findByKey(planKey: string): Promise<PlanRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM plans WHERE plan_key = ? LIMIT 1", [planKey]);
+          return rows[0] ? toPlan(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    async insert(p: {
+      planKey: string; name: string; description: string | null; trialDays: number; displayOrder: number;
+      isPopular: boolean; isRecommended: boolean; status: PlanStatus; color: string | null; icon: string | null;
+      maxUsers: number | null; maxDevices: number | null; maxWatchlists: number | null; maxAlerts: number | null;
+      maxApiCalls: number | null; maxAiRequests: number | null; storageLimitMb: number | null; supportType: string | null;
+    }): Promise<PlanRow> {
+      await execute(
+        `INSERT INTO plans
+           (plan_key, name, description, trial_days, display_order, is_popular, is_recommended, status, color, icon,
+            max_users, max_devices, max_watchlists, max_alerts, max_api_calls, max_ai_requests, storage_limit_mb, support_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          p.planKey, p.name, p.description, p.trialDays, p.displayOrder, p.isPopular, p.isRecommended, p.status,
+          p.color, p.icon, p.maxUsers, p.maxDevices, p.maxWatchlists, p.maxAlerts, p.maxApiCalls, p.maxAiRequests,
+          p.storageLimitMb, p.supportType,
+        ],
+      );
+      const created = await query("SELECT * FROM plans WHERE plan_key = ?", [p.planKey]);
+      return toPlan(created[0]!);
+    },
+    async update(planKey: string, fields: Partial<{
+      name: string; description: string | null; trialDays: number; displayOrder: number;
+      isPopular: boolean; isRecommended: boolean; status: PlanStatus; color: string | null; icon: string | null;
+      maxUsers: number | null; maxDevices: number | null; maxWatchlists: number | null; maxAlerts: number | null;
+      maxApiCalls: number | null; maxAiRequests: number | null; storageLimitMb: number | null; supportType: string | null;
+    }>): Promise<void> {
+      const colMap: Record<string, string> = {
+        name: "name", description: "description", trialDays: "trial_days", displayOrder: "display_order",
+        isPopular: "is_popular", isRecommended: "is_recommended", status: "status", color: "color", icon: "icon",
+        maxUsers: "max_users", maxDevices: "max_devices", maxWatchlists: "max_watchlists", maxAlerts: "max_alerts",
+        maxApiCalls: "max_api_calls", maxAiRequests: "max_ai_requests", storageLimitMb: "storage_limit_mb",
+        supportType: "support_type",
+      };
+      const sets: string[] = [];
+      const vals: SqlParam[] = [];
+      for (const [key, col] of Object.entries(colMap)) {
+        const val = (fields as Record<string, unknown>)[key];
+        if (val === undefined) continue;
+        sets.push(`${col} = ?`);
+        vals.push(val as SqlParam);
+      }
+      if (sets.length === 0) return;
+      vals.push(planKey);
+      await execute(`UPDATE plans SET ${sets.join(", ")} WHERE plan_key = ?`, vals);
+    },
+    /**
+     * Refuses to delete a plan with real dependents (subscribers or pricing
+     * rows) — returns false instead of throwing, so the route layer can
+     * surface a clear "still in use" message rather than a raw FK error.
+     * `subscriptions` also carries an ON DELETE RESTRICT FK as a backstop.
+     */
+    async delete(planKey: string): Promise<boolean> {
+      const [subs] = await query("SELECT COUNT(*) as c FROM subscriptions WHERE plan_id = ?", [planKey]);
+      if (Number(subs?.["c"] ?? 0) > 0) return false;
+      await execute("DELETE FROM plans WHERE plan_key = ?", [planKey]);
+      return true;
+    },
+  },
+
+  featureCategories: {
+    async all(): Promise<FeatureCategoryRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM feature_categories ORDER BY display_order, category_key");
+          return rows.map(toFeatureCategory);
+        },
+        async () => [],
+      );
+    },
+  },
+
+  features: {
+    async all(): Promise<FeatureRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM features ORDER BY category_key, display_order");
+          return rows.map(toFeature);
+        },
+        async () => [],
+      );
+    },
+    async findByKey(featureKey: string): Promise<FeatureRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM features WHERE feature_key = ? LIMIT 1", [featureKey]);
+          return rows[0] ? toFeature(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    async insert(f: {
+      featureKey: string; name: string; description: string | null; categoryKey: string;
+      parentModule: string | null; displayOrder: number; icon: string | null; status: FeatureStatus;
+    }): Promise<FeatureRow> {
+      await execute(
+        `INSERT INTO features (feature_key, name, description, category_key, parent_module, display_order, icon, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [f.featureKey, f.name, f.description, f.categoryKey, f.parentModule, f.displayOrder, f.icon, f.status],
+      );
+      const created = await query("SELECT * FROM features WHERE feature_key = ?", [f.featureKey]);
+      return toFeature(created[0]!);
+    },
+    async update(featureKey: string, fields: Partial<{
+      name: string; description: string | null; categoryKey: string; parentModule: string | null;
+      displayOrder: number; icon: string | null; status: FeatureStatus;
+    }>): Promise<void> {
+      const colMap: Record<string, string> = {
+        name: "name", description: "description", categoryKey: "category_key", parentModule: "parent_module",
+        displayOrder: "display_order", icon: "icon", status: "status",
+      };
+      const sets: string[] = [];
+      const vals: SqlParam[] = [];
+      for (const [key, col] of Object.entries(colMap)) {
+        const val = (fields as Record<string, unknown>)[key];
+        if (val === undefined) continue;
+        sets.push(`${col} = ?`);
+        vals.push(val as SqlParam);
+      }
+      if (sets.length === 0) return;
+      vals.push(featureKey);
+      await execute(`UPDATE features SET ${sets.join(", ")} WHERE feature_key = ?`, vals);
+    },
+  },
+
+  /** The plan/feature access matrix — the single source of truth requireFeature() and the frontend both read. */
+  planFeatures: {
+    async all(): Promise<PlanFeatureRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM plan_features");
+          return rows.map(toPlanFeature);
+        },
+        async () => [],
+      );
+    },
+    async forPlan(planKey: string): Promise<PlanFeatureRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM plan_features WHERE plan_key = ?", [planKey]);
+          return rows.map(toPlanFeature);
+        },
+        async () => [],
+      );
+    },
+    async find(planKey: string, featureKey: string): Promise<PlanFeatureRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            "SELECT * FROM plan_features WHERE plan_key = ? AND feature_key = ? LIMIT 1",
+            [planKey, featureKey],
+          );
+          return rows[0] ? toPlanFeature(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    /** Upserts one matrix cell — the admin Plan Features grid saves one cell at a time. */
+    async upsert(planKey: string, featureKey: string, fields: {
+      enabled: boolean; usageLimit: number | null; dailyLimit: number | null; monthlyLimit: number | null;
+      isUnlimited: boolean; visibleInMenu: boolean; comingSoon: boolean; isBeta: boolean; badge: FeatureBadge;
+      hideCompletely: boolean; showUpgradeBanner: boolean; readOnly: boolean;
+    }): Promise<void> {
+      await execute(
+        `INSERT INTO plan_features
+           (plan_key, feature_key, enabled, usage_limit, daily_limit, monthly_limit, is_unlimited,
+            visible_in_menu, coming_soon, is_beta, badge, hide_completely, show_upgrade_banner, read_only)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           enabled = VALUES(enabled), usage_limit = VALUES(usage_limit), daily_limit = VALUES(daily_limit),
+           monthly_limit = VALUES(monthly_limit), is_unlimited = VALUES(is_unlimited),
+           visible_in_menu = VALUES(visible_in_menu), coming_soon = VALUES(coming_soon), is_beta = VALUES(is_beta),
+           badge = VALUES(badge), hide_completely = VALUES(hide_completely),
+           show_upgrade_banner = VALUES(show_upgrade_banner), read_only = VALUES(read_only)`,
+        [
+          planKey, featureKey, fields.enabled, fields.usageLimit, fields.dailyLimit, fields.monthlyLimit,
+          fields.isUnlimited, fields.visibleInMenu, fields.comingSoon, fields.isBeta, fields.badge,
+          fields.hideCompletely, fields.showUpgradeBanner, fields.readOnly,
+        ],
+      );
+    },
+  },
+
+  featureUsage: {
+    async get(userId: number, featureKey: string, period: string): Promise<UserFeatureUsageRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            "SELECT * FROM user_feature_usage WHERE user_id = ? AND feature_key = ? AND period = ? LIMIT 1",
+            [userId, featureKey, period],
+          );
+          return rows[0] ? toUserFeatureUsage(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    /** Atomic increment-or-create for one user/feature/period counter. */
+    async increment(userId: number, featureKey: string, period: string): Promise<void> {
+      await execute(
+        `INSERT INTO user_feature_usage (user_id, feature_key, period, count)
+         VALUES (?, ?, ?, 1)
+         ON DUPLICATE KEY UPDATE count = count + 1`,
+        [userId, featureKey, period],
+      );
+    },
+    async forUser(userId: number): Promise<UserFeatureUsageRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            "SELECT * FROM user_feature_usage WHERE user_id = ? ORDER BY period DESC",
+            [userId],
+          );
+          return rows.map(toUserFeatureUsage);
+        },
+        async () => [],
+      );
+    },
+    /** Aggregate usage per feature for the given period, across all users — the admin Feature Usage view. */
+    async aggregateForPeriod(period: string): Promise<{ featureKey: string; totalCount: number; userCount: number }[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            `SELECT feature_key, SUM(count) as total_count, COUNT(DISTINCT user_id) as user_count
+             FROM user_feature_usage WHERE period = ? GROUP BY feature_key`,
+            [period],
+          );
+          return rows.map((r) => ({
+            featureKey: String(r["feature_key"]),
+            totalCount: Number(r["total_count"]),
+            userCount: Number(r["user_count"]),
+          }));
+        },
+        async () => [],
       );
     },
   },

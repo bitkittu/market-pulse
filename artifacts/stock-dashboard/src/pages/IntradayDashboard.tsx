@@ -4,7 +4,7 @@ import { Info, RefreshCw, Zap, TrendingUp, TrendingDown, Minus, ShieldAlert } fr
 import { LockedValue, LockedHint } from "@/components/LockedValue";
 import { UpgradeGate } from "@/components/UpgradeGate";
 import { AiAnalysisPanel, WhyButton } from "@/components/ai-analysis";
-import { useFeatureAccess } from "@/lib/plan";
+import { useFeatureAccess } from "@/contexts/FeatureAccessContext";
 
 function cn(...c: (string | false | undefined | null)[]) { return c.filter(Boolean).join(" "); }
 function fmt(n: number, d = 2) { return n.toFixed(d).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }

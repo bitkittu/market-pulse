@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import YahooFinance from "yahoo-finance2";
 import { NSE_STOCKS } from "../lib/nseData.js";
+import { requireAuth, requireFeature } from "../lib/auth.js";
 
 const yahooFinance = new YahooFinance();
 
@@ -288,7 +289,7 @@ function buildTickerSet(symbol: string, companyName: string, quotes: YahooSearch
 // ── Autocomplete ───────────────────────────────────────────────────────────
 // Layer 1 is the in-process NSE index (no network); layer 2 is Yahoo's search
 // index. Local hits rank first so common Indian names resolve instantly.
-router.get("/insights/lookup", async (req, res) => {
+router.get("/insights/lookup", requireAuth, requireFeature("insights"), async (req, res) => {
   const raw = ((req.query.q as string) || "").trim();
   if (raw.length < 2) {
     res.json({ results: [] });
@@ -335,7 +336,7 @@ router.get("/insights/lookup", async (req, res) => {
   }
 });
 
-router.get("/insights/search", async (req, res) => {
+router.get("/insights/search", requireAuth, requireFeature("insights"), async (req, res) => {
   const raw = (req.query.q as string || "").trim();
   if (!raw) {
     res.status(400).json({ error: "Query parameter 'q' is required" });

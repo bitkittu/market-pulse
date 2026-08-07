@@ -6,7 +6,7 @@ import {
   CheckCircle2, XCircle, Clock, Globe, Database, Cpu, AlertCircle,
   BarChart2, ArrowUp, ArrowDown, Sun, Moon, Mail, ScrollText,
   Eye, EyeOff, Loader2, Save, Send, X, ToggleLeft, ToggleRight,
-  LifeBuoy, ArrowLeft, UserPlus, Tag, StickyNote,
+  LifeBuoy, ArrowLeft, UserPlus, Tag, StickyNote, Plus,
 } from "lucide-react";
 import { useAuth, api } from "@/contexts/AuthContext";
 import {
@@ -28,7 +28,7 @@ const SECTIONS = [
   { id: "ai",        label: "AI Model Settings", icon: Brain },
   { id: "news",      label: "News Sources",    icon: Newspaper },
   { id: "apis",      label: "Market APIs",     icon: Server },
-  { id: "plans",     label: "Subscription Plans", icon: CreditCard },
+  { id: "plans",     label: "Subscription Management", icon: CreditCard },
   { id: "feedback",  label: "Feedback",        icon: MessageSquare },
   { id: "reports",   label: "Reports",         icon: FileText },
   { id: "audit",     label: "Audit Logs",      icon: Shield },
@@ -1486,16 +1486,478 @@ function SubscriptionsInvoicesCard() {
   );
 }
 
+// ── Plans (MP-PLAN-001) ───────────────────────────────────────────────────
+interface AdminPlanData {
+  planKey: string; name: string; description: string | null; trialDays: number; displayOrder: number;
+  isPopular: boolean; isRecommended: boolean; status: "active" | "inactive" | "archived";
+  color: string | null; icon: string | null;
+  maxWatchlists: number | null; maxAlerts: number | null; supportType: string | null;
+}
+const PLAN_COLOR_OPTIONS = ["slate", "violet", "amber", "emerald", "blue", "rose"];
+
+function PlansCard() {
+  const [plans, setPlans] = useState<AdminPlanData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newPlan, setNewPlan] = useState({ planKey: "", name: "" });
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    const res = await api<{ plans: AdminPlanData[] }>("/admin/plans");
+    if (res.ok) setPlans((res.data as { plans: AdminPlanData[] }).plans);
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+
+  const save = async (planKey: string, patch: Partial<AdminPlanData>) => {
+    await api(`/admin/plans/${planKey}`, { method: "PUT", body: JSON.stringify(patch) });
+    void load();
+  };
+
+  const createPlan = async () => {
+    if (!newPlan.planKey.trim() || !newPlan.name.trim()) { setErr("Plan key and name are required"); return; }
+    setCreating(true); setErr("");
+    const res = await api("/admin/plans", { method: "POST", body: JSON.stringify(newPlan) });
+    setCreating(false);
+    if (!res.ok) { setErr((res.data as { error: string }).error); return; }
+    setNewPlan({ planKey: "", name: "" });
+    void load();
+  };
+
+  const removePlan = async (planKey: string) => {
+    if (!confirm(`Delete plan "${planKey}"? This only works if it has no subscribers.`)) return;
+    const res = await api(`/admin/plans/${planKey}`, { method: "DELETE" });
+    if (!res.ok) { alert((res.data as { error: string }).error); return; }
+    void load();
+  };
+
+  if (loading) return <div className="h-64 bg-slate-800/40 animate-pulse rounded-xl" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2"><Plus className="w-4 h-4 text-blue-400" /> New Plan</h3>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input value={newPlan.planKey} onChange={(e) => setNewPlan((s) => ({ ...s, planKey: e.target.value.toLowerCase() }))}
+            placeholder="plan_key (e.g. starter)" className={`${emailInputCls} sm:w-48`} />
+          <input value={newPlan.name} onChange={(e) => setNewPlan((s) => ({ ...s, name: e.target.value }))}
+            placeholder="Display name" className={`${emailInputCls} sm:flex-1`} />
+          <button onClick={() => void createPlan()} disabled={creating}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50 shrink-0">
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create
+          </button>
+        </div>
+        {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      </div>
+
+      <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5 overflow-x-auto">
+        <table className="w-full min-w-[820px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+              <th className="py-2 pr-3">Key</th><th className="py-2 pr-3">Name</th><th className="py-2 pr-3">Description</th>
+              <th className="py-2 pr-3">Order</th><th className="py-2 pr-3">Color</th><th className="py-2 pr-3">Popular</th>
+              <th className="py-2 pr-3">Status</th><th className="py-2 pr-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.map((p) => (
+              <tr key={p.planKey} className="border-b border-slate-700/30 last:border-0 text-slate-300">
+                <td className="py-2 pr-3 font-mono text-xs">{p.planKey}</td>
+                <td className="py-2 pr-3">
+                  <input defaultValue={p.name} onBlur={(e) => void save(p.planKey, { name: e.target.value })}
+                    className="w-32 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <input defaultValue={p.description ?? ""} onBlur={(e) => void save(p.planKey, { description: e.target.value || null })}
+                    className="w-48 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <input type="number" defaultValue={p.displayOrder} onBlur={(e) => void save(p.planKey, { displayOrder: Number(e.target.value) })}
+                    className="w-16 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <select value={p.color ?? "slate"} onChange={(e) => void save(p.planKey, { color: e.target.value })}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                    {PLAN_COLOR_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </td>
+                <td className="py-2 pr-3">
+                  <button onClick={() => void save(p.planKey, { isPopular: !p.isPopular })}>
+                    {p.isPopular ? <ToggleRight className="w-6 h-6 text-emerald-400" /> : <ToggleLeft className="w-6 h-6 text-slate-500" />}
+                  </button>
+                </td>
+                <td className="py-2 pr-3">
+                  <select value={p.status} onChange={(e) => void save(p.planKey, { status: e.target.value as AdminPlanData["status"] })}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                    <option value="archived">archived</option>
+                  </select>
+                </td>
+                <td className="py-2 pr-3">
+                  <button onClick={() => void removePlan(p.planKey)} className="text-slate-500 hover:text-red-400">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Features (master list) ────────────────────────────────────────────────
+interface AdminFeatureCategoryData { categoryKey: string; name: string; displayOrder: number; icon: string | null; }
+interface AdminFeatureData {
+  featureKey: string; name: string; description: string | null; categoryKey: string;
+  parentModule: string | null; displayOrder: number; icon: string | null; status: "active" | "inactive";
+}
+
+function FeaturesCard() {
+  const [features, setFeatures] = useState<AdminFeatureData[]>([]);
+  const [categories, setCategories] = useState<AdminFeatureCategoryData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newFeature, setNewFeature] = useState({ featureKey: "", name: "", categoryKey: "" });
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    const [fRes, cRes] = await Promise.all([
+      api<{ features: AdminFeatureData[] }>("/admin/features"),
+      api<{ categories: AdminFeatureCategoryData[] }>("/admin/feature-categories"),
+    ]);
+    if (fRes.ok) setFeatures((fRes.data as { features: AdminFeatureData[] }).features);
+    if (cRes.ok) {
+      const cats = (cRes.data as { categories: AdminFeatureCategoryData[] }).categories;
+      setCategories(cats);
+      setNewFeature((s) => ({ ...s, categoryKey: s.categoryKey || cats[0]?.categoryKey || "" }));
+    }
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+
+  const save = async (featureKey: string, patch: Partial<AdminFeatureData>) => {
+    await api(`/admin/features/${featureKey}`, { method: "PUT", body: JSON.stringify(patch) });
+    void load();
+  };
+
+  const createFeature = async () => {
+    if (!newFeature.featureKey.trim() || !newFeature.name.trim()) { setErr("Feature key and name are required"); return; }
+    setCreating(true); setErr("");
+    const res = await api("/admin/features", { method: "POST", body: JSON.stringify(newFeature) });
+    setCreating(false);
+    if (!res.ok) { setErr((res.data as { error: string }).error); return; }
+    setNewFeature((s) => ({ ...s, featureKey: "", name: "" }));
+    void load();
+  };
+
+  if (loading) return <div className="h-64 bg-slate-800/40 animate-pulse rounded-xl" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2"><Plus className="w-4 h-4 text-blue-400" /> New Feature</h3>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input value={newFeature.featureKey} onChange={(e) => setNewFeature((s) => ({ ...s, featureKey: e.target.value.toLowerCase() }))}
+            placeholder="feature_key" className={`${emailInputCls} sm:w-40`} />
+          <input value={newFeature.name} onChange={(e) => setNewFeature((s) => ({ ...s, name: e.target.value }))}
+            placeholder="Display name" className={`${emailInputCls} sm:flex-1`} />
+          <select value={newFeature.categoryKey} onChange={(e) => setNewFeature((s) => ({ ...s, categoryKey: e.target.value }))}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm">
+            {categories.map((c) => <option key={c.categoryKey} value={c.categoryKey}>{c.name}</option>)}
+          </select>
+          <button onClick={() => void createFeature()} disabled={creating}
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50 shrink-0">
+            {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create
+          </button>
+        </div>
+        {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+      </div>
+
+      <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+              <th className="py-2 pr-3">Key</th><th className="py-2 pr-3">Name</th><th className="py-2 pr-3">Category</th>
+              <th className="py-2 pr-3">Order</th><th className="py-2 pr-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {features.map((f) => (
+              <tr key={f.featureKey} className="border-b border-slate-700/30 last:border-0 text-slate-300">
+                <td className="py-2 pr-3 font-mono text-xs">{f.featureKey}</td>
+                <td className="py-2 pr-3">
+                  <input defaultValue={f.name} onBlur={(e) => void save(f.featureKey, { name: e.target.value })}
+                    className="w-40 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <select value={f.categoryKey} onChange={(e) => void save(f.featureKey, { categoryKey: e.target.value })}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                    {categories.map((c) => <option key={c.categoryKey} value={c.categoryKey}>{c.name}</option>)}
+                  </select>
+                </td>
+                <td className="py-2 pr-3">
+                  <input type="number" defaultValue={f.displayOrder} onBlur={(e) => void save(f.featureKey, { displayOrder: Number(e.target.value) })}
+                    className="w-16 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <select value={f.status} onChange={(e) => void save(f.featureKey, { status: e.target.value as AdminFeatureData["status"] })}
+                    className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Plan Features matrix ──────────────────────────────────────────────────
+interface AdminPlanFeatureData {
+  id: number; planKey: string; featureKey: string; enabled: boolean;
+  usageLimit: number | null; dailyLimit: number | null; monthlyLimit: number | null;
+  isUnlimited: boolean; visibleInMenu: boolean; comingSoon: boolean; isBeta: boolean;
+  badge: "none" | "pro" | "premium" | "enterprise"; hideCompletely: boolean; showUpgradeBanner: boolean; readOnly: boolean;
+}
+
+function PlanFeaturesMatrixCard() {
+  const [plans, setPlans] = useState<AdminPlanData[]>([]);
+  const [features, setFeatures] = useState<AdminFeatureData[]>([]);
+  const [matrix, setMatrix] = useState<AdminPlanFeatureData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<{ planKey: string; featureKey: string } | null>(null);
+
+  const load = async () => {
+    const [pRes, fRes, mRes] = await Promise.all([
+      api<{ plans: AdminPlanData[] }>("/admin/plans"),
+      api<{ features: AdminFeatureData[] }>("/admin/features"),
+      api<{ planFeatures: AdminPlanFeatureData[] }>("/admin/plan-features"),
+    ]);
+    if (pRes.ok) setPlans((pRes.data as { plans: AdminPlanData[] }).plans);
+    if (fRes.ok) setFeatures((fRes.data as { features: AdminFeatureData[] }).features);
+    if (mRes.ok) setMatrix((mRes.data as { planFeatures: AdminPlanFeatureData[] }).planFeatures);
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+
+  const cellFor = (planKey: string, featureKey: string) => matrix.find((m) => m.planKey === planKey && m.featureKey === featureKey);
+
+  const saveCell = async (planKey: string, featureKey: string, patch: Partial<AdminPlanFeatureData>) => {
+    const current = cellFor(planKey, featureKey);
+    await api(`/admin/plan-features/${planKey}/${featureKey}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: current?.enabled ?? false, usageLimit: current?.usageLimit ?? null, dailyLimit: current?.dailyLimit ?? null,
+        monthlyLimit: current?.monthlyLimit ?? null, isUnlimited: current?.isUnlimited ?? false,
+        visibleInMenu: current?.visibleInMenu ?? true, comingSoon: current?.comingSoon ?? false, isBeta: current?.isBeta ?? false,
+        badge: current?.badge ?? "none", hideCompletely: current?.hideCompletely ?? false,
+        showUpgradeBanner: current?.showUpgradeBanner ?? true, readOnly: current?.readOnly ?? false,
+        ...patch,
+      }),
+    });
+    void load();
+  };
+
+  const toggleEnabled = (planKey: string, featureKey: string) => {
+    const current = cellFor(planKey, featureKey);
+    void saveCell(planKey, featureKey, { enabled: !(current?.enabled ?? false) });
+  };
+
+  if (loading) return <div className="h-64 bg-slate-800/40 animate-pulse rounded-xl" />;
+
+  const selectedCell = selected ? cellFor(selected.planKey, selected.featureKey) : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5 overflow-x-auto">
+        <p className="text-xs text-slate-400 mb-3">Click a checkbox to toggle access. Click a feature row's key to edit limits, badges, and visibility for a specific plan below.</p>
+        <table className="w-full text-sm" style={{ minWidth: `${200 + plans.length * 90}px` }}>
+          <thead>
+            <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+              <th className="py-2 pr-3">Feature</th>
+              {plans.map((p) => <th key={p.planKey} className="py-2 px-2 text-center w-20">{p.name}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {features.map((f) => (
+              <tr key={f.featureKey} className="border-b border-slate-700/30 last:border-0">
+                <td className="py-2 pr-3 text-slate-300">
+                  <button onClick={() => setSelected({ planKey: plans[0]?.planKey ?? "", featureKey: f.featureKey })}
+                    className="text-xs hover:text-blue-400 text-left">
+                    {f.name}
+                  </button>
+                </td>
+                {plans.map((p) => {
+                  const cell = cellFor(p.planKey, f.featureKey);
+                  return (
+                    <td key={p.planKey} className="py-2 px-2 text-center">
+                      <button onClick={() => toggleEnabled(p.planKey, f.featureKey)}>
+                        {cell?.enabled ? <ToggleRight className="w-6 h-6 text-emerald-400 mx-auto" /> : <ToggleLeft className="w-6 h-6 text-slate-500 mx-auto" />}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selected && (
+        <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-white">Feature Configuration</h3>
+            <button onClick={() => setSelected(null)} className="text-slate-500 hover:text-white"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="flex gap-2 mb-4">
+            <select value={selected.planKey} onChange={(e) => setSelected({ ...selected, planKey: e.target.value })}
+              className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+              {plans.map((p) => <option key={p.planKey} value={p.planKey}>{p.name}</option>)}
+            </select>
+            <select value={selected.featureKey} onChange={(e) => setSelected({ ...selected, featureKey: e.target.value })}
+              className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-white text-xs">
+              {features.map((f) => <option key={f.featureKey} value={f.featureKey}>{f.name}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div>
+              <label className={emailLabelCls}>Daily Limit</label>
+              <input type="number" defaultValue={selectedCell?.dailyLimit ?? ""} placeholder="Unlimited"
+                onBlur={(e) => void saveCell(selected.planKey, selected.featureKey, { dailyLimit: e.target.value ? Number(e.target.value) : null })}
+                className={emailInputCls} />
+            </div>
+            <div>
+              <label className={emailLabelCls}>Monthly Limit</label>
+              <input type="number" defaultValue={selectedCell?.monthlyLimit ?? ""} placeholder="Unlimited"
+                onBlur={(e) => void saveCell(selected.planKey, selected.featureKey, { monthlyLimit: e.target.value ? Number(e.target.value) : null })}
+                className={emailInputCls} />
+            </div>
+            <div>
+              <label className={emailLabelCls}>Lifetime Limit</label>
+              <input type="number" defaultValue={selectedCell?.usageLimit ?? ""} placeholder="Unlimited"
+                onBlur={(e) => void saveCell(selected.planKey, selected.featureKey, { usageLimit: e.target.value ? Number(e.target.value) : null })}
+                className={emailInputCls} />
+            </div>
+            <div>
+              <label className={emailLabelCls}>Badge</label>
+              <select defaultValue={selectedCell?.badge ?? "none"}
+                onChange={(e) => void saveCell(selected.planKey, selected.featureKey, { badge: e.target.value as AdminPlanFeatureData["badge"] })}
+                className={emailInputCls}>
+                <option value="none">None</option>
+                <option value="pro">Pro</option>
+                <option value="premium">Premium</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {([
+              ["isUnlimited", "Unlimited"], ["visibleInMenu", "Visible in Menu"], ["comingSoon", "Coming Soon"],
+              ["isBeta", "Beta"], ["hideCompletely", "Hide Completely"], ["showUpgradeBanner", "Show Upgrade Banner"],
+              ["readOnly", "Read Only"],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <input type="checkbox" checked={selectedCell?.[key] ?? false}
+                  onChange={(e) => void saveCell(selected.planKey, selected.featureKey, { [key]: e.target.checked })} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Feature Usage (read-only aggregate) ───────────────────────────────────
+function FeatureUsageCard() {
+  const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [usage, setUsage] = useState<{ featureKey: string; totalCount: number; userCount: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    void (async () => {
+      const res = await api<{ usage: typeof usage }>(`/admin/feature-usage?period=${period}`);
+      if (res.ok) setUsage((res.data as { usage: typeof usage }).usage);
+      setLoading(false);
+    })();
+  }, [period]);
+
+  return (
+    <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-white">Feature Usage</h3>
+        <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)}
+          className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+      </div>
+      {loading ? (
+        <div className="h-32 bg-slate-800/40 animate-pulse rounded-xl" />
+      ) : usage.length === 0 ? (
+        <p className="text-xs text-slate-500">No usage recorded for this period — most features aren't limited yet, so nothing is tracked until a limit is set in Plan Features.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+              <th className="py-2 pr-3">Feature</th><th className="py-2 pr-3">Total Uses</th><th className="py-2 pr-3">Unique Users</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usage.map((u) => (
+              <tr key={u.featureKey} className="border-b border-slate-700/30 last:border-0 text-slate-300">
+                <td className="py-2 pr-3 font-mono text-xs">{u.featureKey}</td>
+                <td className="py-2 pr-3">{u.totalCount}</td>
+                <td className="py-2 pr-3">{u.userCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function PaymentsView() {
+  const [tab, setTab] = useState<"settings" | "plans" | "features" | "matrix" | "pricing" | "subs" | "usage" | "coupons">("plans");
+  const tabs = [
+    { id: "settings", label: "Payment Settings" },
+    { id: "plans", label: "Plans" },
+    { id: "features", label: "Features" },
+    { id: "matrix", label: "Plan Features" },
+    { id: "pricing", label: "Pricing" },
+    { id: "subs", label: "Users & Plans" },
+    { id: "usage", label: "Feature Usage" },
+    { id: "coupons", label: "Coupons" },
+  ] as const;
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white mb-1">Subscription Plans & Payments</h2>
-        <p className="text-slate-400 text-sm">Configure Razorpay/Stripe credentials, plan pricing, and review subscriptions and invoices.</p>
+        <h2 className="text-xl font-bold text-white mb-1">Subscription Management</h2>
+        <p className="text-slate-400 text-sm">Plans, features, pricing, and payment provider credentials — all database-driven, no code changes needed.</p>
       </div>
-      <PaymentSettingsCard />
-      <SubscriptionPlansCard />
-      <SubscriptionsInvoicesCard />
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${tab === t.id ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "settings" && <PaymentSettingsCard />}
+      {tab === "plans" && <PlansCard />}
+      {tab === "features" && <FeaturesCard />}
+      {tab === "matrix" && <PlanFeaturesMatrixCard />}
+      {tab === "pricing" && <SubscriptionPlansCard />}
+      {tab === "subs" && <SubscriptionsInvoicesCard />}
+      {tab === "usage" && <FeatureUsageCard />}
+      {tab === "coupons" && <PlaceholderView title="Coupons" desc="Promo codes and discounts — schema is in place; redemption flow is not built yet." icon={Tag} />}
     </div>
   );
 }
