@@ -28,6 +28,7 @@ const DEFAULT_PERMISSIONS = [
   { name: "email.manage", description: "Configure SMTP, email templates, and view email logs" },
   { name: "support.view", description: "View the support ticket queue and ticket conversations" },
   { name: "support.manage", description: "Reply to, assign, and change the status of support tickets" },
+  { name: "payments.manage", description: "Configure payment providers, pricing, and view subscriptions/invoices" },
 ] as const;
 
 const ROLE_PERMISSIONS: Record<(typeof DEFAULT_ROLES)[number]["name"], readonly string[]> = {

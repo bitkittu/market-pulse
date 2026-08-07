@@ -35,6 +35,15 @@ app.use(
 );
 app.use(cors());
 app.use(cookieParser());
+
+// Payment webhooks must be verified against the exact bytes the provider
+// signed — mounted ahead of express.json() so req.body stays a raw Buffer on
+// these two paths instead of being parsed into an object first (Stripe/
+// Razorpay both require this; re-serializing a parsed body is not guaranteed
+// to byte-match what was actually signed).
+app.use("/api/payments/webhook/razorpay", express.raw({ type: "*/*" }));
+app.use("/api/payments/webhook/stripe", express.raw({ type: "*/*" }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

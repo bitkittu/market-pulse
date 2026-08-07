@@ -18,6 +18,7 @@ import {
   PLANS, PLAN_ORDER, FEATURE_ROWS, hasAccess,
   type PlanId,
 } from "@/lib/plan";
+import { loadRazorpayCheckout, openRazorpayCheckout } from "@/lib/razorpay";
 
 function cn(...c: (string | false | undefined | null)[]) {
   return c.filter(Boolean).join(" ");
@@ -748,20 +749,78 @@ function SessionsCard() {
   );
 }
 
-// ── Billing (Coming Soon placeholder) ────────────────────────────────────────
+// ── Billing ───────────────────────────────────────────────────────────────
+interface SubscriptionData {
+  id: number;
+  planId: "pro" | "premium";
+  billingCycle: "monthly" | "annual";
+  provider: "razorpay" | "stripe";
+  status: "created" | "active" | "past_due" | "cancelled" | "expired";
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+}
+interface InvoiceData {
+  id: number;
+  amount: number;
+  currency: "INR" | "USD";
+  status: "paid" | "failed" | "refunded";
+  invoiceNumber: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+function formatMoney(amount: number, currency: "INR" | "USD"): string {
+  const value = (amount / 100).toFixed(2);
+  return currency === "INR" ? `₹${value}` : `$${value}`;
+}
+
 function BillingDetailsCard() {
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const load = async () => {
+    const res = await api<{ subscription: SubscriptionData | null; invoices: InvoiceData[] }>("/payments/subscription");
+    if (res.ok) {
+      const data = res.data as { subscription: SubscriptionData | null; invoices: InvoiceData[] };
+      setSubscription(data.subscription);
+      setInvoices(data.invoices);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const cancel = async () => {
+    if (!confirm("Cancel your subscription? You'll keep access until the end of the current billing period.")) return;
+    setCancelling(true);
+    const res = await api<{ message: string }>("/payments/subscription/cancel", { method: "POST" });
+    setCancelling(false);
+    if (res.ok) {
+      setMessage((res.data as { message: string }).message);
+      void load();
+    }
+  };
+
   const rows = [
-    { label: "Billing Cycle", value: "—" },
-    { label: "Next Billing Date", value: "—" },
-    { label: "Payment Method", value: "Not connected" },
+    { label: "Billing Cycle", value: subscription ? (subscription.billingCycle === "monthly" ? "Monthly" : "Annual") : "—" },
+    { label: "Next Billing Date", value: subscription?.currentPeriodEnd ? fmtDate(subscription.currentPeriodEnd) : "—" },
+    { label: "Payment Method", value: subscription ? (subscription.provider === "razorpay" ? "Razorpay" : "Stripe") : "Not connected" },
   ];
+
   return (
     <div className="bg-card border border-border rounded-xl p-6">
       <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
         <CreditCard className="w-4 h-4 text-primary" /> Billing Details
       </h2>
       <p className="text-xs text-muted-foreground mb-4">
-        Payment processing is not yet live — this area will activate once billing is available.
+        {subscription
+          ? subscription.cancelAtPeriodEnd
+            ? "Your subscription is set to cancel at the end of the current billing period."
+            : "Manage your active subscription and view past payments."
+          : "You don't have an active subscription. Upgrade above to unlock Pro or Premium."}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {rows.map((r) => (
@@ -772,17 +831,35 @@ function BillingDetailsCard() {
         ))}
       </div>
       <div className="bg-background/50 border border-border rounded-lg p-4 mb-4">
-        <p className="text-xs font-semibold text-foreground mb-1">Payment History</p>
-        <p className="text-xs text-muted-foreground">No payment history yet.</p>
+        <p className="text-xs font-semibold text-foreground mb-2">Payment History</p>
+        {loading ? (
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        ) : invoices.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No payment history yet.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {invoices.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{inv.invoiceNumber ?? "—"} · {fmtDate(inv.paidAt ?? inv.createdAt)}</span>
+                <span className={cn("font-semibold", inv.status === "paid" ? "text-emerald-400" : inv.status === "failed" ? "text-red-400" : "text-muted-foreground")}>
+                  {formatMoney(inv.amount, inv.currency)} · {inv.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      <div className="flex gap-2">
-        <button disabled className="flex-1 text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-not-allowed">
-          Download Invoice
+      {message && (
+        <div className="flex items-center gap-2 text-emerald-400 text-xs bg-emerald-500/10 rounded-lg px-3 py-2 mb-4">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> {message}
+        </div>
+      )}
+      {subscription && subscription.status !== "cancelled" && subscription.status !== "expired" && !subscription.cancelAtPeriodEnd && (
+        <button onClick={cancel} disabled={cancelling}
+          className="w-full text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground hover:text-red-400 hover:border-red-500/30 transition-colors disabled:opacity-50">
+          {cancelling ? "Cancelling…" : "Cancel Subscription"}
         </button>
-        <button disabled className="flex-1 text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-not-allowed">
-          Cancel Subscription
-        </button>
-      </div>
+      )}
     </div>
   );
 }
@@ -864,21 +941,112 @@ function ChangePassword() {
 }
 
 // ── Upgrade / plan cards ────────────────────────────────────────────────────
+interface PlanCatalogEntry {
+  planId: "pro" | "premium";
+  billingCycle: "monthly" | "annual";
+  amountInrPaise: number;
+  amountUsdCents: number;
+}
+
 function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
+  const { user } = useAuth();
+  const [catalog, setCatalog] = useState<PlanCatalogEntry[]>([]);
+  const [currency, setCurrency] = useState<"INR" | "USD">("INR");
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
+  const [checkingOut, setCheckingOut] = useState<PlanId | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    void (async () => {
+      const res = await api<{ plans: PlanCatalogEntry[] }>("/payments/plans");
+      if (res.ok) setCatalog((res.data as { plans: PlanCatalogEntry[] }).plans);
+    })();
+  }, []);
+
+  const priceFor = (pid: PlanId): { amount: number; available: boolean } => {
+    if (pid === "free") return { amount: 0, available: true };
+    const entry = catalog.find((c) => c.planId === pid && c.billingCycle === cycle);
+    const amount = entry ? (currency === "INR" ? entry.amountInrPaise : entry.amountUsdCents) : 0;
+    return { amount, available: amount > 0 };
+  };
+
+  const startCheckout = async (pid: "pro" | "premium") => {
+    setError("");
+    setCheckingOut(pid);
+    try {
+      const res = await api<{ provider: "razorpay" | "stripe"; subscriptionId: string; razorpayKeyId?: string; redirectUrl?: string }>(
+        "/payments/checkout",
+        { method: "POST", body: JSON.stringify({ planId: pid, billingCycle: cycle, currency }) },
+      );
+      if (!res.ok) {
+        setError((res.data as { error: string }).error ?? "Failed to start checkout");
+        return;
+      }
+      const data = res.data as { provider: "razorpay" | "stripe"; subscriptionId: string; razorpayKeyId?: string; redirectUrl?: string };
+      if (data.provider === "stripe" && data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+        return;
+      }
+      if (data.provider === "razorpay" && data.razorpayKeyId) {
+        await loadRazorpayCheckout();
+        openRazorpayCheckout({
+          key: data.razorpayKeyId,
+          subscription_id: data.subscriptionId,
+          name: "MarketPulse AI",
+          description: `${PLANS[pid].name} — ${cycle === "monthly" ? "Monthly" : "Annual"}`,
+          prefill: { name: user?.name, email: user?.email },
+          handler: () => { window.location.href = "/settings?checkout=success"; },
+        });
+      }
+    } catch {
+      setError("Failed to start checkout");
+    } finally {
+      setCheckingOut(null);
+    }
+  };
+
   return (
     <div className="bg-card border border-border rounded-xl p-6">
-      <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-1">
-        <Sparkles className="w-4 h-4 text-primary" /> Your Plan
-      </h2>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" /> Your Plan
+        </h2>
+        <div className="flex items-center gap-2 text-xs">
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            {(["INR", "USD"] as const).map((c) => (
+              <button key={c} onClick={() => setCurrency(c)}
+                className={cn("px-2.5 py-1 font-bold", currency === c ? "bg-primary text-white" : "bg-background text-muted-foreground hover:text-foreground")}>
+                {c === "INR" ? "₹ INR" : "$ USD"}
+              </button>
+            ))}
+          </div>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            {(["monthly", "annual"] as const).map((c) => (
+              <button key={c} onClick={() => setCycle(c)}
+                className={cn("px-2.5 py-1 font-bold capitalize", cycle === c ? "bg-primary text-white" : "bg-background text-muted-foreground hover:text-foreground")}>
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
       <p className="text-xs text-muted-foreground mb-5">
         You're on the <span className="font-semibold capitalize text-foreground">{PLANS[currentPlan].name}</span> plan. Upgrade to unlock predictions, live levels and broker integration.
       </p>
+
+      {error && (
+        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 rounded-lg px-3 py-2 mb-4">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {PLAN_ORDER.map((pid) => {
           const p = PLANS[pid];
           const isCurrent = pid === currentPlan;
           const included = FEATURE_ROWS.filter((f) => hasAccess(pid, f.feature));
+          const { amount, available } = priceFor(pid);
+          const priceLabel = pid === "free" ? p.price : available ? formatMoney(amount, currency) : "Coming soon";
           return (
             <div key={pid} className={cn("relative rounded-xl border bg-background/40 p-4 flex flex-col", isCurrent ? "border-primary/50 ring-1 ring-primary/30" : p.card)}>
               {isCurrent && (
@@ -889,8 +1057,8 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
               <div className="flex items-baseline justify-between mb-1">
                 <span className={cn("text-base font-black", p.accent)}>{p.name}</span>
                 <div className="text-right">
-                  <span className="text-sm font-bold text-foreground">{p.price}</span>
-                  {p.priceNote && <span className="text-[10px] text-muted-foreground ml-1">{p.priceNote}</span>}
+                  <span className="text-sm font-bold text-foreground">{priceLabel}</span>
+                  {pid !== "free" && available && <span className="text-[10px] text-muted-foreground ml-1">/{cycle === "monthly" ? "mo" : "yr"}</span>}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mb-3">{p.tagline}</p>
@@ -916,9 +1084,15 @@ function PlanSection({ currentPlan }: { currentPlan: PlanId }) {
                 <button disabled className="w-full text-xs font-bold py-2 rounded-lg border border-border bg-muted/20 text-muted-foreground cursor-default">
                   Included
                 </button>
-              ) : (
+              ) : !available ? (
                 <button disabled className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg border border-primary/30 bg-primary/10 text-primary cursor-default">
                   <Sparkles className="w-3.5 h-3.5" /> Upgrade — coming soon
+                </button>
+              ) : (
+                <button onClick={() => void startCheckout(pid)} disabled={checkingOut === pid}
+                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-lg bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50">
+                  {checkingOut === pid ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {checkingOut === pid ? "Starting…" : "Upgrade"}
                 </button>
               )}
             </div>

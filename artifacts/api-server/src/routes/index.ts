@@ -9,6 +9,8 @@ import adminRouter from "./admin";
 import adminEmailRouter from "./admin-email";
 import supportRouter from "./support";
 import adminSupportRouter from "./admin-support";
+import paymentsRouter from "./payments";
+import adminPaymentsRouter from "./admin-payments";
 
 const router: IRouter = Router();
 
@@ -22,5 +24,7 @@ router.use(adminRouter);
 router.use(adminEmailRouter);
 router.use(supportRouter);
 router.use(adminSupportRouter);
+router.use(paymentsRouter);
+router.use(adminPaymentsRouter);
 
 export default router;

@@ -299,6 +299,72 @@ export interface PasswordResetRow {
   createdAt: Date;
 }
 
+export interface PaymentSettingsRow {
+  razorpayKeyId: string | null;
+  razorpayKeySecretEncrypted: string | null;
+  razorpayWebhookSecretEncrypted: string | null;
+  stripePublishableKey: string | null;
+  stripeSecretKeyEncrypted: string | null;
+  stripeWebhookSecretEncrypted: string | null;
+  updatedBy: number | null;
+  updatedAt: Date;
+}
+
+export type PlanId = "pro" | "premium";
+export type BillingCycle = "monthly" | "annual";
+export type PaymentProvider = "razorpay" | "stripe";
+
+export interface SubscriptionPlanRow {
+  id: number;
+  planId: PlanId;
+  billingCycle: BillingCycle;
+  /** Money is always the smallest currency unit — paise, never rupees. */
+  amountInrPaise: number;
+  /** Money is always the smallest currency unit — cents, never dollars. */
+  amountUsdCents: number;
+  razorpayPlanId: string | null;
+  stripePriceId: string | null;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type SubscriptionStatus = "created" | "active" | "past_due" | "cancelled" | "expired";
+
+export interface SubscriptionRow {
+  id: number;
+  userId: number;
+  planId: PlanId;
+  billingCycle: BillingCycle;
+  provider: PaymentProvider;
+  providerSubscriptionId: string;
+  providerCustomerId: string | null;
+  status: SubscriptionStatus;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type InvoiceStatus = "paid" | "failed" | "refunded";
+export type Currency = "INR" | "USD";
+
+export interface InvoiceRow {
+  id: number;
+  userId: number;
+  subscriptionId: number | null;
+  provider: PaymentProvider;
+  providerPaymentId: string;
+  providerInvoiceId: string | null;
+  /** Smallest currency unit, matching `currency`. */
+  amount: number;
+  currency: Currency;
+  status: InvoiceStatus;
+  invoiceNumber: string | null;
+  paidAt: Date | null;
+  createdAt: Date;
+}
+
 // ── Row decoders ────────────────────────────────────────────────────────────
 // mysql2 hands back snake_case columns, DECIMAL as string, and tinyint(1) as
 // 0/1, so each table gets an explicit decoder rather than a blanket cast.
@@ -405,6 +471,68 @@ function toEmailLog(r: Raw): EmailLogRow {
     failureReason: (r["failure_reason"] as string | null) ?? null,
     createdAt: r["created_at"] as Date,
     sentAt: (r["sent_at"] as Date | null) ?? null,
+  };
+}
+
+function toPaymentSettings(r: Raw): PaymentSettingsRow {
+  return {
+    razorpayKeyId: (r["razorpay_key_id"] as string | null) ?? null,
+    razorpayKeySecretEncrypted: (r["razorpay_key_secret_encrypted"] as string | null) ?? null,
+    razorpayWebhookSecretEncrypted: (r["razorpay_webhook_secret_encrypted"] as string | null) ?? null,
+    stripePublishableKey: (r["stripe_publishable_key"] as string | null) ?? null,
+    stripeSecretKeyEncrypted: (r["stripe_secret_key_encrypted"] as string | null) ?? null,
+    stripeWebhookSecretEncrypted: (r["stripe_webhook_secret_encrypted"] as string | null) ?? null,
+    updatedBy: r["updated_by"] != null ? Number(r["updated_by"]) : null,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toSubscriptionPlan(r: Raw): SubscriptionPlanRow {
+  return {
+    id: Number(r["id"]),
+    planId: r["plan_id"] as PlanId,
+    billingCycle: r["billing_cycle"] as BillingCycle,
+    amountInrPaise: Number(r["amount_inr_paise"]),
+    amountUsdCents: Number(r["amount_usd_cents"]),
+    razorpayPlanId: (r["razorpay_plan_id"] as string | null) ?? null,
+    stripePriceId: (r["stripe_price_id"] as string | null) ?? null,
+    active: Boolean(r["active"]),
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toSubscription(r: Raw): SubscriptionRow {
+  return {
+    id: Number(r["id"]),
+    userId: Number(r["user_id"]),
+    planId: r["plan_id"] as PlanId,
+    billingCycle: r["billing_cycle"] as BillingCycle,
+    provider: r["provider"] as PaymentProvider,
+    providerSubscriptionId: String(r["provider_subscription_id"]),
+    providerCustomerId: (r["provider_customer_id"] as string | null) ?? null,
+    status: r["status"] as SubscriptionStatus,
+    currentPeriodEnd: (r["current_period_end"] as Date | null) ?? null,
+    cancelAtPeriodEnd: Boolean(r["cancel_at_period_end"]),
+    createdAt: r["created_at"] as Date,
+    updatedAt: r["updated_at"] as Date,
+  };
+}
+
+function toInvoice(r: Raw): InvoiceRow {
+  return {
+    id: Number(r["id"]),
+    userId: Number(r["user_id"]),
+    subscriptionId: r["subscription_id"] != null ? Number(r["subscription_id"]) : null,
+    provider: r["provider"] as PaymentProvider,
+    providerPaymentId: String(r["provider_payment_id"]),
+    providerInvoiceId: (r["provider_invoice_id"] as string | null) ?? null,
+    amount: Number(r["amount"]),
+    currency: r["currency"] as Currency,
+    status: r["status"] as InvoiceStatus,
+    invoiceNumber: (r["invoice_number"] as string | null) ?? null,
+    paidAt: (r["paid_at"] as Date | null) ?? null,
+    createdAt: r["created_at"] as Date,
   };
 }
 
@@ -1496,6 +1624,284 @@ export const db = {
       await execute(
         "INSERT INTO support_assignments (ticket_id, admin_user_id, assigned_by) VALUES (?, ?, ?)",
         [a.ticketId, a.adminUserId, a.assignedBy],
+      );
+    },
+  },
+
+  /**
+   * Razorpay/Stripe API credentials. Schema lives in lib/db/payment_gateway.sql,
+   * same DB-stored-encrypted-secret singleton shape as smtpSettings — callers
+   * encrypt secrets before they ever reach this module.
+   */
+  paymentSettings: {
+    async get(): Promise<PaymentSettingsRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM payment_settings WHERE id = 1 LIMIT 1");
+          return rows[0] ? toPaymentSettings(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    /**
+     * Upserts the singleton settings row. Omit any `*Encrypted` field to leave
+     * that currently stored secret untouched (used when the admin saves the
+     * form without re-entering it) — generalizes smtpSettings.upsert's
+     * single-optional-field branch to this table's four independent secrets.
+     */
+    async upsert(s: {
+      razorpayKeyId: string | null;
+      razorpayKeySecretEncrypted?: string;
+      razorpayWebhookSecretEncrypted?: string;
+      stripePublishableKey: string | null;
+      stripeSecretKeyEncrypted?: string;
+      stripeWebhookSecretEncrypted?: string;
+      updatedBy: number | null;
+    }): Promise<void> {
+      const cols = ["id", "razorpay_key_id", "stripe_publishable_key", "updated_by"];
+      const vals: SqlParam[] = [1, s.razorpayKeyId, s.stripePublishableKey, s.updatedBy];
+      const updates = [
+        "razorpay_key_id = VALUES(razorpay_key_id)",
+        "stripe_publishable_key = VALUES(stripe_publishable_key)",
+        "updated_by = VALUES(updated_by)",
+      ];
+
+      const optional: [string, string | undefined][] = [
+        ["razorpay_key_secret_encrypted", s.razorpayKeySecretEncrypted],
+        ["razorpay_webhook_secret_encrypted", s.razorpayWebhookSecretEncrypted],
+        ["stripe_secret_key_encrypted", s.stripeSecretKeyEncrypted],
+        ["stripe_webhook_secret_encrypted", s.stripeWebhookSecretEncrypted],
+      ];
+      for (const [col, val] of optional) {
+        if (val === undefined) continue;
+        cols.push(col);
+        vals.push(val);
+        updates.push(`${col} = VALUES(${col})`);
+      }
+
+      await execute(
+        `INSERT INTO payment_settings (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})
+         ON DUPLICATE KEY UPDATE ${updates.join(", ")}`,
+        vals,
+      );
+    },
+  },
+
+  /**
+   * Pro/Premium pricing catalog. The app never calls a provider's "create
+   * plan/price" API — an admin creates the Plan on Razorpay / Price on Stripe
+   * by hand and pastes the id here, then this table is what checkout reads.
+   */
+  subscriptionPlans: {
+    async all(): Promise<SubscriptionPlanRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM subscription_plans ORDER BY plan_id, billing_cycle");
+          return rows.map(toSubscriptionPlan);
+        },
+        async () => [],
+      );
+    },
+    async findByPlanCycle(planId: PlanId, billingCycle: BillingCycle): Promise<SubscriptionPlanRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            "SELECT * FROM subscription_plans WHERE plan_id = ? AND billing_cycle = ? LIMIT 1",
+            [planId, billingCycle],
+          );
+          return rows[0] ? toSubscriptionPlan(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    async update(
+      planId: PlanId,
+      billingCycle: BillingCycle,
+      fields: {
+        amountInrPaise?: number;
+        amountUsdCents?: number;
+        razorpayPlanId?: string | null;
+        stripePriceId?: string | null;
+        active?: boolean;
+      },
+    ): Promise<void> {
+      const sets: string[] = [];
+      const vals: SqlParam[] = [];
+      if (fields.amountInrPaise !== undefined) { sets.push("amount_inr_paise = ?"); vals.push(fields.amountInrPaise); }
+      if (fields.amountUsdCents !== undefined) { sets.push("amount_usd_cents = ?"); vals.push(fields.amountUsdCents); }
+      if (fields.razorpayPlanId !== undefined) { sets.push("razorpay_plan_id = ?"); vals.push(fields.razorpayPlanId); }
+      if (fields.stripePriceId !== undefined) { sets.push("stripe_price_id = ?"); vals.push(fields.stripePriceId); }
+      if (fields.active !== undefined) { sets.push("active = ?"); vals.push(fields.active); }
+      if (sets.length === 0) return;
+      vals.push(planId, billingCycle);
+      await execute(
+        `UPDATE subscription_plans SET ${sets.join(", ")} WHERE plan_id = ? AND billing_cycle = ?`,
+        vals,
+      );
+    },
+  },
+
+  subscriptions: {
+    async insert(s: {
+      userId: number;
+      planId: PlanId;
+      billingCycle: BillingCycle;
+      provider: PaymentProvider;
+      providerSubscriptionId: string;
+      providerCustomerId: string | null;
+      status: SubscriptionStatus;
+    }): Promise<SubscriptionRow> {
+      const res = await execute(
+        `INSERT INTO subscriptions
+           (user_id, plan_id, billing_cycle, provider, provider_subscription_id, provider_customer_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [s.userId, s.planId, s.billingCycle, s.provider, s.providerSubscriptionId, s.providerCustomerId, s.status],
+      );
+      const rows = await query("SELECT * FROM subscriptions WHERE id = ?", [res.insertId]);
+      return toSubscription(rows[0]!);
+    },
+    async findByProviderSubscriptionId(
+      provider: PaymentProvider,
+      providerSubscriptionId: string,
+    ): Promise<SubscriptionRow | null> {
+      const rows = await query(
+        "SELECT * FROM subscriptions WHERE provider = ? AND provider_subscription_id = ? LIMIT 1",
+        [provider, providerSubscriptionId],
+      );
+      return rows[0] ? toSubscription(rows[0]) : null;
+    },
+    /** Most recent non-expired subscription for a user — there is no "current subscription" pointer on `users`. */
+    async findCurrentForUser(userId: number): Promise<SubscriptionRow | null> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query(
+            `SELECT * FROM subscriptions WHERE user_id = ? AND status != 'expired'
+             ORDER BY created_at DESC LIMIT 1`,
+            [userId],
+          );
+          return rows[0] ? toSubscription(rows[0]) : null;
+        },
+        async () => null,
+      );
+    },
+    async updateStatus(id: number, status: SubscriptionStatus, currentPeriodEnd?: Date | null): Promise<void> {
+      if (currentPeriodEnd !== undefined) {
+        await execute(
+          "UPDATE subscriptions SET status = ?, current_period_end = ? WHERE id = ?",
+          [status, currentPeriodEnd, id],
+        );
+      } else {
+        await execute("UPDATE subscriptions SET status = ? WHERE id = ?", [status, id]);
+      }
+    },
+    async setCancelAtPeriodEnd(id: number, cancel: boolean): Promise<void> {
+      await execute("UPDATE subscriptions SET cancel_at_period_end = ? WHERE id = ?", [cancel, id]);
+    },
+    /**
+     * Stripe Checkout Sessions don't carry a real subscription id until
+     * payment completes, so `insert()` stores the session id as a placeholder
+     * `provider_subscription_id` at checkout time — this swaps it for the
+     * real subscription id once the `checkout.session.completed` webhook
+     * arrives.
+     */
+    async reattachProviderSubscriptionId(
+      id: number,
+      providerSubscriptionId: string,
+      providerCustomerId: string | null,
+    ): Promise<void> {
+      await execute(
+        "UPDATE subscriptions SET provider_subscription_id = ?, provider_customer_id = ? WHERE id = ?",
+        [providerSubscriptionId, providerCustomerId, id],
+      );
+    },
+    async all(filters: { limit?: number } = {}): Promise<SubscriptionRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const limit = Math.min(Math.max(filters.limit ?? 100, 1), 500);
+          const rows = await query("SELECT * FROM subscriptions ORDER BY created_at DESC LIMIT ?", [limit]);
+          return rows.map(toSubscription);
+        },
+        async () => [],
+      );
+    },
+  },
+
+  invoices: {
+    /** invoice_number is derived from the row's own id, same pattern as support_tickets.ticket_number. */
+    async insert(i: {
+      userId: number;
+      subscriptionId: number | null;
+      provider: PaymentProvider;
+      providerPaymentId: string;
+      providerInvoiceId: string | null;
+      amount: number;
+      currency: Currency;
+      status: InvoiceStatus;
+      paidAt: Date | null;
+    }): Promise<InvoiceRow> {
+      const res = await execute(
+        `INSERT INTO invoices
+           (user_id, subscription_id, provider, provider_payment_id, provider_invoice_id, amount, currency, status, paid_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [i.userId, i.subscriptionId, i.provider, i.providerPaymentId, i.providerInvoiceId, i.amount, i.currency, i.status, i.paidAt],
+      );
+      const invoiceNumber = `MP-INV-${String(res.insertId).padStart(6, "0")}`;
+      await execute("UPDATE invoices SET invoice_number = ? WHERE id = ?", [invoiceNumber, res.insertId]);
+      const rows = await query("SELECT * FROM invoices WHERE id = ?", [res.insertId]);
+      return toInvoice(rows[0]!);
+    },
+    async findByProviderPaymentId(provider: PaymentProvider, providerPaymentId: string): Promise<InvoiceRow | null> {
+      const rows = await query(
+        "SELECT * FROM invoices WHERE provider = ? AND provider_payment_id = ? LIMIT 1",
+        [provider, providerPaymentId],
+      );
+      return rows[0] ? toInvoice(rows[0]) : null;
+    },
+    async findByUser(userId: number): Promise<InvoiceRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const rows = await query("SELECT * FROM invoices WHERE user_id = ? ORDER BY created_at DESC", [userId]);
+          return rows.map(toInvoice);
+        },
+        async () => [],
+      );
+    },
+    async all(filters: { limit?: number } = {}): Promise<InvoiceRow[]> {
+      return withSchemaFallback(
+        async () => {
+          const limit = Math.min(Math.max(filters.limit ?? 100, 1), 500);
+          const rows = await query("SELECT * FROM invoices ORDER BY created_at DESC LIMIT ?", [limit]);
+          return rows.map(toInvoice);
+        },
+        async () => [],
+      );
+    },
+  },
+
+  /**
+   * Webhook delivery idempotency log. `insertIfNew` is the only entry point a
+   * webhook handler needs — it returns false for a duplicate delivery, so the
+   * caller can skip re-applying side effects (flipping users.plan, writing an
+   * invoice, sending email) without a separate existence check.
+   */
+  webhookEvents: {
+    async insertIfNew(e: {
+      provider: PaymentProvider;
+      eventId: string;
+      eventType: string;
+      payload: unknown;
+    }): Promise<boolean> {
+      const res = await execute(
+        `INSERT IGNORE INTO payment_webhook_events (provider, event_id, event_type, payload)
+         VALUES (?, ?, ?, ?)`,
+        [e.provider, e.eventId, e.eventType, JSON.stringify(e.payload)],
+      );
+      return res.affectedRows > 0;
+    },
+    async markProcessed(provider: PaymentProvider, eventId: string): Promise<void> {
+      await execute(
+        "UPDATE payment_webhook_events SET processed_at = NOW() WHERE provider = ? AND event_id = ?",
+        [provider, eventId],
       );
     },
   },

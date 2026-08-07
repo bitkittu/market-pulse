@@ -1213,6 +1213,293 @@ function SupportCenterView() {
   return <SupportQueue onOpen={(id) => setView({ name: "ticket", id })} />;
 }
 
+// ── Payment settings (Razorpay / Stripe credentials) ─────────────────────────
+interface PaymentSettingsData {
+  razorpayKeyId: string; hasRazorpaySecret: boolean; hasRazorpayWebhookSecret: boolean;
+  stripePublishableKey: string; hasStripeSecret: boolean; hasStripeWebhookSecret: boolean;
+  updatedAt: string | null;
+}
+
+function PaymentSettingsCard() {
+  const [loading, setLoading] = useState(true);
+  const [flags, setFlags] = useState({ hasRazorpaySecret: false, hasRazorpayWebhookSecret: false, hasStripeSecret: false, hasStripeWebhookSecret: false });
+  const [form, setForm] = useState({
+    razorpayKeyId: "", razorpayKeySecret: "", razorpayWebhookSecret: "",
+    stripePublishableKey: "", stripeSecretKey: "", stripeWebhookSecret: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const res = await api<PaymentSettingsData>("/admin/payment-settings");
+      if (res.ok) {
+        const d = res.data as PaymentSettingsData;
+        setForm((f) => ({ ...f, razorpayKeyId: d.razorpayKeyId, stripePublishableKey: d.stripePublishableKey }));
+        setFlags({ hasRazorpaySecret: d.hasRazorpaySecret, hasRazorpayWebhookSecret: d.hasRazorpayWebhookSecret, hasStripeSecret: d.hasStripeSecret, hasStripeWebhookSecret: d.hasStripeWebhookSecret });
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true); setMsg(""); setErr("");
+    const res = await api<PaymentSettingsData>("/admin/payment-settings", { method: "PUT", body: JSON.stringify(form) });
+    setSaving(false);
+    if (!res.ok) { setErr((res.data as { error: string }).error); return; }
+    const d = res.data as PaymentSettingsData;
+    setFlags({ hasRazorpaySecret: d.hasRazorpaySecret, hasRazorpayWebhookSecret: d.hasRazorpayWebhookSecret, hasStripeSecret: d.hasStripeSecret, hasStripeWebhookSecret: d.hasStripeWebhookSecret });
+    setForm((f) => ({ ...f, razorpayKeySecret: "", razorpayWebhookSecret: "", stripeSecretKey: "", stripeWebhookSecret: "" }));
+    setMsg("Payment settings saved.");
+  };
+
+  if (loading) return <div className="h-64 bg-slate-800/40 animate-pulse rounded-xl" />;
+
+  return (
+    <form onSubmit={save} className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5 space-y-5">
+      <div>
+        <h3 className="text-sm font-semibold text-white mb-1">Razorpay (INR)</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={emailLabelCls}>Key ID</label>
+            <input value={form.razorpayKeyId} onChange={(e) => setForm((f) => ({ ...f, razorpayKeyId: e.target.value }))} className={emailInputCls} placeholder="rzp_live_..." />
+          </div>
+          <div>
+            <label className={emailLabelCls}>Key Secret {flags.hasRazorpaySecret && <span className="text-emerald-400 font-normal">(set — leave blank to keep it)</span>}</label>
+            <input type="password" value={form.razorpayKeySecret} onChange={(e) => setForm((f) => ({ ...f, razorpayKeySecret: e.target.value }))} className={emailInputCls} placeholder={flags.hasRazorpaySecret ? "••••••••" : "Enter key secret"} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={emailLabelCls}>Webhook Secret {flags.hasRazorpayWebhookSecret && <span className="text-emerald-400 font-normal">(set — leave blank to keep it)</span>}</label>
+            <input type="password" value={form.razorpayWebhookSecret} onChange={(e) => setForm((f) => ({ ...f, razorpayWebhookSecret: e.target.value }))} className={emailInputCls} placeholder={flags.hasRazorpayWebhookSecret ? "••••••••" : "Enter webhook secret"} />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-white mb-1">Stripe (USD)</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={emailLabelCls}>Publishable Key</label>
+            <input value={form.stripePublishableKey} onChange={(e) => setForm((f) => ({ ...f, stripePublishableKey: e.target.value }))} className={emailInputCls} placeholder="pk_live_..." />
+          </div>
+          <div>
+            <label className={emailLabelCls}>Secret Key {flags.hasStripeSecret && <span className="text-emerald-400 font-normal">(set — leave blank to keep it)</span>}</label>
+            <input type="password" value={form.stripeSecretKey} onChange={(e) => setForm((f) => ({ ...f, stripeSecretKey: e.target.value }))} className={emailInputCls} placeholder={flags.hasStripeSecret ? "••••••••" : "Enter secret key"} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={emailLabelCls}>Webhook Secret {flags.hasStripeWebhookSecret && <span className="text-emerald-400 font-normal">(set — leave blank to keep it)</span>}</label>
+            <input type="password" value={form.stripeWebhookSecret} onChange={(e) => setForm((f) => ({ ...f, stripeWebhookSecret: e.target.value }))} className={emailInputCls} placeholder={flags.hasStripeWebhookSecret ? "••••••••" : "Enter webhook secret"} />
+          </div>
+        </div>
+      </div>
+
+      {err && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{err}</div>}
+      {msg && <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">{msg}</div>}
+
+      <button type="submit" disabled={saving}
+        className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50">
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+        {saving ? "Saving…" : "Save Credentials"}
+      </button>
+    </form>
+  );
+}
+
+// ── Subscription plan pricing ─────────────────────────────────────────────────
+interface SubscriptionPlanData {
+  planId: "pro" | "premium"; billingCycle: "monthly" | "annual";
+  amountInrPaise: number; amountUsdCents: number;
+  razorpayPlanId: string | null; stripePriceId: string | null; active: boolean;
+}
+
+function SubscriptionPlansCard() {
+  const [plans, setPlans] = useState<SubscriptionPlanData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState("");
+
+  const load = async () => {
+    const res = await api<{ plans: SubscriptionPlanData[] }>("/admin/subscription-plans");
+    if (res.ok) setPlans((res.data as { plans: SubscriptionPlanData[] }).plans);
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+
+  const savePlan = async (p: SubscriptionPlanData, patch: Partial<SubscriptionPlanData>) => {
+    const key = `${p.planId}:${p.billingCycle}`;
+    setSavingKey(key);
+    await api(`/admin/subscription-plans/${p.planId}/${p.billingCycle}`, { method: "PUT", body: JSON.stringify(patch) });
+    await load();
+    setSavingKey("");
+  };
+
+  if (loading) return <div className="h-64 bg-slate-800/40 animate-pulse rounded-xl" />;
+
+  return (
+    <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5 overflow-x-auto">
+      <table className="w-full min-w-[720px] text-sm">
+        <thead>
+          <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+            <th className="py-2 pr-3">Plan</th>
+            <th className="py-2 pr-3">Cycle</th>
+            <th className="py-2 pr-3">₹ (INR)</th>
+            <th className="py-2 pr-3">$ (USD)</th>
+            <th className="py-2 pr-3">Razorpay Plan ID</th>
+            <th className="py-2 pr-3">Stripe Price ID</th>
+            <th className="py-2 pr-3">Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          {plans.map((p) => {
+            const key = `${p.planId}:${p.billingCycle}`;
+            return (
+              <tr key={key} className="border-b border-slate-700/30 last:border-0">
+                <td className="py-2 pr-3 capitalize font-semibold text-white">{p.planId}</td>
+                <td className="py-2 pr-3 capitalize text-slate-300">{p.billingCycle}</td>
+                <td className="py-2 pr-3">
+                  <input type="number" step="0.01" defaultValue={(p.amountInrPaise / 100).toFixed(2)}
+                    onBlur={(e) => void savePlan(p, { amountInrPaise: Math.round(Number(e.target.value) * 100) })}
+                    className="w-24 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <input type="number" step="0.01" defaultValue={(p.amountUsdCents / 100).toFixed(2)}
+                    onBlur={(e) => void savePlan(p, { amountUsdCents: Math.round(Number(e.target.value) * 100) })}
+                    className="w-24 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <input defaultValue={p.razorpayPlanId ?? ""} placeholder="plan_..."
+                    onBlur={(e) => void savePlan(p, { razorpayPlanId: e.target.value.trim() || null })}
+                    className="w-36 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <input defaultValue={p.stripePriceId ?? ""} placeholder="price_..."
+                    onBlur={(e) => void savePlan(p, { stripePriceId: e.target.value.trim() || null })}
+                    className="w-36 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-xs" />
+                </td>
+                <td className="py-2 pr-3">
+                  <button onClick={() => void savePlan(p, { active: !p.active })} disabled={savingKey === key}>
+                    {p.active ? <ToggleRight className="w-6 h-6 text-emerald-400" /> : <ToggleLeft className="w-6 h-6 text-slate-500" />}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="text-xs text-slate-500 mt-3">
+        A plan only becomes purchasable once its price is above zero, its provider plan/price id is set, and it's marked active.
+      </p>
+    </div>
+  );
+}
+
+// ── Subscriptions / invoices (read-only) ──────────────────────────────────────
+interface AdminSubscriptionData {
+  id: number; userId: number; planId: string; billingCycle: string; provider: string;
+  status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; createdAt: string;
+}
+interface AdminInvoiceData {
+  id: number; userId: number; provider: string; amount: number; currency: "INR" | "USD";
+  status: string; invoiceNumber: string | null; createdAt: string;
+}
+
+function SubscriptionsInvoicesCard() {
+  const [tab, setTab] = useState<"subscriptions" | "invoices">("subscriptions");
+  const [subscriptions, setSubscriptions] = useState<AdminSubscriptionData[]>([]);
+  const [invoices, setInvoices] = useState<AdminInvoiceData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const [subRes, invRes] = await Promise.all([
+        api<{ subscriptions: AdminSubscriptionData[] }>("/admin/subscriptions"),
+        api<{ invoices: AdminInvoiceData[] }>("/admin/invoices"),
+      ]);
+      if (subRes.ok) setSubscriptions((subRes.data as { subscriptions: AdminSubscriptionData[] }).subscriptions);
+      if (invRes.ok) setInvoices((invRes.data as { invoices: AdminInvoiceData[] }).invoices);
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return <div className="h-64 bg-slate-800/40 animate-pulse rounded-xl" />;
+
+  return (
+    <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl p-5">
+      <div className="flex gap-2 mb-4">
+        {(["subscriptions", "invoices"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${tab === t ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:text-slate-200"}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        {tab === "subscriptions" ? (
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+                <th className="py-2 pr-3">User ID</th><th className="py-2 pr-3">Plan</th><th className="py-2 pr-3">Cycle</th>
+                <th className="py-2 pr-3">Provider</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Period End</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subscriptions.length === 0 ? (
+                <tr><td colSpan={6} className="py-4 text-center text-slate-500 text-xs">No subscriptions yet.</td></tr>
+              ) : subscriptions.map((s) => (
+                <tr key={s.id} className="border-b border-slate-700/30 last:border-0 text-slate-300">
+                  <td className="py-2 pr-3">{s.userId}</td>
+                  <td className="py-2 pr-3 capitalize">{s.planId}</td>
+                  <td className="py-2 pr-3 capitalize">{s.billingCycle}</td>
+                  <td className="py-2 pr-3 capitalize">{s.provider}</td>
+                  <td className="py-2 pr-3 capitalize">{s.status}{s.cancelAtPeriodEnd ? " (cancelling)" : ""}</td>
+                  <td className="py-2 pr-3">{s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString("en-IN") : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-700/50 text-left text-xs text-slate-400">
+                <th className="py-2 pr-3">Invoice #</th><th className="py-2 pr-3">User ID</th>
+                <th className="py-2 pr-3">Amount</th><th className="py-2 pr-3">Provider</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.length === 0 ? (
+                <tr><td colSpan={6} className="py-4 text-center text-slate-500 text-xs">No invoices yet.</td></tr>
+              ) : invoices.map((inv) => (
+                <tr key={inv.id} className="border-b border-slate-700/30 last:border-0 text-slate-300">
+                  <td className="py-2 pr-3">{inv.invoiceNumber ?? "—"}</td>
+                  <td className="py-2 pr-3">{inv.userId}</td>
+                  <td className="py-2 pr-3">{inv.currency === "INR" ? "₹" : "$"}{(inv.amount / 100).toFixed(2)}</td>
+                  <td className="py-2 pr-3 capitalize">{inv.provider}</td>
+                  <td className="py-2 pr-3 capitalize">{inv.status}</td>
+                  <td className="py-2 pr-3">{new Date(inv.createdAt).toLocaleDateString("en-IN")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PaymentsView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white mb-1">Subscription Plans & Payments</h2>
+        <p className="text-slate-400 text-sm">Configure Razorpay/Stripe credentials, plan pricing, and review subscriptions and invoices.</p>
+      </div>
+      <PaymentSettingsCard />
+      <SubscriptionPlansCard />
+      <SubscriptionsInvoicesCard />
+    </div>
+  );
+}
+
 // ── Main Admin Panel ──────────────────────────────────────────────────────
 export function AdminPanel() {
   const { user, logout, allUsers, deleteUser, updateUserPlan } = useAuth();
@@ -1318,7 +1605,7 @@ export function AdminPanel() {
           {view === "ai" && <PlaceholderView title="AI Model Settings" desc="Configure AI analysis models, prompt templates, and inference parameters." icon={Brain} />}
           {view === "news" && <PlaceholderView title="News Sources" desc="Manage news APIs, RSS feeds, and sentiment analysis sources." icon={Newspaper} />}
           {view === "apis" && <PlaceholderView title="Market APIs" desc="Configure NSE, BSE, Upstox, and Yahoo Finance API credentials." icon={Server} />}
-          {view === "plans" && <PlaceholderView title="Subscription Plans" desc="Create and manage Free, Pro, and Premium plan features and pricing." icon={CreditCard} />}
+          {view === "plans" && <PaymentsView />}
           {view === "feedback" && <PlaceholderView title="User Feedback" desc="View and respond to user feedback, bug reports, and feature requests." icon={MessageSquare} />}
           {view === "reports" && <PlaceholderView title="Reports" desc="Download platform analytics, revenue reports, and user activity exports." icon={FileText} />}
           {view === "audit" && <PlaceholderView title="Audit Logs" desc="Complete activity trail of all admin actions and system events." icon={Shield} />}
